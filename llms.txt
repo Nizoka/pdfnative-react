@@ -1,0 +1,103 @@
+# pdfnative-react
+
+> A declarative React renderer for the zero-dependency `pdfnative` PDF engine.
+> JSX compiles, via a custom React reconciler, into a `pdfnative` DocumentParams
+> object and renders real PDF bytes — no DOM, no headless browser, no native
+> modules. It is a declarative block flow, not a CSS/flexbox layout engine.
+
+## Install
+
+```
+npm install pdfnative-react pdfnative react
+```
+
+Requires React 19 and Node.js >= 20.
+
+## Core idea
+
+JSX components map 1:1 onto pdfnative blocks. A custom react-reconciler compiles
+the tree synchronously (no DOM) into `DocumentParams`, which `pdfnative` renders
+to a `Uint8Array` PDF.
+
+## Components
+
+- Document (root: title, footerText, metadata, fontEntries, layout)
+- Page (explicit page boundary; auto-pagination otherwise)
+- Heading (level 1-3)
+- Paragraph / Text (alias)
+- List (ordered?) + Item
+- Table + Row (header?, variant, pointed) + Cell  — or pass headers/rows props
+- Image (data: Uint8Array)
+- Link (url | href)
+- Spacer (height)
+- PageBreak
+- TableOfContents / Toc (alias)
+- Barcode (format, data) — qr, code128, ean13, pdf417, datamatrix
+- Svg (data: path or markup)
+- FormField (fieldType, name) — interactive AcroForm widgets
+
+## Rendering
+
+- renderToBytes(node, options?) -> Uint8Array
+- renderToBlob(node, options?) -> Blob (application/pdf)
+- renderToStream(node, options?) -> AsyncGenerator<Uint8Array> (constant memory)
+- renderToFile(node, path, options?) -> Promise<void> (Node only)
+- compileDocument(node) -> DocumentParams (inspect the model)
+
+`options`: { layout?: Partial<PdfLayoutOptions>, fontEntries?: FontEntry[] }.
+
+## Hooks & client components (carry 'use client')
+
+- usePdf(element, options?) -> { url, blob, bytes, loading, error, update }
+- usePdfStream(element, options?) -> { getStream() }
+- PDFViewer({ document, options?, ...iframeProps }) — live iframe preview
+- PDFDownloadLink({ document, fileName?, options?, children }) — anchor download
+- BlobProvider({ document, options?, children: (state) => ReactNode })
+
+## Font / environment helpers (re-exported from pdfnative)
+
+registerFonts, registerFont, loadFontData, downloadBlob, initNodeCompression.
+
+## Compact agent authoring (token-frugal DocSpec)
+
+For LLM agents: a compact, JSON-serializable grammar that compiles to the SAME
+PDF as the equivalent JSX (built on the same components, so they cannot drift).
+Prefer it when generating documents programmatically.
+
+- compileSpec(spec) -> DocumentParams
+- specToElement(spec) -> ReactElement (<Document> tree)
+- renderSpecToBytes / renderSpecToBlob / renderSpecToStream / renderSpecToFile
+- docSpecSchema() -> Draft 2020-12 JSON Schema ($id embeds the package version)
+- docSpecSchemaId() -> the schema $id string
+
+DocSpec = { title?, footerText?, metadata?, fontEntries?, layout?, blocks }.
+Block tuples (kind, ...payload, opts?):
+- ['h1'|'h2'|'h3', text, opts?]
+- ['p', text, opts?]
+- ['ul'|'ol', items, opts?]
+- ['table', { h?, r, columns?, zebra?, caption?, ... }]   r row = string[] | PdfRow
+- ['img', { data, ... }]
+- ['link', text, { url, ... }]
+- ['sp', height?]
+- ['br']
+- ['page', blocks]
+- ['toc', opts?]
+- ['qr'|'code128'|'ean13'|'pdf417'|'datamatrix', data, opts?]
+- ['svg', data, opts?]
+- ['field', { fieldType, name, ... }]
+
+## Errors
+
+PdfStructureError — thrown when a tree cannot be mapped (e.g. root is not
+<Document>).
+
+## Notes
+
+- No `<View>` / flexbox by design — pdfnative is a declarative block flow.
+- React 18 support is on the roadmap; current target is React 19 only.
+
+## Links
+
+- npm: https://www.npmjs.com/package/pdfnative-react
+- repo: https://github.com/Nizoka/pdfnative-react
+- engine: https://www.npmjs.com/package/pdfnative

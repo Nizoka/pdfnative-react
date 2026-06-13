@@ -1,0 +1,28 @@
+cff-version: 1.2.0
+message: "If you use pdfnative-react, please cite it as below."
+title: pdfnative-react
+abstract: >-
+  A declarative React renderer for the pdfnative PDF engine. JSX is compiled by
+  a custom React reconciler into a pdfnative DocumentParams object and rendered
+  to PDF bytes — no DOM, no headless browser, no native dependencies.
+type: software
+authors:
+  - name: Nizoka
+    email: hello@pdfnative.dev
+    website: "https://pdfnative.dev"
+repository-code: "https://github.com/Nizoka/pdfnative-react"
+url: "https://www.npmjs.com/package/pdfnative-react"
+license: MIT
+keywords:
+  - pdf
+  - react
+  - react-reconciler
+  - jsx
+  - pdfnative
+  - document-generation
+  - ai-agent
+  - agentic
+  - json-schema
+  - sbom
+  - supply-chain
+version: 0.2.0

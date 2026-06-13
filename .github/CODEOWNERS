@@ -1,0 +1,12 @@
+# Default owner for everything in the repo
+* @Nizoka
+
+# Core surfaces
+/src/                 @Nizoka
+/src/reconciler/      @Nizoka
+/src/components/      @Nizoka
+/src/render/          @Nizoka
+/src/hooks/           @Nizoka
+/.github/workflows/   @Nizoka
+/package.json         @Nizoka
+/tsup.config.ts       @Nizoka

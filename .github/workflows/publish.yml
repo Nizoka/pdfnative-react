@@ -1,0 +1,85 @@
+name: Publish
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+# Trusted Publishing (npmjs.com OIDC):
+#   This workflow uses npm Trusted Publishing — no long-lived NPM_TOKEN secret.
+#   The OIDC id-token permission mints a short-lived token that:
+#     1. Authorises the `npm publish` HTTP request
+#     2. Signs the provenance attestation (SLSA Level 2+ via Sigstore)
+#   Configure at npmjs.com → package settings → "Configure Trusted Publishing".
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    name: Publish to npm (OIDC Trusted Publishing)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # `id-token: write` mints the OIDC token for Trusted Publishing + provenance.
+    # `contents: write` lets the workflow attach the generated SBOM to the release.
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: '>=20'
+          registry-url: https://registry.npmjs.org
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck (src + tests + samples)
+        run: npm run typecheck:all
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test with coverage
+        run: npm run test:coverage
+
+      - name: Build
+        run: npm run build
+
+      - name: Verify dist output
+        run: |
+          test -f dist/index.cjs
+          test -f dist/index.js
+          test -f dist/index.d.ts
+          test -f dist/index.d.cts
+
+      - name: Import smoke test
+        run: |
+          node -e "const m = require('./dist/index.cjs'); if (typeof m.renderToBytes !== 'function' || typeof m.renderSpecToBytes !== 'function') { throw new Error('CJS export surface missing'); }"
+          node --input-type=module -e "import('./dist/index.js').then(m => { if (typeof m.renderToBytes !== 'function' || typeof m.docSpecSchema !== 'function') { throw new Error('ESM export surface missing'); } })"
+
+      - name: Generate SBOM (CycloneDX)
+        # Software Bill of Materials for supply-chain transparency. Uses the
+        # CycloneDX generator via npx (build-time only — adds ZERO runtime
+        # dependencies to the published package).
+        run: npx --yes @cyclonedx/cyclonedx-npm@^1 --output-format JSON --output-file sbom.cdx.json
+
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: sbom-cyclonedx
+          path: sbom.cdx.json
+          retention-days: 90
+
+      - name: Attach SBOM to release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ github.event.release.tag_name }}" sbom.cdx.json --clobber
+
+      - name: Publish (provenance via OIDC)
+        run: npm publish --provenance --access public

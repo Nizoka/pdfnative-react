@@ -1,0 +1,31 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Coverage
+coverage/
+
+# Test output
+test-output/
+
+# Sample output (generated PDFs — not committed)
+samples/output/
+output.pdf
+
+# Environment files — never commit secrets
+.env
+.env.*
+!.env.example
+
+# OS and editor
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.vscode/settings.json
+
+# npm
+*.tgz
+.npmrc

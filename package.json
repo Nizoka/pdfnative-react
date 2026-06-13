@@ -1,0 +1,103 @@
+{
+  "name": "pdfnative-react",
+  "version": "0.1.0",
+  "description": "React renderer for pdfnative — declarative JSX components (<Document>, <Page>, <Table>, <Barcode>…) that compile to PDF on-device with zero SaaS round-trips. Live preview, streaming, 22 Unicode scripts. The frontend gateway to the pdfnative ecosystem.",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "LICENSE",
+    "README.md"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "lint": "eslint src/",
+    "typecheck": "tsc --noEmit",
+    "typecheck:tests": "tsc --project tsconfig.test.json --noEmit",
+    "typecheck:all": "npm run typecheck && npm run typecheck:tests",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "pdf",
+    "react",
+    "react-pdf",
+    "pdf-generation",
+    "jsx",
+    "react-reconciler",
+    "pdfnative",
+    "zero-dependency",
+    "typescript",
+    "live-preview",
+    "streaming",
+    "unicode",
+    "pdf-a",
+    "barcode",
+    "qrcode",
+    "tables",
+    "on-device",
+    "ssr",
+    "frontend"
+  ],
+  "author": "Nizoka <hello@pdfnative.dev> (https://pdfnative.dev)",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Nizoka/pdfnative-react.git"
+  },
+  "homepage": "https://github.com/Nizoka/pdfnative-react#readme",
+  "bugs": {
+    "url": "https://github.com/Nizoka/pdfnative-react/issues"
+  },
+  "funding": {
+    "type": "individual",
+    "url": "https://plika.app"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "peerDependencies": {
+    "react": ">=18.0.0"
+  },
+  "dependencies": {
+    "pdfnative": "^1.3.0",
+    "react-reconciler": "^0.29.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-reconciler": "^0.28.0",
+    "@vitest/coverage-v8": "^4.1.7",
+    "eslint": "^9.0.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.4.0",
+    "typescript-eslint": "^8.59.2",
+    "vitest": "^4.1.7"
+  },
+  "overrides": {
+    "esbuild": "^0.28.1"
+  }
+}

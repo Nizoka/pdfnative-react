@@ -1,6 +1,6 @@
 {
   "name": "pdfnative-react",
-  "version": "0.2.0",
+  "version": "1.0.0",
   "description": "React renderer for pdfnative — declarative JSX components (<Document>, <Page>, <Table>, <Barcode>…) that compile to PDF on-device with zero SaaS round-trips. Live preview, streaming, 22 Unicode scripts. The frontend gateway to the pdfnative ecosystem.",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -51,6 +51,9 @@
     "typescript",
     "live-preview",
     "streaming",
+    "outline",
+    "bookmarks",
+    "page-labels",
     "unicode",
     "pdf-a",
     "barcode",
@@ -87,10 +90,10 @@
     "provenance": true
   },
   "peerDependencies": {
+    "pdfnative": "^1.5.0",
     "react": "^19.0.0"
   },
   "dependencies": {
-    "pdfnative": "^1.3.0",
     "react-reconciler": "^0.31.0"
   },
   "devDependencies": {
@@ -102,6 +105,7 @@
     "@vitest/coverage-v8": "^4.1.7",
     "eslint": "^9.0.0",
     "jsdom": "^25.0.0",
+    "pdfnative": "^1.5.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "tsup": "^8.0.0",

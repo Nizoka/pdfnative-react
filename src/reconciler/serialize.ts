@@ -9,6 +9,9 @@ import type {
     DocumentParams,
     DocumentBlock,
     DocumentMetadata,
+    ListItem,
+    OutlineItem,
+    PageLabelRange,
     PdfRow,
 } from '../types.js';
 import {
@@ -77,10 +80,10 @@ function toBlock(node: ElementNode): DocumentBlock | DocumentBlock[] {
             return compact({
                 type: 'list',
                 items:
-                    (p.items as readonly string[] | undefined) ??
+                    (p.items as readonly (string | ListItem)[] | undefined) ??
                     elementChildren(node)
                         .filter((c) => c.tag === 'item')
-                        .map(elementText),
+                        .map(toListItem),
                 style: p.ordered ? 'numbered' : ((p.style as string) ?? 'bullet'),
                 fontSize: p.fontSize,
             }) as DocumentBlock;
@@ -176,6 +179,53 @@ function toBlock(node: ElementNode): DocumentBlock | DocumentBlock[] {
     }
 }
 
+/**
+ * Serialize an `<Item>` into a `string` (leaf item, byte-identical to the flat
+ * behavior) or a `ListItem` (`{ text, items }`) when it carries sub-items.
+ *
+ * The item's own text deliberately excludes nested `item`/`list` elements —
+ * reusing {@link elementText} here would swallow the sub-items' text into the
+ * parent label.
+ */
+function toListItem(node: ElementNode): string | ListItem {
+    const p = node.props;
+    const text =
+        typeof p.text === 'string'
+            ? p.text
+            : node.children
+                  .filter((c) => !isElementNode(c) || (c.tag !== 'item' && c.tag !== 'list'))
+                  .map(collectText)
+                  .join('');
+
+    const items =
+        (p.items as readonly (string | ListItem)[] | undefined) ?? subItemsOf(node);
+    if (!items || items.length === 0) return text;
+    return { text, items };
+}
+
+/**
+ * Collect an item's nested sub-items from either authoring form: a child
+ * `<List>` grouping `<Item>`s (HTML-shaped; the nested list's own props are
+ * ignored — sub-items inherit the parent list's style) or directly nested
+ * `<Item>` children.
+ */
+function subItemsOf(node: ElementNode): (string | ListItem)[] {
+    const out: (string | ListItem)[] = [];
+    for (const child of elementChildren(node)) {
+        if (child.tag === 'item') {
+            out.push(toListItem(child));
+        } else if (child.tag === 'list') {
+            const nested =
+                (child.props.items as readonly (string | ListItem)[] | undefined) ??
+                elementChildren(child)
+                    .filter((c) => c.tag === 'item')
+                    .map(toListItem);
+            out.push(...nested);
+        }
+    }
+    return out;
+}
+
 function toTableBlock(node: ElementNode): DocumentBlock {
     const p = node.props;
     const rowNodes = elementChildren(node).filter((c) => c.tag === 'row');
@@ -215,6 +265,8 @@ function toTableBlock(node: ElementNode): DocumentBlock {
         caption: p.caption,
         minRowHeight: p.minRowHeight,
         cellPadding: p.cellPadding,
+        cellBorders: p.cellBorders,
+        cellVAlign: p.cellVAlign,
     }) as DocumentBlock;
 }
 
@@ -258,6 +310,8 @@ export function serialize(container: RootContainer): DocumentParams {
         fontEntries: p.fontEntries,
         metadata: p.metadata as DocumentMetadata | undefined,
         layout: p.layout,
+        outline: p.outline as readonly OutlineItem[] | 'auto' | undefined,
+        pageLabels: p.pageLabels as readonly PageLabelRange[] | undefined,
     }) as DocumentParams;
 
     return params;

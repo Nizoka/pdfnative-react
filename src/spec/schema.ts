@@ -61,9 +61,48 @@ function listBlock(): JsonSchema {
         maxItems: 3,
         prefixItems: [
             { enum: ['ul', 'ol'] },
-            { type: 'array', items: { type: 'string' }, description: 'List items.' },
+            {
+                type: 'array',
+                items: { $ref: '#/$defs/listItem' },
+                description: 'List items: strings, or { text, items } for nested sub-lists.',
+            },
             { type: 'object', description: 'Optional { fontSize }.' },
         ],
+    };
+}
+
+/** A list item: plain string or a recursive `{ text, items }` node. */
+function listItemDef(): JsonSchema {
+    return {
+        oneOf: [
+            { type: 'string' },
+            {
+                type: 'object',
+                required: ['text'],
+                properties: {
+                    text: { type: 'string' },
+                    items: { type: 'array', items: { $ref: '#/$defs/listItem' } },
+                },
+            },
+        ],
+    };
+}
+
+/** A recursive outline / bookmark node. */
+function outlineItemDef(): JsonSchema {
+    return {
+        type: 'object',
+        required: ['title', 'pageIndex'],
+        properties: {
+            title: { type: 'string', description: 'Bookmark label.' },
+            pageIndex: { type: 'integer', minimum: 0, description: '0-based destination page.' },
+            y: { type: 'number', description: 'Destination Y in points (default: top of page).' },
+            bold: { type: 'boolean' },
+            italic: { type: 'boolean' },
+            color: { type: ['string', 'array'] },
+            open: { type: 'boolean', description: 'Initial expansion state (default true).' },
+            children: { type: 'array', items: { $ref: '#/$defs/outlineItem' } },
+        },
     };
 }
 
@@ -99,8 +138,26 @@ function tableBlock(): JsonSchema {
                             ],
                         },
                     },
+                    columns: {
+                        type: 'array',
+                        items: { type: 'object' },
+                        description: 'ColumnDef[] (widths, align, vAlign, kind).',
+                    },
                     zebra: { type: ['boolean', 'string', 'array'] },
                     caption: { type: 'string' },
+                    clipCells: { type: 'boolean' },
+                    autoFitColumns: { type: 'boolean' },
+                    wrap: { enum: ['auto', 'always', 'never'] },
+                    repeatHeader: { type: 'boolean' },
+                    minRowHeight: { type: 'number' },
+                    cellPadding: { type: 'number' },
+                    cellBorders: {
+                        type: 'object',
+                        description:
+                            'CellBorders: { top?, right?, bottom?, left?, all?, color?, '
+                            + "width?, style?: 'solid'|'dashed'|'dotted' }.",
+                    },
+                    cellVAlign: { enum: ['top', 'middle', 'bottom'] },
                 },
             },
         ],
@@ -265,6 +322,27 @@ export function docSpecSchema(): JsonSchema {
             metadata: { type: 'object', description: 'DocumentMetadata.' },
             fontEntries: { type: 'array', items: { type: 'object' } },
             layout: { type: 'object', description: 'PdfLayoutOptions overrides.' },
+            outline: {
+                oneOf: [
+                    { const: 'auto', description: 'Derive a flat outline from every heading.' },
+                    { type: 'array', items: { $ref: '#/$defs/outlineItem' } },
+                ],
+                description: 'Document outline / bookmarks.',
+            },
+            pageLabels: {
+                type: 'array',
+                description: 'PageLabelRange[] — viewer page numbering.',
+                items: {
+                    type: 'object',
+                    required: ['startPage'],
+                    properties: {
+                        startPage: { type: 'integer', minimum: 0 },
+                        style: { enum: ['decimal', 'roman', 'Roman', 'alpha', 'Alpha', 'none'] },
+                        prefix: { type: 'string' },
+                        start: { type: 'integer', minimum: 1 },
+                    },
+                },
+            },
             blocks: {
                 type: 'array',
                 description: 'Ordered document blocks (positional tuples).',
@@ -272,6 +350,8 @@ export function docSpecSchema(): JsonSchema {
             },
         },
         $defs: {
+            listItem: listItemDef(),
+            outlineItem: outlineItemDef(),
             block: {
                 oneOf: [
                     headingBlock(),

@@ -13,6 +13,7 @@ import {
     compileSpec,
     docSpecSchema,
     docSpecSchemaId,
+    inspectSpec,
     renderSpecToBlob,
     renderSpecToBytes,
     renderSpecToFile,
@@ -20,7 +21,7 @@ import {
     specToElement,
     version,
 } from '../src/index.js';
-import type { DocSpec, PdfRow } from '../src/index.js';
+import type { DocSpec, DocumentBlock, OutlineItem, PdfRow } from '../src/index.js';
 
 function decode(bytes: Uint8Array): string {
     return new TextDecoder('latin1').decode(bytes);
@@ -87,6 +88,47 @@ describe('compileSpec — parity with the JSX surface', () => {
         });
         expect(model.blocks[0]).toMatchObject({ type: 'list', style: 'numbered' });
         expect(model.blocks[1]).toMatchObject({ type: 'list', style: 'bullet' });
+    });
+
+    it('supports nested list items in the ul/ol grammar', () => {
+        const model = compileSpec({
+            blocks: [['ul', [{ text: 'Parent', items: ['Child'] }, 'Leaf']]],
+        });
+        const items = (model.blocks[0] as Extract<DocumentBlock, { type: 'list' }>).items;
+        expect(items[0]).toEqual({ text: 'Parent', items: ['Child'] });
+        expect(items[1]).toBe('Leaf');
+    });
+
+    it('passes document-level outline and page labels through', () => {
+        const outline: readonly OutlineItem[] = [{ title: 'Top', pageIndex: 0 }];
+        const model = compileSpec({
+            outline,
+            pageLabels: [{ startPage: 0, style: 'decimal' }],
+            blocks: [['h1', 'Top']],
+        });
+        expect(model.outline).toEqual(outline);
+        expect(model.pageLabels).toEqual([{ startPage: 0, style: 'decimal' }]);
+    });
+
+    it('forwards table cell borders and vertical alignment', () => {
+        const model = compileSpec({
+            blocks: [
+                [
+                    'table',
+                    {
+                        h: ['A'],
+                        r: [['1']],
+                        cellBorders: { all: true },
+                        cellVAlign: 'bottom',
+                    },
+                ],
+            ],
+        });
+        expect(model.blocks[0]).toMatchObject({
+            type: 'table',
+            cellBorders: { all: true },
+            cellVAlign: 'bottom',
+        });
     });
 
     it('accepts full PdfRow objects alongside plain string-array rows', () => {
@@ -161,6 +203,14 @@ describe('specToElement', () => {
     });
 });
 
+describe('inspectSpec', () => {
+    it('reports the layout of a spec without rendering', () => {
+        const report = inspectSpec({ blocks: [['h1', 'Heading'], ['p', 'Body']] });
+        expect(report.totalPages).toBeGreaterThanOrEqual(1);
+        expect(report.pages[0].blocks[0].type).toBe('heading');
+    });
+});
+
 describe('renderSpec* — PDF output', () => {
     const spec: DocSpec = {
         title: 'Spec render',
@@ -213,5 +263,20 @@ describe('docSpecSchema', () => {
         expect(schema.$schema).toBe('https://json-schema.org/draft/2020-12/schema');
         expect(schema.type).toBe('object');
         expect(schema.required).toContain('blocks');
+    });
+
+    it('defines recursive listItem and outlineItem $defs', () => {
+        const schema = docSpecSchema() as { $defs: Record<string, unknown> };
+        expect(schema.$defs.listItem).toBeDefined();
+        expect(schema.$defs.outlineItem).toBeDefined();
+        // Recursion: each $def references itself.
+        expect(JSON.stringify(schema.$defs.listItem)).toContain('#/$defs/listItem');
+        expect(JSON.stringify(schema.$defs.outlineItem)).toContain('#/$defs/outlineItem');
+    });
+
+    it('exposes top-level outline and pageLabels properties', () => {
+        const schema = docSpecSchema() as { properties: Record<string, unknown> };
+        expect(schema.properties.outline).toBeDefined();
+        expect(schema.properties.pageLabels).toBeDefined();
     });
 });

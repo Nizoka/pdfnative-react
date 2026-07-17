@@ -30,10 +30,21 @@ npx tsx samples/agent/compact-spec.ts # writes compact-spec.pdf
 | [media/link.tsx](media/link.tsx) | Clickable hyperlinks. |
 | [media/barcode.tsx](media/barcode.tsx) | All formats: QR, Code 128, EAN-13, PDF417, Data Matrix. |
 | [media/svg.tsx](media/svg.tsx) | Inline vector graphics with fill/stroke/viewBox. |
+| [media/svg-text.tsx](media/svg-text.tsx) | SVG `<text>`/`<tspan>` rendered as native, selectable PDF text. |
+| [media/image-helpers.tsx](media/image-helpers.tsx) | `fromBase64` / `fromUrl` producing bytes for `<Image>`. |
 | [forms/form-fields.tsx](forms/form-fields.tsx) | Interactive AcroForm widgets (text, checkbox, dropdown, listbox…). |
 | [structure/sections.tsx](structure/sections.tsx) | TOC, multi-page, hard page breaks, spacers. |
+| [structure/section.tsx](structure/section.tsx) | `<Section>` — a heading grouped with its content (with `break`). |
+| [structure/outline.tsx](structure/outline.tsx) | Bookmarks: explicit nested `outline` + `outline="auto"` + `pageLabels`. |
+| [structure/stream-to-file.tsx](structure/stream-to-file.tsx) | `renderToFileStream` — constant-memory output for large documents. |
+| [text/nested-lists.tsx](text/nested-lists.tsx) | Nested lists in all three authoring forms. |
+| [text/math.tsx](text/math.tsx) | Unicode math via the bundled Noto Sans Math font (`resolveFonts`). |
+| [table/cell-borders.tsx](table/cell-borders.tsx) | Cell borders, vertical alignment, and `kind: 'amount'` columns. |
 | [fonts/custom-fonts.tsx](fonts/custom-fonts.tsx) | Registering a TTF for non-Latin scripts via `fontEntries`. |
+| [fonts/fonts-prop.tsx](fonts/fonts-prop.tsx) | `resolveFonts` and the async `options.fonts` shortcut. |
 | [layout/page-setup.tsx](layout/page-setup.tsx) | Page size, margins, and PDF/A-2b archival mode via `layout`. |
+| [layout/viewer-preferences.tsx](layout/viewer-preferences.tsx) | `layout.viewerPreferences` — control how a reader opens the PDF. |
+| [layout/debug-inspect.tsx](layout/debug-inspect.tsx) | `layout.debug` overlay + `inspectDocument` layout report. |
 
 ## Agent samples — token-frugal authoring
 

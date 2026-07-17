@@ -19,7 +19,13 @@ Read [docs/KNOWLEDGE_BASE.md](../docs/KNOWLEDGE_BASE.md) and
   imports from there or from `src/types.ts`.
 - **Never add a CSS/flexbox layout model.** Map components 1:1 onto pdfnative
   blocks (heading, paragraph, list, table, image, link, spacer, pageBreak, toc,
-  barcode, svg, formField).
+  barcode, svg, formField). `<Section>` is the single allowed *composite* (it
+  resolves to a heading + children, emitting no host tag).
+- **`pdfnative` is a peer dependency.** Never move it back to `dependencies`.
+- **Authoring only.** Do not re-export byte-level post-processing (merge/split,
+  annotations, signing, crypto, font compilation) — point to the engine instead.
+- **Document-level `outline`/`pageLabels`** live on `<Document>` props (they
+  reference post-layout pages), not as content blocks.
 - **react-reconciler version contract:** React 19 ↔ `react-reconciler@^0.31` ↔
   `@types/react-reconciler@^0.32`. Specifically:
   - `getRootHostContext`/`getChildHostContext` must return a **non-null**

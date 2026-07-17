@@ -13,6 +13,10 @@ import {
 } from '../src/index.js';
 import type { DocumentBlock } from '../src/index.js';
 
+function decodeLatin1(bytes: Uint8Array): string {
+    return new TextDecoder('latin1').decode(bytes);
+}
+
 describe('compileDocument — options & metadata merging', () => {
     it('merges render-time layout over the document layout', () => {
         const params = compileDocument(
@@ -46,6 +50,22 @@ describe('compileDocument — options & metadata merging', () => {
             { layout: {} },
         );
         expect(bytes.length).toBeGreaterThan(100);
+    });
+
+    it('preserves viewer preferences and debug options through the layout merge', () => {
+        const bytes = renderToBytes(
+            <Document outline="auto">
+                <Paragraph>Body</Paragraph>
+            </Document>,
+            {
+                layout: {
+                    viewerPreferences: { pageMode: 'useOutlines', displayDocTitle: true },
+                    debug: { showMargins: true },
+                },
+            },
+        );
+        // Debug overlay + outline both render; assert we produced a real PDF.
+        expect(decodeLatin1(bytes).startsWith('%PDF-')).toBe(true);
     });
 });
 

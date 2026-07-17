@@ -59,36 +59,78 @@ Every component maps 1:1 onto a pdfnative block.
 
 | Component | Renders |
 |---|---|
-| `Document` | The required root (`title`, `footerText`, `metadata`, `fontEntries`, `layout`). |
+| `Document` | The required root (`title`, `footerText`, `metadata`, `fontEntries`, `layout`, `outline`, `pageLabels`). |
 | `Page` | An explicit page boundary (content auto-paginates otherwise). |
+| `Section` | Sugar: a heading grouped with its content (`title`, `level`, `break`). |
 | `Heading` | A section heading (`level` 1–3); feeds the auto `TableOfContents`. |
 | `Paragraph` / `Text` | A wrapping paragraph (`fontSize`, `lineHeight`, `align`, `indent`, `color`). |
-| `List` / `Item` | A bullet or numbered (`ordered`) list. |
-| `Table` / `Row` / `Cell` | A data table (data-driven `headers`/`rows`, or JSX `<Row>`/`<Cell>`). |
+| `List` / `Item` | A bullet or numbered (`ordered`) list; items may nest sub-lists. |
+| `Table` / `Row` / `Cell` | A data table (`headers`/`rows` or JSX children; `cellBorders`, `cellVAlign`, `zebra`, `caption`, …). |
 | `Image` | An embedded JPEG/PNG (`data: Uint8Array`). |
 | `Link` | A clickable hyperlink (`url`/`href`). |
 | `Spacer` | Vertical whitespace (`height`). |
 | `PageBreak` | A hard page break. |
 | `TableOfContents` / `Toc` | An auto-generated TOC built from headings. |
 | `Barcode` | QR, Code 128, EAN-13, PDF417, Data Matrix (`format`, `data`). |
-| `Svg` | Inline vector graphics (path data or markup). |
+| `Svg` | Inline vector graphics (path data or markup; `<text>` renders as selectable PDF text). |
 | `FormField` | Interactive AcroForm widgets (`fieldType`, `name`). |
 
 ## Rendering
 
 ```ts
 import {
-    renderToBytes,   // (node, options?) => Uint8Array
-    renderToBlob,    // (node, options?) => Blob (application/pdf)
-    renderToStream,  // (node, options?) => AsyncGenerator<Uint8Array> (constant memory)
-    renderToFile,    // (node, path, options?) => Promise<void> (Node only)
-    compileDocument, // (node) => DocumentParams (inspect the model, no render)
+    renderToBytes,      // (node, options?) => Uint8Array
+    renderToBlob,       // (node, options?) => Blob (application/pdf)
+    renderToStream,     // (node, options?) => AsyncGenerator<Uint8Array> (constant memory)
+    renderToFile,       // (node, path, options?) => Promise<void> (Node only)
+    renderToFileStream, // (node, path, options?) => Promise<StreamToFileResult> (Node, constant memory)
+    compileDocument,    // (node) => DocumentParams (inspect the model, no render)
+    inspectDocument,    // (node, options?) => LayoutInspection (page/block geometry, no render)
 } from 'pdfnative-react';
 ```
 
-`options` is `{ layout?: Partial<PdfLayoutOptions>; fontEntries?: FontEntry[] }`
+`options` is `{ layout?: Partial<PdfLayoutOptions>; fontEntries?: FontEntry[]; fonts?: FontsMap }`
 and merges on top of anything set on `<Document>` — page size, margins, colors,
-PDF/A mode, encryption, and non-Latin fonts.
+PDF/A mode, encryption, viewer preferences, debug overlay, and non-Latin fonts.
+`renderToFileStream` writes page by page with constant memory and preserves
+document-level features (outline, page labels). The `fonts` loader map is
+honored only by the async entry points (`renderToFile`, `renderToFileStream`,
+`usePdf`, `usePdfStream`); for the synchronous entries resolve it first with
+`fontEntries: await resolveFonts({ … })`.
+
+### Bookmarks, page labels & viewer preferences
+
+```tsx
+<Document
+    outline="auto"                                  // or an explicit OutlineItem[] tree
+    pageLabels={[{ startPage: 0, style: 'roman' }]} // roman front matter, then decimal
+    layout={{ viewerPreferences: { pageMode: 'useOutlines' } }}
+>
+    …
+</Document>
+```
+
+`outline` builds the reader's bookmark sidebar (`'auto'` derives it from your
+headings, or pass a nested `OutlineItem[]`). `layout.viewerPreferences` controls
+how a viewer opens the document. All PDF/A-safe.
+
+### Layout debugging
+
+`layout.debug` overlays margin/content/cell boxes onto the PDF, and
+`inspectDocument(node)` returns the same geometry as data (page count, and each
+block's position/size) without rendering — handy for tests and tooling.
+
+### Nested lists
+
+```tsx
+<List>
+    <Item>Fruits<List><Item>Apple</Item><Item>Pear</Item></List></Item>
+    <Item>Vegetables</Item>
+</List>
+```
+
+Sub-lists nest as a child `<List>`, as directly nested `<Item>` children, or via
+the `items` data prop (`{ text, items }`). Nested lists inherit the parent style.
 
 ## Hooks & client components
 
@@ -144,16 +186,56 @@ prop names. Same bytes out, far fewer tokens in.
   version, so agents can self-validate a spec before rendering.
 
 Block tuples: `['h1'|'h2'|'h3', text, opts?]`, `['p', text, opts?]`,
-`['ul'|'ol', items, opts?]`, `['table', { h?, r }]`, `['img', { data }]`,
+`['ul'|'ol', items, opts?]` (items may be `{ text, items }` for nesting),
+`['table', { h?, r, cellBorders?, cellVAlign?, … }]`, `['img', { data }]`,
 `['link', text, { url }]`, `['sp', height?]`, `['br']`, `['page', blocks]`,
 `['toc', opts?]`, `['qr'|'code128'|'ean13'|'pdf417'|'datamatrix', data, opts?]`,
-`['svg', data, opts?]`, `['field', { fieldType, name, … }]`.
+`['svg', data, opts?]`, `['field', { fieldType, name, … }]`. A spec also accepts
+top-level `outline` and `pageLabels`, mirroring `<Document>`.
 
 ## Fonts & environment
 
-Re-exported from the engine: `registerFonts`, `registerFont`, `loadFontData`
-(Node), `downloadBlob` (browser), `initNodeCompression` (Node). Pass non-Latin
-fonts via the `fontEntries` render option.
+Re-exported from the engine: `registerFonts`, `registerFont`, `loadFontData`,
+`downloadBlob` (browser), `initNodeCompression` (Node). Pass pre-loaded fonts via
+the `fontEntries` render option, or use the `resolveFonts` convenience:
+
+```ts
+import { resolveFonts, renderToBytes } from 'pdfnative-react';
+
+const fontEntries = await resolveFonts({
+    math: () => import('pdfnative/fonts/noto-sans-math-data.js'),
+});
+const bytes = renderToBytes(doc, { fontEntries });
+```
+
+The async entry points accept the loader map directly as `options.fonts`.
+
+### Image helpers
+
+`fromBase64(base64)` and `fromUrl(url)` produce the `Uint8Array` that `<Image>`
+expects, from a base64/data-URI payload or a fetched URL respectively.
+
+## Beyond authoring: post-processing
+
+pdfnative-react covers document *authoring*. For byte-level post-processing —
+merging/splitting PDFs, reading/writing annotations, digital signatures, custom
+crypto providers, or in-app font compilation — use the
+[`pdfnative`](https://www.npmjs.com/package/pdfnative) engine directly on the
+bytes this library produces.
+
+## Migrating from 0.2 to 1.0
+
+1.0 marks the API as stable. The only breaking change: **`pdfnative` is now a
+peer dependency**, so install it yourself alongside the wrapper:
+
+```bash
+npm install pdfnative-react pdfnative react
+```
+
+Everything else is additive — `<Section>`, nested lists, `outline`/`pageLabels`
+on `<Document>`, table `cellBorders`/`cellVAlign`, `inspectDocument`,
+`renderToFileStream`, `resolveFonts`, and `fromUrl`/`fromBase64`. Requires
+`pdfnative` ≥ 1.5, React 19, and Node.js ≥ 20.
 
 ## Migrating from `@react-pdf/renderer`
 

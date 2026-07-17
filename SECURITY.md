@@ -2,13 +2,13 @@
 
 ## Supported versions
 
-The latest published `0.x` release receives security fixes. As a pre-1.0
-package, older minor versions are not maintained.
+The latest published `1.x` release receives security fixes. Older versions are
+not maintained.
 
 | Version | Supported |
 |---|---|
-| latest `0.x` | ✅ |
-| older | ❌ |
+| `1.x` | ✅ |
+| `< 1.0` | ❌ |
 
 ## Reporting a vulnerability
 

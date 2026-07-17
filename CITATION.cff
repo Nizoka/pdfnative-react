@@ -25,4 +25,5 @@ keywords:
   - json-schema
   - sbom
   - supply-chain
-version: 0.2.0
+version: 1.0.0
+date-released: 2026-07-17

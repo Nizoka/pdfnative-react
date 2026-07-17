@@ -10,10 +10,12 @@
 export {
     specToElement,
     compileSpec,
+    inspectSpec,
     renderSpecToBytes,
     renderSpecToBlob,
     renderSpecToStream,
     renderSpecToFile,
+    renderSpecToFileStream,
 } from './compile.js';
 
 export { docSpecSchema, docSpecSchemaId } from './schema.js';

@@ -21,6 +21,10 @@ sensitive part of the codebase.
 - `serialize.ts` is a **pure** transform (no side effects, no engine calls). The
   root must be `<Document>` or it throws `PdfStructureError`. Strip `undefined`
   props via `compact()` (build a new object — do not `delete` keys).
+  - **Nested lists** (`toListItem`): an item collects its own text from
+    **non**-`item`/`list` children only (do not reuse `elementText`, which would
+    swallow sub-item text), and returns a plain `string` when it has no
+    sub-items so flat lists stay byte-identical.
 - `nodes.ts` defines the in-memory host tree (`ElementNode`/`TextNode`).
 
 When changing any of these, run `npm test` — the compile/render tests assert the

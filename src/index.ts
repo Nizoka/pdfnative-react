@@ -24,14 +24,22 @@
 // Components (declarative document model)
 export * from './components.js';
 
-// Render entry points (bytes / blob / stream / file)
+// Render entry points (bytes / blob / stream / file) + layout inspection
 export {
     compileDocument,
     renderToBytes,
     renderToBlob,
     renderToStream,
     renderToFile,
+    renderToFileStream,
+    inspectDocument,
 } from './render.js';
+
+// Font convenience (async loader map → FontEntry[])
+export { resolveFonts } from './fonts.js';
+
+// Asset helpers (image bytes from URLs / base64 payloads)
+export { fromUrl, fromBase64 } from './assets.js';
 
 // Client hooks
 export { usePdf, usePdfStream } from './hooks.js';
@@ -50,10 +58,12 @@ export type {
 export {
     specToElement,
     compileSpec,
+    inspectSpec,
     renderSpecToBytes,
     renderSpecToBlob,
     renderSpecToStream,
     renderSpecToFile,
+    renderSpecToFileStream,
     docSpecSchema,
     docSpecSchemaId,
 } from './spec/index.js';
@@ -108,6 +118,7 @@ export type {
     Align,
     Color,
     RenderOptions,
+    FontsMap,
     CompiledDocument,
     DocumentParams,
     DocumentBlock,
@@ -116,9 +127,22 @@ export type {
     PdfRow,
     ColumnDef,
     FontEntry,
+    FontData,
+    FontLoader,
     PdfColor,
     BarcodeFormat,
     QRErrorLevel,
     FormFieldType,
     SvgRenderOptions,
+    OutlineItem,
+    PageLabelRange,
+    PageLabelStyle,
+    ViewerPreferences,
+    LayoutDebugOptions,
+    LayoutInspection,
+    InspectedPage,
+    InspectedBlock,
+    CellBorders,
+    ListItem,
+    StreamToFileResult,
 } from './types.js';

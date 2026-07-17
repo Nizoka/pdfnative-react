@@ -2,11 +2,13 @@
 * @Nizoka
 
 # Core surfaces
-/src/                 @Nizoka
-/src/reconciler/      @Nizoka
-/src/components/      @Nizoka
-/src/render/          @Nizoka
-/src/hooks/           @Nizoka
-/.github/workflows/   @Nizoka
-/package.json         @Nizoka
-/tsup.config.ts       @Nizoka
+/src/                    @Nizoka
+/src/reconciler/         @Nizoka
+/src/core-bridge/        @Nizoka
+/src/spec/               @Nizoka
+/src/components.tsx      @Nizoka
+/src/render.ts           @Nizoka
+/src/hooks.ts            @Nizoka
+/.github/workflows/      @Nizoka
+/package.json            @Nizoka
+/tsup.config.ts          @Nizoka

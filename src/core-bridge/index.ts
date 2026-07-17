@@ -11,10 +11,13 @@ export {
     buildDocumentPDFStream,
     buildDocumentPDFStreamTrue,
     initNodeCompression,
+    inspectDocumentLayout,
+    streamToFile,
     downloadBlob,
     registerFonts,
     registerFont,
     loadFontData,
+    validateFontData,
 } from 'pdfnative';
 
 export type {
@@ -25,4 +28,17 @@ export type {
     PdfRow,
     ColumnDef,
     FontEntry,
+    FontData,
+    FontValidationResult,
+    OutlineItem,
+    PageLabelRange,
+    PageLabelStyle,
+    ViewerPreferences,
+    LayoutDebugOptions,
+    LayoutInspection,
+    InspectedPage,
+    InspectedBlock,
+    CellBorders,
+    ListItem,
+    StreamToFileResult,
 } from 'pdfnative';

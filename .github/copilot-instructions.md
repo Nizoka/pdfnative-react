@@ -19,7 +19,13 @@ Read [docs/KNOWLEDGE_BASE.md](../docs/KNOWLEDGE_BASE.md) and
   imports from there or from `src/types.ts`.
 - **Never add a CSS/flexbox layout model.** Map components 1:1 onto pdfnative
   blocks (heading, paragraph, list, table, image, link, spacer, pageBreak, toc,
-  barcode, svg, formField).
+  barcode, svg, formField). `<Section>` is the single allowed *composite* (it
+  resolves to a heading + children, emitting no host tag).
+- **`pdfnative` is a peer dependency.** Never move it back to `dependencies`.
+- **Authoring only.** Do not re-export byte-level post-processing (merge/split,
+  annotations, signing, crypto, font compilation) — point to the engine instead.
+- **Document-level `outline`/`pageLabels`** live on `<Document>` props (they
+  reference post-layout pages), not as content blocks.
 - **react-reconciler version contract:** React 19 ↔ `react-reconciler@^0.31` ↔
   `@types/react-reconciler@^0.32`. Specifically:
   - `getRootHostContext`/`getChildHostContext` must return a **non-null**
@@ -33,6 +39,10 @@ Read [docs/KNOWLEDGE_BASE.md](../docs/KNOWLEDGE_BASE.md) and
   (which deadlocks). Preserve this when editing hooks.
 - **Client modules carry `'use client'`** (`hooks.ts`, `viewer.tsx`).
 - **Strict TypeScript, no `any`** (lint-enforced). Use `type`-only imports.
+- **AI governance (draftsman, never submitter).** Do not open/submit issues or
+  PRs autonomously. Draft into `.github/drafts/`, validate with
+  `npm run verify:issue`, present a compliance report, and let a human submit.
+  See [.github/AGENT_RULES.md](AGENT_RULES.md) and [docs/AI_GOVERNANCE.md](../docs/AI_GOVERNANCE.md).
 
 ## Validate every change
 

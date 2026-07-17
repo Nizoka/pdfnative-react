@@ -21,20 +21,23 @@ to a `Uint8Array` PDF.
 
 ## Components
 
-- Document (root: title, footerText, metadata, fontEntries, layout)
+- Document (root: title, footerText, metadata, fontEntries, layout, outline, pageLabels)
 - Page (explicit page boundary; auto-pagination otherwise)
+- Section (sugar: title + grouped content; level?, color?, break?)
 - Heading (level 1-3)
 - Paragraph / Text (alias)
-- List (ordered?) + Item
-- Table + Row (header?, variant, pointed) + Cell  — or pass headers/rows props
+- List (ordered?) + Item (items may nest sub-lists: child <List>, nested <Item>, or items={{text,items}})
+- Table + Row (header?, variant, pointed) + Cell  — or pass headers/rows props; cellBorders?, cellVAlign?
 - Image (data: Uint8Array)
 - Link (url | href)
 - Spacer (height)
 - PageBreak
 - TableOfContents / Toc (alias)
 - Barcode (format, data) — qr, code128, ean13, pdf417, datamatrix
-- Svg (data: path or markup)
+- Svg (data: path or markup; <text>/<tspan> render as selectable PDF text)
 - FormField (fieldType, name) — interactive AcroForm widgets
+
+Document.outline: OutlineItem[] | 'auto' (bookmarks). Document.pageLabels: PageLabelRange[].
 
 ## Rendering
 
@@ -42,9 +45,21 @@ to a `Uint8Array` PDF.
 - renderToBlob(node, options?) -> Blob (application/pdf)
 - renderToStream(node, options?) -> AsyncGenerator<Uint8Array> (constant memory)
 - renderToFile(node, path, options?) -> Promise<void> (Node only)
+- renderToFileStream(node, path, options?) -> Promise<StreamToFileResult> (Node, constant memory, keeps outline/pageLabels)
 - compileDocument(node) -> DocumentParams (inspect the model)
+- inspectDocument(node, options?) -> LayoutInspection (page/block geometry, no render)
 
-`options`: { layout?: Partial<PdfLayoutOptions>, fontEntries?: FontEntry[] }.
+`options`: { layout?: Partial<PdfLayoutOptions>, fontEntries?: FontEntry[], fonts?: FontsMap }.
+layout supports viewerPreferences and debug (overlay). fonts (loader map) is honored only by
+async entries (renderToFile, renderToFileStream, usePdf, usePdfStream); for sync entries do
+`fontEntries: await resolveFonts({...})`.
+
+## Fonts & assets
+
+- resolveFonts(map) -> Promise<FontEntry[]>  (map: { lang: () => import('pdfnative/fonts/…-data.js') })
+- validateFontData(data) -> FontValidationResult { valid, errors, warnings }  (opt-in font check)
+- fromUrl(url, init?) -> Promise<Uint8Array>  (image bytes)
+- fromBase64(payload) -> Uint8Array           (base64 or data: URI)
 
 ## Hooks & client components (carry 'use client')
 
@@ -70,12 +85,15 @@ Prefer it when generating documents programmatically.
 - docSpecSchema() -> Draft 2020-12 JSON Schema ($id embeds the package version)
 - docSpecSchemaId() -> the schema $id string
 
-DocSpec = { title?, footerText?, metadata?, fontEntries?, layout?, blocks }.
+- inspectSpec(spec, options?) -> LayoutInspection
+- renderSpecToFileStream(spec, path, options?) -> Promise<StreamToFileResult>
+
+DocSpec = { title?, footerText?, metadata?, fontEntries?, layout?, outline?, pageLabels?, blocks }.
 Block tuples (kind, ...payload, opts?):
 - ['h1'|'h2'|'h3', text, opts?]
 - ['p', text, opts?]
-- ['ul'|'ol', items, opts?]
-- ['table', { h?, r, columns?, zebra?, caption?, ... }]   r row = string[] | PdfRow
+- ['ul'|'ol', items, opts?]   items entry = string | { text, items }  (nested sub-lists)
+- ['table', { h?, r, columns?, zebra?, caption?, cellBorders?, cellVAlign?, ... }]   r row = string[] | PdfRow
 - ['img', { data, ... }]
 - ['link', text, { url, ... }]
 - ['sp', height?]
@@ -94,7 +112,9 @@ PdfStructureError — thrown when a tree cannot be mapped (e.g. root is not
 ## Notes
 
 - No `<View>` / flexbox by design — pdfnative is a declarative block flow.
-- React 18 support is on the roadmap; current target is React 19 only.
+- React 19 only (single react-reconciler version contract); React 18 is not planned.
+- Authoring only. For byte-level post-processing (merge/split, annotations,
+  signing, crypto, font compilation) use the pdfnative engine directly.
 
 ## Links
 

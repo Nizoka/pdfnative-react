@@ -7,6 +7,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { optionsWithFonts } from './fonts.js';
 import { renderToBytes, renderToStream } from './render.js';
 import type { RenderOptions } from './types.js';
 
@@ -73,20 +74,25 @@ export function usePdf(element: ReactNode, options?: RenderOptions): UsePdfResul
         // lets the host renderer finish committing first.
         queueMicrotask(() => {
             if (cancelled) return;
-            try {
-                const bytes = renderToBytes(element, optionsRef.current);
-                const blob = new Blob([bytes as BlobPart], { type: 'application/pdf' });
-                url = URL.createObjectURL(blob);
-                setState({ url, blob, bytes, loading: false, error: null });
-            } catch (err) {
-                setState({
-                    url: null,
-                    blob: null,
-                    bytes: null,
-                    loading: false,
-                    error: err instanceof Error ? err : new Error(String(err)),
-                });
-            }
+            void (async () => {
+                try {
+                    const resolved = await optionsWithFonts(optionsRef.current);
+                    if (cancelled) return;
+                    const bytes = renderToBytes(element, resolved);
+                    const blob = new Blob([bytes as BlobPart], { type: 'application/pdf' });
+                    url = URL.createObjectURL(blob);
+                    setState({ url, blob, bytes, loading: false, error: null });
+                } catch (err) {
+                    if (cancelled) return;
+                    setState({
+                        url: null,
+                        blob: null,
+                        bytes: null,
+                        loading: false,
+                        error: err instanceof Error ? err : new Error(String(err)),
+                    });
+                }
+            })();
         });
 
         return () => {
@@ -120,10 +126,17 @@ export function usePdfStream(
     const optionsRef = useRef(options);
     optionsRef.current = options;
 
-    const getStream = useCallback(
-        () => renderToStream(elementRef.current, optionsRef.current),
-        [],
-    );
+    const getStream = useCallback(() => {
+        const node = elementRef.current;
+        const opts = optionsRef.current;
+        if (!opts?.fonts) return renderToStream(node, opts);
+        // Fonts load asynchronously: resolve them, then delegate to the real
+        // stream. The wrapper keeps the AsyncGenerator signature intact.
+        return (async function* () {
+            const resolved = await optionsWithFonts(opts);
+            yield* renderToStream(node, resolved);
+        })();
+    }, []);
 
     return { getStream };
 }

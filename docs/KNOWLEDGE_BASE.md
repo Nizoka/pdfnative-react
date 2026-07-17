@@ -42,17 +42,26 @@ Key properties:
 
 | Module | Responsibility |
 |---|---|
-| `src/components.tsx` | Public component factories; each emits a lowercase host tag. |
+| `src/components.tsx` | Public component factories; each emits a lowercase host tag. `Section` is the one *composite* (no host tag). |
 | `src/reconciler/nodes.ts` | Host tree node types (`ElementNode`, `TextNode`, `RootContainer`). |
 | `src/reconciler/host-config.ts` | The react-reconciler `HostConfig` (mutation mode). |
 | `src/reconciler/serialize.ts` | Pure transform: host tree → `DocumentParams`. |
 | `src/reconciler/render.ts` | `compile(node)` — drives the reconciler and serializes. |
-| `src/render.ts` | `renderToBytes/Blob/Stream/File`, `compileDocument`. |
+| `src/render.ts` | `renderToBytes/Blob/Stream/File/FileStream`, `compileDocument`, `inspectDocument`. |
+| `src/fonts.ts` | `resolveFonts` (loader map → `FontEntry[]`) + internal `optionsWithFonts`. `validateFontData` is re-exported from `core-bridge`. |
+| `src/assets.ts` | `fromUrl` / `fromBase64` image-byte helpers (pure, no engine import). |
 | `src/hooks.ts` | `usePdf`, `usePdfStream` (client). |
 | `src/viewer.tsx` | `PDFViewer`, `PDFDownloadLink`, `BlobProvider` (client). |
-| `src/core-bridge/index.ts` | The only place that imports from `pdfnative`. |
-| `src/types.ts` | Public types + re-exports of the pdfnative model. |
+| `src/core-bridge/index.ts` | The only place that imports `pdfnative` at runtime. |
+| `src/types.ts` | Public types + type-only re-exports of the pdfnative model. |
 | `src/index.ts` | Public barrel. |
+
+The golden rule has one sanctioned exception: `src/types.ts` may import
+*type-only* from `pdfnative` directly. All *runtime* imports go through
+`core-bridge`. `src/types.ts` also defines the ergonomic `FontLoader`
+(`() => Promise<unknown>`) rather than re-exporting the engine's stricter one,
+because the auto-generated font-data modules do not structurally satisfy it
+under `strict`; `resolveFonts` widens to the engine's loader type in one spot.
 
 ## 4. react-reconciler version contract
 
@@ -87,22 +96,42 @@ Notes learned the hard way:
 - Text for a block comes from its `text` prop, otherwise from the concatenated
   text of its children.
 - `<List ordered>` → `style: 'numbered'`; otherwise `'bullet'`.
+- **Nested lists** (`toListItem`): an `<Item>` serializes to a plain `string`
+  when it has no sub-items (byte-identical to the flat case), or to a
+  `{ text, items }` `ListItem` otherwise. Its own text collects **only**
+  non-`item`/`list` children — reusing `elementText` here would wrongly swallow
+  the sub-items' text into the parent label. Sub-items come from the `items`
+  prop, directly nested `<Item>` children, or a nested child `<List>`.
 - `<Table>` headers come from the `headers` prop or the first `<Row header>`;
-  data rows come from the `rows` prop or `<Row>`/`<Cell>` children.
+  data rows come from the `rows` prop or `<Row>`/`<Cell>` children;
+  `cellBorders`/`cellVAlign` pass straight through.
+- **Document-level** `outline` and `pageLabels` are `<Document>` props (not
+  content blocks) — they reference post-layout page indexes, like `metadata`.
+- `<Section>` is a **composite** component: React resolves it to a `<Heading>`
+  (optionally preceded by `<PageBreak>`) plus its children *before* the
+  reconciler runs, so the serializer never sees a `section` host tag.
 - `<Page>` siblings are joined with an inserted `pageBreak` block.
 - The root must be `<Document>`; otherwise a `PdfStructureError` is thrown.
 - `undefined` props are stripped so emitted JSON is deterministic.
 
 ## 6. Testing
 
-- `tests/compile.test.tsx` — asserts the `DocumentParams` shape for every block.
+- `tests/compile.test.tsx` — asserts the `DocumentParams` shape for every block,
+  including outline/pageLabels, nested lists (all forms + the flat-list
+  regression), `<Section>`, and table `cellBorders`/`cellVAlign`.
 - `tests/render.test.tsx` — asserts real PDF output (`%PDF-` … `%%EOF`) for
-  bytes, blob, and stream.
-- `tests/hooks.test.tsx` — exercises `usePdf`/`usePdfStream` under jsdom.
+  bytes/blob/stream/file, `renderToFileStream` (and that `/Outlines` survives the
+  streaming path), `inspectDocument` geometry, `fromUrl`/`fromBase64`, and
+  `resolveFonts`.
+- `tests/options.test.tsx` — layout/font merge behavior and that
+  `viewerPreferences`/`debug` survive it.
+- `tests/hooks.test.tsx` — exercises `usePdf`/`usePdfStream` under jsdom,
+  including the async `options.fonts` path.
 - `tests/spec.test.tsx` — asserts `compileSpec` parity with the equivalent JSX,
-  real `renderSpec*` PDF output, and the JSON Schema `$id`/version.
-- `tests/version.test.ts` — pins `version` to `package.json` (reads it via
-  `process.cwd()`; `import.meta.url` file URLs break under jsdom).
+  nested list/outline/pageLabels/cellBorders forwarding, `inspectSpec`, real
+  `renderSpec*` PDF output, and the JSON Schema `$id`/version/recursive `$defs`.
+- `tests/version.test.ts` — pins `version` to `package.json` and `CITATION.cff`
+  (reads them via `process.cwd()`; `import.meta.url` file URLs break under jsdom).
 - jsdom lacks `URL.createObjectURL`; `tests/setup.ts` stubs it.
 
 ## 7. Agent authoring contract (`src/spec/`)
@@ -135,6 +164,11 @@ Design rules:
   spec before rendering.
 - **Isomorphic, no `'use client'`.** The spec module is pure/render-agnostic;
   `renderSpec*` reuse the existing isomorphic `render*` entry points.
+- **No `['sec']` tuple.** `<Section>` is JSX sugar with no capability beyond a
+  heading followed by its blocks, so DocSpec stays frugal and omits it — agents
+  emit `['h2', title]` + the blocks directly. Nested lists, `outline`,
+  `pageLabels`, and table `cellBorders`/`cellVAlign` *are* in the grammar,
+  because they express capability the tuples otherwise couldn't.
 - **GOTCHA.** `createElement` for default-param components (`Spacer`,
   `TableOfContents`) needs an explicit generic (`createElement<SpacerProps>`),
   otherwise TS infers `Attributes` and rejects the extra props (TS2769).
@@ -142,6 +176,12 @@ Design rules:
 ## 8. Design boundaries
 
 - **No `<View>`/flexbox.** Honest mapping to the engine's block flow.
-- **React 19 only** for now. React 18 support is a roadmap item (the reconciler
-  peer/type matrix makes dual-support costly to do correctly).
-- **Browser & Node.** `renderToFile` is Node-only (dynamic `node:fs/promises`).
+- **React 19 only.** The reconciler is bound to a single, pinned
+  `react-reconciler` contract; dual React 18/19 support is a non-goal.
+- **Browser & Node.** `renderToFile` / `renderToFileStream` are Node-only
+  (dynamic `node:fs`); `fromUrl`/`fromBase64` and everything else are isomorphic.
+- **Authoring only.** pdfnative-react builds documents. Byte-level
+  post-processing — merge/split, annotations, digital signatures, crypto
+  providers, font compilation — is done with the `pdfnative` engine directly on
+  the bytes this library emits. The wrapper deliberately does not re-export
+  those APIs.

@@ -16,27 +16,33 @@ Start by reading [docs/KNOWLEDGE_BASE.md](docs/KNOWLEDGE_BASE.md).
 
 | Path | What |
 |---|---|
-| `src/components.tsx` | Public components; each emits a lowercase host tag. |
+| `src/components.tsx` | Public components; each emits a lowercase host tag. `Section` is the one composite (no host tag). |
 | `src/reconciler/nodes.ts` | Host tree node types. |
 | `src/reconciler/host-config.ts` | react-reconciler `HostConfig` (mutation mode). |
 | `src/reconciler/serialize.ts` | Pure host tree → `DocumentParams` transform. |
 | `src/reconciler/render.ts` | `compile(node)`. |
-| `src/render.ts` | `renderToBytes/Blob/Stream/File`, `compileDocument`. |
+| `src/render.ts` | `renderToBytes/Blob/Stream/File/FileStream`, `compileDocument`, `inspectDocument`. |
+| `src/fonts.ts` | `resolveFonts` (loader map → `FontEntry[]`). |
+| `src/assets.ts` | `fromUrl` / `fromBase64` image-byte helpers. |
 | `src/hooks.ts` | `usePdf`, `usePdfStream` (client). |
 | `src/viewer.tsx` | `PDFViewer`, `PDFDownloadLink`, `BlobProvider` (client). |
-| `src/core-bridge/index.ts` | The only file allowed to import `pdfnative`. |
+| `src/core-bridge/index.ts` | The only file that imports `pdfnative` at runtime. |
 | `src/spec/` | Compact `DocSpec` grammar, compiler, and JSON Schema (agent authoring). |
 | `src/version.ts` | Single source of truth for the package version. |
-| `src/types.ts` | Public types + pdfnative re-exports. |
+| `src/types.ts` | Public types + pdfnative type-only re-exports. |
 | `src/index.ts` | Public barrel. |
 | `samples/` | Runnable, type-checked examples (gated by `typecheck:samples`). |
 | `tests/` | vitest (jsdom). |
 
 ## Golden rules
 
-1. **All pdfnative imports go through `src/core-bridge/index.ts`.** Never import
-   `pdfnative` elsewhere.
+1. **All runtime pdfnative imports go through `src/core-bridge/index.ts`.** The
+   one sanctioned exception: `src/types.ts` may import *type-only* from
+   `pdfnative`. Never import the engine's runtime elsewhere. (`pdfnative` is a
+   **peer dependency** — never move it back to `dependencies`.)
 2. **Do not invent a CSS layout model.** Map to the existing pdfnative blocks.
+   `<Section>` is the single allowed *composite* (heading + children, no host
+   tag); do not add more composites without a reason.
 3. **Respect the react-reconciler version contract** (see Knowledge Base §4).
    React 19 ↔ `react-reconciler@^0.31` ↔ `@types/react-reconciler@^0.32`.
    - `getRootHostContext`/`getChildHostContext` must return a **non-null**
@@ -47,9 +53,21 @@ Start by reading [docs/KNOWLEDGE_BASE.md](docs/KNOWLEDGE_BASE.md).
 5. **Client modules carry `'use client'`** (`hooks.ts`, `viewer.tsx`). The
    `src/spec/` layer is pure/isomorphic — do **not** add `'use client'` there.
 6. **Keep `DocSpec` and JSX in parity.** `src/spec/compile.ts` must build the
-   tree from the existing components, never re-implement serialization. Bump
-   `src/version.ts` (not an inline literal) when the version changes, and keep
-   the JSON Schema `$id` derived from it.
+   tree from the existing components, never re-implement serialization. Any new
+   authoring capability (e.g. outline, page labels, nested lists, table cell
+   styling) must reach both the JSX props and the `DocSpec` grammar + schema.
+   Bump `src/version.ts` (not an inline literal) when the version changes — the
+   JSON Schema `$id` derives from it, and a test pins it to `package.json` and
+   `CITATION.cff`.
+7. **Authoring only.** Byte-level post-processing (merge/split, annotations,
+   signatures, crypto, font compilation) is the engine's job — do not re-export
+   it. Document "use `pdfnative` directly" instead.
+8. **AI governance — you are a draftsman, never a submitter.** Never open, edit,
+   or submit issues/PRs/releases autonomously. Write a local draft in
+   `.github/drafts/`, validate it with `npm run verify:issue`, present it plus a
+   compliance report, and let a human submit under their own identity. See
+   [.github/AGENT_RULES.md](.github/AGENT_RULES.md) and
+   [docs/AI_GOVERNANCE.md](docs/AI_GOVERNANCE.md).
 
 ## Token-frugal agent authoring (`src/spec/`)
 

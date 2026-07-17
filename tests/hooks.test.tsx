@@ -52,3 +52,36 @@ describe('usePdfStream', () => {
         expect(bytes).toBeGreaterThan(100);
     });
 });
+
+describe('usePdf — fonts option', () => {
+    it('resolves an options.fonts loader map before rendering', async () => {
+        const fakeFont = {
+            metrics: {
+                unitsPerEm: 1000,
+                ascent: 800,
+                descent: -200,
+                capHeight: 700,
+                stemV: 80,
+                bbox: [0, -200, 1000, 800],
+                defaultWidth: 500,
+                numGlyphs: 1,
+            },
+            fontName: 'Fake',
+            cmap: {},
+            defaultWidth: 500,
+            widths: {},
+            gsub: {},
+            ligatures: {},
+            markAnchors: {},
+            mark2mark: {},
+            pdfWidthArray: '[500]',
+            ttfBase64: '',
+        };
+        const options = { fonts: { fake: () => Promise.resolve(fakeFont) } };
+        const { result } = renderHook(() => usePdf(sample, options));
+
+        await waitFor(() => expect(result.current.loading).toBe(false));
+        expect(result.current.error).toBeNull();
+        expect(result.current.bytes).toBeInstanceOf(Uint8Array);
+    });
+});

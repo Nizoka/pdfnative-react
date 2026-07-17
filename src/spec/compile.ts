@@ -30,13 +30,21 @@ import {
 } from '../components.js';
 import {
     compileDocument,
+    inspectDocument,
     renderToBlob,
     renderToBytes,
     renderToFile,
+    renderToFileStream,
     renderToStream,
 } from '../render.js';
 import { PdfStructureError } from '../reconciler/serialize.js';
-import type { DocumentParams, PdfRow, RenderOptions } from '../types.js';
+import type {
+    DocumentParams,
+    LayoutInspection,
+    PdfRow,
+    RenderOptions,
+    StreamToFileResult,
+} from '../types.js';
 import type { BlockSpec, DocSpec, TableRowSpec } from './types.js';
 
 function toRows(rows: readonly TableRowSpec[]): PdfRow[] {
@@ -76,6 +84,8 @@ function blockToElement(block: BlockSpec, key: number): ReactElement {
                 repeatHeader: block[1].repeatHeader,
                 minRowHeight: block[1].minRowHeight,
                 cellPadding: block[1].cellPadding,
+                cellBorders: block[1].cellBorders,
+                cellVAlign: block[1].cellVAlign,
             });
         case 'img':
             return createElement(Image, { key, ...block[1] });
@@ -126,6 +136,8 @@ export function specToElement(spec: DocSpec): ReactElement {
             metadata: spec.metadata,
             fontEntries: spec.fontEntries,
             layout: spec.layout,
+            outline: spec.outline,
+            pageLabels: spec.pageLabels,
         },
         children,
     );
@@ -134,6 +146,14 @@ export function specToElement(spec: DocSpec): ReactElement {
 /** Compile a {@link DocSpec} into the `pdfnative` document model (no rendering). */
 export function compileSpec(spec: DocSpec): DocumentParams {
     return compileDocument(specToElement(spec));
+}
+
+/**
+ * Report how a {@link DocSpec} lays out — page count and per-block geometry —
+ * without rendering a PDF. The spec twin of `inspectDocument`.
+ */
+export function inspectSpec(spec: DocSpec, options?: RenderOptions): LayoutInspection {
+    return inspectDocument(specToElement(spec), options);
 }
 
 /** Render a {@link DocSpec} to raw PDF bytes (`Uint8Array`). */
@@ -161,4 +181,16 @@ export function renderSpecToFile(
     options?: RenderOptions,
 ): Promise<void> {
     return renderToFile(specToElement(spec), path, options);
+}
+
+/**
+ * Stream a {@link DocSpec} to a file with constant memory. Node.js only.
+ * See `renderToFileStream` for the trade-offs versus `renderSpecToFile`.
+ */
+export function renderSpecToFileStream(
+    spec: DocSpec,
+    path: string,
+    options?: RenderOptions,
+): Promise<StreamToFileResult> {
+    return renderToFileStream(specToElement(spec), path, options);
 }

@@ -15,11 +15,24 @@ import type {
     PdfRow,
     ColumnDef,
     FontEntry,
+    FontData,
+    FontValidationResult,
     PdfColor,
     BarcodeFormat,
     QRErrorLevel,
     FormFieldType,
     SvgRenderOptions,
+    OutlineItem,
+    PageLabelRange,
+    PageLabelStyle,
+    ViewerPreferences,
+    LayoutDebugOptions,
+    LayoutInspection,
+    InspectedPage,
+    InspectedBlock,
+    CellBorders,
+    ListItem,
+    StreamToFileResult,
 } from 'pdfnative';
 
 export type {
@@ -30,11 +43,24 @@ export type {
     PdfRow,
     ColumnDef,
     FontEntry,
+    FontData,
+    FontValidationResult,
     PdfColor,
     BarcodeFormat,
     QRErrorLevel,
     FormFieldType,
     SvgRenderOptions,
+    OutlineItem,
+    PageLabelRange,
+    PageLabelStyle,
+    ViewerPreferences,
+    LayoutDebugOptions,
+    LayoutInspection,
+    InspectedPage,
+    InspectedBlock,
+    CellBorders,
+    ListItem,
+    StreamToFileResult,
 };
 
 /** Horizontal alignment shared by several blocks. */
@@ -52,7 +78,34 @@ export interface RenderOptions {
     readonly layout?: Partial<PdfLayoutOptions>;
     /** Pre-loaded font entries for non-Latin scripts (see `pdfnative` `loadFontData`). */
     readonly fontEntries?: readonly FontEntry[];
+    /**
+     * Convenience map of language → font loader, resolved with
+     * {@link resolveFonts} before rendering. Only honored by the *async*
+     * entry points (`renderToFile`, `renderToFileStream`, `usePdf`,
+     * `usePdfStream`) — font loading is asynchronous, so the synchronous
+     * entries (`renderToBytes`, `renderToBlob`, `renderToStream`) ignore it;
+     * resolve manually first: `fontEntries: await resolveFonts(fonts)`.
+     */
+    readonly fonts?: FontsMap;
 }
+
+/**
+ * A dynamic loader for a pdfnative font-data module, typically a bare dynamic
+ * import: `() => import('pdfnative/fonts/noto-arabic-data.js')`. The resolved
+ * value is the font-data module (its named exports), a `{ default }` wrapper,
+ * or a {@link FontData} object — the engine accepts all three at load time,
+ * which is why the resolved type is intentionally `unknown` here rather than
+ * the engine's stricter loader type (the auto-generated font modules do not
+ * structurally satisfy it under `strict`).
+ */
+export type FontLoader = () => Promise<unknown>;
+
+/**
+ * A map of language key → font loader, e.g.
+ * `{ math: () => import('pdfnative/fonts/noto-sans-math-data.js') }`.
+ * Accepted by {@link resolveFonts} and `RenderOptions.fonts`.
+ */
+export type FontsMap = Readonly<Record<string, FontLoader>>;
 
 /**
  * The intermediate representation produced by reconciling a React tree.

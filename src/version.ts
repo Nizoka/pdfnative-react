@@ -9,4 +9,4 @@
  */
 
 /** Current package version (kept in sync with `package.json`). */
-export const version = '0.2.0';
+export const version = '1.0.0';

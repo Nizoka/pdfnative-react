@@ -13,14 +13,18 @@
  * @packageDocumentation
  */
 
-import { createElement, type ReactElement, type ReactNode } from 'react';
+import { createElement, Fragment, type ReactElement, type ReactNode } from 'react';
 import type {
     Align,
     BarcodeFormat,
+    CellBorders,
     ColumnDef,
     DocumentMetadata,
     FontEntry,
     FormFieldType,
+    ListItem,
+    OutlineItem,
+    PageLabelRange,
     PdfColor,
     PdfLayoutOptions,
     PdfRow,
@@ -56,6 +60,17 @@ export interface DocumentProps {
     readonly fontEntries?: readonly FontEntry[];
     /** Layout overrides (page size, margins, colors, PDF/A mode…). */
     readonly layout?: Partial<PdfLayoutOptions>;
+    /**
+     * Document outline / bookmarks shown in the viewer's sidebar.
+     * Pass an explicit nested `OutlineItem[]` tree, or `'auto'` to derive a
+     * flat outline from every `<Heading>` in document order. PDF/A-safe.
+     */
+    readonly outline?: readonly OutlineItem[] | 'auto';
+    /**
+     * Page labels controlling the numbering shown in the viewer's page box
+     * (e.g. roman front matter, then decimal body). PDF/A-safe.
+     */
+    readonly pageLabels?: readonly PageLabelRange[];
     readonly children?: ReactNode;
 }
 
@@ -76,6 +91,48 @@ export interface PageProps {
  */
 export function Page(props: PageProps): ReactElement {
     return h('page', null, props.children);
+}
+
+/** Props for {@link Section}. */
+export interface SectionProps {
+    /** Section title, rendered as a `<Heading>`. */
+    readonly title: string;
+    /** Heading level (1–3). Default: `2`. */
+    readonly level?: 1 | 2 | 3;
+    /** Heading color. */
+    readonly color?: PdfColor;
+    /** Start the section on a fresh page. Default: `false`. */
+    readonly break?: boolean;
+    readonly children?: ReactNode;
+}
+
+/**
+ * A titled group of content: a `<Heading>` followed by its blocks.
+ *
+ * This is the package's one intentional *composite* component — it emits no
+ * host tag of its own; React resolves it to `<Heading>` + children before the
+ * reconciler runs, so the serialized output is identical to writing them by
+ * hand. The heading feeds `<TableOfContents>` and `outline="auto"` like any
+ * other `<Heading>`.
+ */
+export function Section(props: SectionProps): ReactElement {
+    const { title, level = 2, color, break: pageBreak, children } = props;
+    return createElement(
+        Fragment,
+        null,
+        pageBreak ? h('pageBreak', null) : null,
+        h('heading', compactProps({ level, color }), title),
+        children,
+    );
+}
+
+/** Drop `undefined` props so host elements stay clean for serialization. */
+function compactProps(props: Record<string, unknown>): Record<string, unknown> {
+    const out: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(props)) {
+        if (value !== undefined) out[key] = value;
+    }
+    return out;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -137,12 +194,15 @@ export interface ListProps {
     readonly style?: 'bullet' | 'numbered';
     /** Font size in points. */
     readonly fontSize?: number;
-    /** Items as plain strings (alternatively provide `<Item>` children). */
-    readonly items?: readonly string[];
+    /**
+     * Items as data: plain strings, or `ListItem` objects carrying nested
+     * sub-lists (`{ text, items }`). Alternatively provide `<Item>` children.
+     */
+    readonly items?: readonly (string | ListItem)[];
     readonly children?: ReactNode;
 }
 
-/** A bullet or numbered list. */
+/** A bullet or numbered list. Items may nest sub-lists (see {@link Item}). */
 export function List(props: ListProps): ReactElement {
     const { children, ...rest } = props;
     return h('list', rest, children);
@@ -150,12 +210,22 @@ export function List(props: ListProps): ReactElement {
 
 /** Props for {@link Item}. */
 export interface ItemProps {
+    /** Item text (alternatively provide it as children). */
+    readonly text?: string;
+    /** Nested sub-items as data (alternatively nest `<List>`/`<Item>` children). */
+    readonly items?: readonly (string | ListItem)[];
     readonly children?: ReactNode;
 }
 
-/** A single list item. Use inside `<List>`. */
+/**
+ * A single list item. Use inside `<List>`.
+ *
+ * Sub-lists nest either as a child `<List>` (HTML-shaped) or as directly
+ * nested `<Item>` children; nested lists inherit the parent list's style.
+ */
 export function Item(props: ItemProps): ReactElement {
-    return h('item', null, props.children);
+    const { children, ...rest } = props;
+    return h('item', rest, children);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -186,6 +256,13 @@ export interface TableProps {
     readonly minRowHeight?: number;
     /** Horizontal cell padding in points. */
     readonly cellPadding?: number;
+    /** Cell border styling (sides, color, width, dash pattern). */
+    readonly cellBorders?: CellBorders;
+    /**
+     * Vertical alignment of cell content. Default: `'top'`.
+     * Override per column with `ColumnDef.vAlign`.
+     */
+    readonly cellVAlign?: 'top' | 'middle' | 'bottom';
     readonly children?: ReactNode;
 }
 

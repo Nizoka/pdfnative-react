@@ -42,9 +42,13 @@ import type {
     TableOfContentsProps,
 } from '../components.js';
 import type {
+    CellBorders,
     ColumnDef,
     DocumentMetadata,
     FontEntry,
+    ListItem,
+    OutlineItem,
+    PageLabelRange,
     PdfColor,
     PdfLayoutOptions,
     PdfRow,
@@ -112,6 +116,10 @@ export interface TableSpecBody {
     readonly minRowHeight?: number;
     /** Horizontal cell padding in points. */
     readonly cellPadding?: number;
+    /** Cell border styling (sides, color, width, dash pattern). */
+    readonly cellBorders?: CellBorders;
+    /** Vertical alignment of cell content (per-column override: `ColumnDef.vAlign`). */
+    readonly cellVAlign?: 'top' | 'middle' | 'bottom';
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -122,8 +130,12 @@ export interface TableSpecBody {
 export type HeadingSpec = readonly ['h1' | 'h2' | 'h3', string, HeadingSpecOpts?];
 /** Paragraph: `['p', text, opts?]`. */
 export type ParagraphSpec = readonly ['p', string, ParagraphSpecOpts?];
-/** List: `['ul', items]` (bullet) or `['ol', items]` (numbered). */
-export type ListSpec = readonly ['ul' | 'ol', readonly string[], ListSpecOpts?];
+/**
+ * List: `['ul', items]` (bullet) or `['ol', items]` (numbered).
+ * An item is a plain string, or a `ListItem` (`{ text, items }`) carrying a
+ * nested sub-list.
+ */
+export type ListSpec = readonly ['ul' | 'ol', readonly (string | ListItem)[], ListSpecOpts?];
 /** Table: `['table', body]`. */
 export type TableSpec = readonly ['table', TableSpecBody];
 /** Image: `['img', body]`. */
@@ -188,6 +200,13 @@ export interface DocSpec {
     readonly fontEntries?: readonly FontEntry[];
     /** Layout overrides (page size, margins, colors, PDF/A mode…). */
     readonly layout?: Partial<PdfLayoutOptions>;
+    /**
+     * Document outline / bookmarks: an explicit nested `OutlineItem[]` tree,
+     * or `'auto'` to derive one from every heading block in document order.
+     */
+    readonly outline?: readonly OutlineItem[] | 'auto';
+    /** Page labels shown in the viewer's page box (e.g. roman front matter). */
+    readonly pageLabels?: readonly PageLabelRange[];
     /** Ordered document blocks. */
     readonly blocks: readonly BlockSpec[];
 }

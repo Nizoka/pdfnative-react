@@ -13,6 +13,10 @@ with far fewer tokens than JSX. It is pure, isomorphic, and side-effect-free.
   `DocumentParams` (tests assert `toEqual`).
 - **No new model.** Block kinds map 1:1 onto the existing pdfnative blocks. Do
   not add layout primitives, and do not introduce props the components lack.
+  Pure JSX sugar with no new capability (e.g. `<Section>`) is deliberately
+  **not** given a tuple — agents emit the underlying blocks. Document-level
+  `outline`/`pageLabels` are top-level `DocSpec` fields (not tuples), mirroring
+  `<Document>`. Nested list items use `{ text, items }` in the `ul`/`ol` grammar.
 - **Reuse component prop types.** Per-block opts types are derived from the
   component prop interfaces (via `Pick`/`Omit`) so the spec inherits their type
   safety and cannot drift.

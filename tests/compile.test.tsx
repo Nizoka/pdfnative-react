@@ -14,13 +14,14 @@ import {
     Paragraph,
     PdfStructureError,
     Row,
+    Section,
     Spacer,
     Svg,
     Table,
     TableOfContents,
     compileDocument,
 } from '../src/index.js';
-import type { DocumentBlock } from '../src/index.js';
+import type { DocumentBlock, ListItem, OutlineItem } from '../src/index.js';
 
 function blocksOf(node: Parameters<typeof compileDocument>[0]): readonly DocumentBlock[] {
     return compileDocument(node).blocks;
@@ -48,6 +49,42 @@ describe('compileDocument — document model', () => {
         expect(() => compileDocument(<Paragraph>orphan</Paragraph>)).toThrow(
             PdfStructureError,
         );
+    });
+
+    it('passes an explicit outline and page labels through', () => {
+        const outline: readonly OutlineItem[] = [
+            { title: 'Cover', pageIndex: 0 },
+            { title: 'Body', pageIndex: 1, children: [{ title: 'Sub', pageIndex: 1 }] },
+        ];
+        const params = compileDocument(
+            <Document
+                outline={outline}
+                pageLabels={[{ startPage: 0, style: 'roman' }]}
+            >
+                <Heading>Cover</Heading>
+            </Document>,
+        );
+        expect(params.outline).toEqual(outline);
+        expect(params.pageLabels).toEqual([{ startPage: 0, style: 'roman' }]);
+    });
+
+    it('supports outline="auto"', () => {
+        const params = compileDocument(
+            <Document outline="auto">
+                <Heading>A</Heading>
+            </Document>,
+        );
+        expect(params.outline).toBe('auto');
+    });
+
+    it('omits outline and page labels when unset', () => {
+        const params = compileDocument(
+            <Document>
+                <Heading>A</Heading>
+            </Document>,
+        );
+        expect(params.outline).toBeUndefined();
+        expect(params.pageLabels).toBeUndefined();
     });
 });
 
@@ -116,6 +153,70 @@ describe('compileDocument — lists', () => {
             style: 'numbered',
         });
     });
+
+    it('keeps a flat list as plain strings (no regression)', () => {
+        const [block] = blocksOf(
+            <Document>
+                <List>
+                    <Item>One</Item>
+                    <Item>Two</Item>
+                </List>
+            </Document>,
+        );
+        expect((block as Extract<DocumentBlock, { type: 'list' }>).items).toEqual([
+            'One',
+            'Two',
+        ]);
+    });
+
+    it('nests sub-lists via a child <List> (HTML-shaped)', () => {
+        const [block] = blocksOf(
+            <Document>
+                <List>
+                    <Item>
+                        Fruits
+                        <List>
+                            <Item>Apple</Item>
+                            <Item>Pear</Item>
+                        </List>
+                    </Item>
+                    <Item>Veg</Item>
+                </List>
+            </Document>,
+        );
+        const items = (block as Extract<DocumentBlock, { type: 'list' }>).items;
+        expect(items[0]).toEqual({ text: 'Fruits', items: ['Apple', 'Pear'] });
+        expect(items[1]).toBe('Veg');
+    });
+
+    it('nests sub-items via directly nested <Item> children', () => {
+        const [block] = blocksOf(
+            <Document>
+                <List>
+                    <Item>
+                        Prepare
+                        <Item>Install</Item>
+                        <Item>Configure</Item>
+                    </Item>
+                </List>
+            </Document>,
+        );
+        const items = (block as Extract<DocumentBlock, { type: 'list' }>).items;
+        expect(items[0]).toEqual({ text: 'Prepare', items: ['Install', 'Configure'] });
+    });
+
+    it('nests via the items data prop (ListItem objects)', () => {
+        const items: readonly (string | ListItem)[] = [
+            { text: 'Europe', items: ['France', { text: 'Spain', items: ['Madrid'] }] },
+            'Asia',
+        ];
+        const [block] = blocksOf(
+            <Document>
+                <List items={items} />
+            </Document>,
+        );
+        expect((block as Extract<DocumentBlock, { type: 'list' }>).items).toEqual(items);
+    });
 });
 
 describe('compileDocument — tables', () => {
@@ -154,6 +255,50 @@ describe('compileDocument — tables', () => {
             </Document>,
         );
         expect(block).toMatchObject({ type: 'table', headers: ['A'] });
+    });
+
+    it('passes cell borders and vertical alignment through', () => {
+        const [block] = blocksOf(
+            <Document>
+                <Table
+                    headers={['A']}
+                    rows={[{ cells: ['1'], type: 'default', pointed: false }]}
+                    cellBorders={{ all: true, style: 'dashed' }}
+                    cellVAlign="middle"
+                />
+            </Document>,
+        );
+        expect(block).toMatchObject({
+            type: 'table',
+            cellBorders: { all: true, style: 'dashed' },
+            cellVAlign: 'middle',
+        });
+    });
+});
+
+describe('compileDocument — Section', () => {
+    it('expands to a heading followed by its children', () => {
+        const blocks = blocksOf(
+            <Document>
+                <Section title="Intro" level={1}>
+                    <Paragraph>Body</Paragraph>
+                </Section>
+            </Document>,
+        );
+        expect(blocks[0]).toEqual({ type: 'heading', text: 'Intro', level: 1 });
+        expect(blocks[1]).toMatchObject({ type: 'paragraph', text: 'Body' });
+    });
+
+    it('defaults to level 2 and honours break', () => {
+        const blocks = blocksOf(
+            <Document>
+                <Section title="Appendix" break>
+                    <Paragraph>End</Paragraph>
+                </Section>
+            </Document>,
+        );
+        expect(blocks.map((b) => b.type)).toEqual(['pageBreak', 'heading', 'paragraph']);
+        expect(blocks[1]).toMatchObject({ type: 'heading', level: 2 });
     });
 });
 

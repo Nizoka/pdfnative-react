@@ -9,4 +9,10 @@ describe('version', () => {
         const pkg = JSON.parse(await readFile(pkgPath, 'utf8')) as { version: string };
         expect(version).toBe(pkg.version);
     });
+
+    it('stays in sync with CITATION.cff', async () => {
+        const cff = await readFile(join(process.cwd(), 'CITATION.cff'), 'utf8');
+        const match = /^version:\s*(.+)$/m.exec(cff);
+        expect(match?.[1].trim()).toBe(version);
+    });
 });

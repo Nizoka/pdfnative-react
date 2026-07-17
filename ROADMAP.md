@@ -3,31 +3,44 @@
 This roadmap is indicative, not a commitment. Priorities follow the needs of the
 [pdfnative](https://www.npmjs.com/package/pdfnative) ecosystem.
 
-## 0.2.x — Stabilisation
+## Shipped
 
-- Harden the reconciler against edge cases (fragments, conditional children, keys).
-- Expand test coverage and golden-PDF snapshots.
-- Documentation site. ✅ Runnable samples and the compact `DocSpec` agent
-  authoring layer shipped in 0.2.0.
+### 0.2.0 — First implementation
 
-## 0.3.0 — React 18 support
+- Declarative component model, custom React reconciler, four render entry
+  points, client hooks/components, and the compact `DocSpec` agent layer with a
+  versioned JSON Schema.
 
-- Add React 18 to the peer range and CI matrix.
-- Resolve the `react-reconciler` version matrix for 18 + 19 simultaneously.
+### 1.0.0 — Stable API
 
-## 0.4.0 — Richer authoring
+Marks the public API as stable and integrates the `pdfnative` engine's
+authoring features through 1.5.0, plus the conveniences originally planned for
+0.4.0:
 
-- `<Section>` helper that pairs a heading with grouped content.
-- Convenience props for fonts (auto-`registerFonts` from a `fonts` prop).
-- Image source helpers (`fromUrl`, `fromBase64`) returning the required bytes.
+- `<Section>` helper (a heading paired with grouped content).
+- Convenience `resolveFonts` / `options.fonts` (register + load in one step).
+- Image source helpers `fromUrl` / `fromBase64`.
+- Bookmarks/outline & page labels on `<Document>`; viewer preferences and a
+  layout debug overlay via `layout`; `inspectDocument` / `inspectSpec`.
+- Nested lists; table `cellBorders` / `cellVAlign`; SVG `<text>` as native text.
+- `renderToFileStream` (constant-memory file output).
+- `pdfnative` moved to a peer dependency (`^1.5.0`).
 
 ## Later
 
 - React Server Components streaming helpers.
 - React Native renderer (separate entry point).
 - Layout linting / accessibility checks surfaced as dev warnings.
+- Possible `<Outline>` / `<Bookmark>` authoring sugar over the `outline` prop.
 
 ## Non-goals
 
-- A CSS/flexbox box model (`<View>`). pdfnative is a declarative block flow by
-  design; we will not emulate HTML/CSS layout.
+- **React 18 support.** The reconciler is bound to a single, deliberately pinned
+  `react-reconciler` version contract for React 19; supporting 18 and 19
+  simultaneously is out of scope.
+- **A CSS/flexbox box model (`<View>`).** pdfnative is a declarative block flow
+  by design; we will not emulate HTML/CSS layout.
+- **Byte-level post-processing.** Merging/splitting, annotations, digital
+  signatures, crypto providers, and font compilation are the engine's job — use
+  [`pdfnative`](https://www.npmjs.com/package/pdfnative) directly on the bytes
+  this library produces.

@@ -17,8 +17,10 @@ versioning. It integrates the document-*authoring* features the
    `cellVAlign`, and SVG `<text>` as native selectable text.
 2. **0.4.0 conveniences** — `<Section>`, `resolveFonts`/`options.fonts`, and the
    `fromUrl`/`fromBase64` image helpers, plus `renderToFileStream`.
-3. **Stability & scope** — `pdfnative` becomes a peer dependency; the package's
-   scope is stated explicitly (authoring, not byte-level post-processing).
+3. **Stability, scope & governance** — `pdfnative` becomes a peer dependency; the
+   package's scope is stated explicitly (authoring, not byte-level
+   post-processing); and the `pdfnative` family's AI human-in-the-loop governance
+   contract is adopted here (draftsman-only, `npm run verify:issue`).
 
 ## Breaking change
 
@@ -57,6 +59,7 @@ versioning. It integrates the document-*authoring* features the
 - `resolveFonts(map)` registers loaders and returns `FontEntry[]`; internal
   `optionsWithFonts` resolves `options.fonts` for the async entries.
   `RenderOptions.fonts` + `FontsMap`/`FontLoader` types added.
+- `validateFontData(data)` re-exported (opt-in font check) + `FontValidationResult`.
 - `fromUrl(url, init?)` / `fromBase64(payload)` produce `<Image>` bytes.
 
 ### `src/spec/` (DocSpec parity)
@@ -78,11 +81,24 @@ versioning. It integrates the document-*authoring* features the
   flat-list regression guard, the streaming-`/Outlines` check, and a
   `CITATION.cff` version pin).
 
+### New: AI-governance / human-in-the-loop contract
+- Adopts the `pdfnative` family's governance contract for this repo:
+  `.github/ai-governance.json` (draftsman role, HITL-mandatory, no autonomous
+  GitHub writes, minimal-dependency policy), `.github/AGENT_RULES.md`, a
+  `.github/drafts/` staging area (git-ignored except the README/release
+  artifacts), `docs/AI_GOVERNANCE.md`, and a dependency-free
+  `scripts/verify-issue.mjs` CLI wired as `npm run verify:issue`.
+- `tests/governance.test.ts` exercises the CLI (pass / dependency-violation /
+  missing-repro) and asserts the `ai-governance.json` policy + `AGENT_RULES.md`
+  + drafts staging area. The draftsman rule is added to `AGENTS.md`, `CLAUDE.md`,
+  and `.github/copilot-instructions.md`.
+
 ### Docs & governance
 - `README.md` (peer-dep install, new feature sections, a "Migrating 0.2 → 1.0"
-  note, and the post-processing boundary), `docs/KNOWLEDGE_BASE.md`, `llms.txt`,
-  `ROADMAP.md` (React 18 → non-goal; 0.2.x/0.4.0 shipped), `CHANGELOG.md`
-  (1.0.0 with Breaking Changes), `SECURITY.md` (1.x table), `CITATION.cff`.
+  note, the post-processing boundary, and an AI-governance doc link),
+  `docs/KNOWLEDGE_BASE.md`, `llms.txt`, `ROADMAP.md` (React 18 → non-goal;
+  0.2.x/0.4.0 shipped), `CHANGELOG.md` (1.0.0 with Breaking Changes),
+  `SECURITY.md` (1.x table), `CITATION.cff`.
 - `CLAUDE.md` added (points to `AGENTS.md`); `AGENTS.md` and the Copilot
   instruction files updated; `.github/CODEOWNERS` globs fixed to real paths.
 
@@ -90,8 +106,9 @@ versioning. It integrates the document-*authoring* features the
 
 - `npm run typecheck:all` → clean (src + tests + samples).
 - `npm run lint` → clean.
-- `npm run test:coverage` → **71 / 71 passing**; statements **92.5 %**,
-  branches **85.3 %**, functions **96.2 %**, lines **94.3 %**.
+- `npm run test:coverage` → **79 / 79 passing** (8 files); statements **92.5 %**,
+  branches **85.3 %**, functions **96.2 %**, lines **94.3 %** (thresholds met).
+- `npm run verify:issue` → the governance CLI validates a draft (pass / fail).
 - `npm run build` → dual ESM + CJS + types; `pdfnative` stays external.
 - All 11 new samples emit valid PDFs (`fromUrl` degrades gracefully offline).
 
@@ -126,4 +143,6 @@ versioning. It integrates the document-*authoring* features the
       for the engine's over-strict font-loader type); `type`-only imports.
 - [x] `renderToFileStream` verified to preserve `/Outlines`; flat-list output
       unchanged (regression test).
-- [x] Coverage green; 71/71 tests; `typecheck:all`, lint, build all clean.
+- [x] AI-governance contract shipped (draftsman-only, HITL); `verify:issue` CLI
+      + `tests/governance.test.ts` green; the library makes no GitHub/network calls.
+- [x] Coverage green; 79/79 tests; `typecheck:all`, lint, build all clean.

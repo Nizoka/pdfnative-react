@@ -13,6 +13,7 @@ import {
     renderToFileStream,
     renderToStream,
     resolveFonts,
+    validateFontData,
 } from '../src/index.js';
 import { readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -184,5 +185,20 @@ describe('resolveFonts', () => {
         const entries = await resolveFonts({ fake: () => Promise.resolve(fakeFont) });
         expect(entries).toHaveLength(1);
         expect(entries[0]).toMatchObject({ fontRef: 'fake', lang: 'fake' });
+    });
+});
+
+describe('validateFontData', () => {
+    it('rejects a non-font payload', () => {
+        const result = validateFontData({ not: 'a font' });
+        expect(result.valid).toBe(false);
+        expect(result.errors.length).toBeGreaterThan(0);
+    });
+
+    it('accepts a bundled font-data module', async () => {
+        const mod = await import('pdfnative/fonts/noto-sans-data.js');
+        const result = validateFontData(mod);
+        expect(result.valid).toBe(true);
+        expect(result.errors).toHaveLength(0);
     });
 });

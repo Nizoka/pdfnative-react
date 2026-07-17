@@ -209,6 +209,8 @@ const bytes = renderToBytes(doc, { fontEntries });
 ```
 
 The async entry points accept the loader map directly as `options.fonts`.
+`validateFontData(data)` runs an opt-in, read-only structural check on a custom
+font module (`{ valid, errors, warnings }`) before you embed it.
 
 ### Image helpers
 
@@ -268,6 +270,8 @@ fonts, layout/PDF-A, the client hooks/components, and the compact agent spec.
 - [Knowledge Base](docs/KNOWLEDGE_BASE.md) — architecture, the compile pipeline,
   the react-reconciler version contract, and the agent authoring contract.
 - [AGENTS.md](AGENTS.md) — guidance for AI agents working in this repo.
+- [AI Governance](docs/AI_GOVERNANCE.md) — the human-in-the-loop draftsman
+  contract for AI agents proposing issues/PRs (`npm run verify:issue`).
 - [CHANGELOG.md](CHANGELOG.md) · [ROADMAP.md](ROADMAP.md) · [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## License

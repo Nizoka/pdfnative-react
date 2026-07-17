@@ -37,6 +37,7 @@
     "typecheck:tests": "tsc --project tsconfig.test.json --noEmit",
     "typecheck:samples": "tsc --project samples/tsconfig.json --noEmit",
     "typecheck:all": "npm run typecheck && npm run typecheck:tests && npm run typecheck:samples",
+    "verify:issue": "node scripts/verify-issue.mjs",
     "prepublishOnly": "npm run build"
   },
   "keywords": [

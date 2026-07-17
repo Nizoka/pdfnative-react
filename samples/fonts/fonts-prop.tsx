@@ -17,8 +17,14 @@ import {
     renderToBytes,
     renderToFile,
     resolveFonts,
+    validateFontData,
 } from '../../src/index.js';
 import { writeFile } from 'node:fs/promises';
+
+// Optional: sanity-check a custom font module before embedding it.
+const arabicModule = await import('pdfnative/fonts/noto-arabic-data.js');
+const check = validateFontData(arabicModule);
+console.log(`Arabic font valid: ${check.valid}` + (check.valid ? '' : ` — ${check.errors.join('; ')}`));
 
 const doc = (
     <Document title="Fonts convenience">

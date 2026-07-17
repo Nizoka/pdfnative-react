@@ -57,6 +57,7 @@ async entries (renderToFile, renderToFileStream, usePdf, usePdfStream); for sync
 ## Fonts & assets
 
 - resolveFonts(map) -> Promise<FontEntry[]>  (map: { lang: () => import('pdfnative/fonts/…-data.js') })
+- validateFontData(data) -> FontValidationResult { valid, errors, warnings }  (opt-in font check)
 - fromUrl(url, init?) -> Promise<Uint8Array>  (image bytes)
 - fromBase64(payload) -> Uint8Array           (base64 or data: URI)
 

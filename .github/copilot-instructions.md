@@ -39,6 +39,10 @@ Read [docs/KNOWLEDGE_BASE.md](../docs/KNOWLEDGE_BASE.md) and
   (which deadlocks). Preserve this when editing hooks.
 - **Client modules carry `'use client'`** (`hooks.ts`, `viewer.tsx`).
 - **Strict TypeScript, no `any`** (lint-enforced). Use `type`-only imports.
+- **AI governance (draftsman, never submitter).** Do not open/submit issues or
+  PRs autonomously. Draft into `.github/drafts/`, validate with
+  `npm run verify:issue`, present a compliance report, and let a human submit.
+  See [.github/AGENT_RULES.md](AGENT_RULES.md) and [docs/AI_GOVERNANCE.md](../docs/AI_GOVERNANCE.md).
 
 ## Validate every change
 

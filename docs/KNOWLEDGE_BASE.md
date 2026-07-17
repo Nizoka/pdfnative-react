@@ -48,7 +48,7 @@ Key properties:
 | `src/reconciler/serialize.ts` | Pure transform: host tree → `DocumentParams`. |
 | `src/reconciler/render.ts` | `compile(node)` — drives the reconciler and serializes. |
 | `src/render.ts` | `renderToBytes/Blob/Stream/File/FileStream`, `compileDocument`, `inspectDocument`. |
-| `src/fonts.ts` | `resolveFonts` (loader map → `FontEntry[]`) + internal `optionsWithFonts`. |
+| `src/fonts.ts` | `resolveFonts` (loader map → `FontEntry[]`) + internal `optionsWithFonts`. `validateFontData` is re-exported from `core-bridge`. |
 | `src/assets.ts` | `fromUrl` / `fromBase64` image-byte helpers (pure, no engine import). |
 | `src/hooks.ts` | `usePdf`, `usePdfStream` (client). |
 | `src/viewer.tsx` | `PDFViewer`, `PDFDownloadLink`, `BlobProvider` (client). |

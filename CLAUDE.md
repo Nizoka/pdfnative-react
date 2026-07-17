@@ -32,6 +32,11 @@ It is a declarative **block flow**, not a CSS/flexbox engine. There is no `<View
    schema `$id` derives from it; a test pins it to `package.json` + `CITATION.cff`).
 7. **Authoring only.** Byte-level post-processing (merge/split, annotations,
    signing, crypto, font compilation) is the engine's job — don't re-export it.
+8. **AI governance — draftsman, not submitter.** Never open/submit issues or PRs
+   autonomously. Draft into `.github/drafts/`, run `npm run verify:issue`,
+   present a compliance report, and let a human submit under their own identity.
+   See [.github/AGENT_RULES.md](.github/AGENT_RULES.md) and
+   [docs/AI_GOVERNANCE.md](docs/AI_GOVERNANCE.md).
 
 ## Validate every change
 

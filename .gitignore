@@ -29,3 +29,10 @@ Thumbs.db
 # npm
 *.tgz
 .npmrc
+
+# AI-governance issue drafts are local work-in-progress; never commit ad-hoc
+# proposals. The staging-area README and release artifacts are kept.
+.github/drafts/*
+!.github/drafts/README.md
+!.github/drafts/pr-*.md
+!.github/drafts/issue-*.md

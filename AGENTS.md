@@ -62,6 +62,12 @@ Start by reading [docs/KNOWLEDGE_BASE.md](docs/KNOWLEDGE_BASE.md).
 7. **Authoring only.** Byte-level post-processing (merge/split, annotations,
    signatures, crypto, font compilation) is the engine's job — do not re-export
    it. Document "use `pdfnative` directly" instead.
+8. **AI governance — you are a draftsman, never a submitter.** Never open, edit,
+   or submit issues/PRs/releases autonomously. Write a local draft in
+   `.github/drafts/`, validate it with `npm run verify:issue`, present it plus a
+   compliance report, and let a human submit under their own identity. See
+   [.github/AGENT_RULES.md](.github/AGENT_RULES.md) and
+   [docs/AI_GOVERNANCE.md](docs/AI_GOVERNANCE.md).
 
 ## Token-frugal agent authoring (`src/spec/`)
 

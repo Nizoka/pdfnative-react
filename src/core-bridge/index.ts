@@ -17,6 +17,7 @@ export {
     registerFonts,
     registerFont,
     loadFontData,
+    validateFontData,
 } from 'pdfnative';
 
 export type {
@@ -28,6 +29,7 @@ export type {
     ColumnDef,
     FontEntry,
     FontData,
+    FontValidationResult,
     OutlineItem,
     PageLabelRange,
     PageLabelStyle,

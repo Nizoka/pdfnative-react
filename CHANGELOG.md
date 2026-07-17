@@ -45,12 +45,21 @@ through 1.5.0 and ships the previously-planned 0.4.0 authoring conveniences.
   Enables the bundled Noto Sans Math font (`'math'`) and other scripts ergonomically.
 - **Image helpers** — `fromUrl(url)` and `fromBase64(payload)` produce the bytes
   `<Image>` expects.
+- **`validateFontData(data)`** — opt-in, read-only structural check of a custom
+  font module before embedding (`{ valid, errors, warnings }`); `FontValidationResult`
+  type re-exported.
+- **AI-governance / human-in-the-loop contract** (aligned with the `pdfnative`
+  monorepo): `.github/ai-governance.json`, `.github/AGENT_RULES.md`,
+  `.github/drafts/` staging area, [docs/AI_GOVERNANCE.md](docs/AI_GOVERNANCE.md),
+  and a `npm run verify:issue` CLI (`scripts/verify-issue.mjs`) that validates a
+  draft issue locally. AI agents act strictly as *draftsmen* — no autonomous
+  GitHub writes. Covered by `tests/governance.test.ts`.
 - **SVG `<text>`/`<tspan>`** now renders as native, selectable PDF text (flows
   through the existing `<Svg data>` — no API change).
 - New type re-exports: `OutlineItem`, `PageLabelRange`, `PageLabelStyle`,
   `ViewerPreferences`, `LayoutDebugOptions`, `LayoutInspection`, `InspectedPage`,
   `InspectedBlock`, `CellBorders`, `ListItem`, `StreamToFileResult`, `FontsMap`,
-  `FontLoader`, `FontData`.
+  `FontLoader`, `FontData`, `FontValidationResult`.
 - **11 new samples** covering every new feature, and matching test coverage.
 
 ### Changed

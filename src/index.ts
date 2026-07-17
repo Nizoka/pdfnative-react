@@ -103,6 +103,7 @@ export {
     registerFonts,
     registerFont,
     loadFontData,
+    validateFontData,
     downloadBlob,
     initNodeCompression,
 } from './core-bridge/index.js';
@@ -129,6 +130,7 @@ export type {
     FontEntry,
     FontData,
     FontLoader,
+    FontValidationResult,
     PdfColor,
     BarcodeFormat,
     QRErrorLevel,

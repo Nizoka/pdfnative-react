@@ -18,6 +18,17 @@ export {
     registerFont,
     loadFontData,
     validateFontData,
+    /**
+     * Imported solely as a **capability probe** for `doctor()`: this function
+     * first exists in pdfnative 1.6.0, alongside the `chart` block. Probing for
+     * the capability is more honest — and more portable, since it survives
+     * bundling into a browser build — than parsing a version string out of the
+     * engine's `package.json`.
+     *
+     * Deliberately not re-exported from the public barrel: charts are authored
+     * with `<Chart>`, not by calling engine internals.
+     */
+    estimateChartHeight,
 } from 'pdfnative';
 
 export type {
@@ -41,4 +52,16 @@ export type {
     CellBorders,
     ListItem,
     StreamToFileResult,
+    // Charts (engine ≥ 1.6.0)
+    ChartBlock,
+    ChartSeries,
+    ChartType,
+    // Document-level layout options surfaced as `<Document>` props
+    PageTemplate,
+    WatermarkOptions,
+    WatermarkText,
+    WatermarkImage,
+    PdfAttachment,
+    PdfAttachmentRelationship,
+    EncryptionOptions,
 } from 'pdfnative';

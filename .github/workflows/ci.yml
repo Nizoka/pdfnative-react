@@ -24,7 +24,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node-version: [20, 22, 24]
+        # Node 22 is the floor: the pdfnative engine requires it as of 1.6.0.
+        node-version: [22, 24]
     steps:
       - uses: actions/checkout@v4
 
@@ -59,3 +60,19 @@ jobs:
           test -f dist/index.cjs
           test -f dist/index.d.ts
           test -f dist/index.d.cts
+
+      # `.github/ai-governance.json` declares `advisory_in_ci: true`. Validate any
+      # AI-authored draft staged for human review. Advisory: it reports, never blocks.
+      - name: Verify AI-authored drafts (advisory)
+        continue-on-error: true
+        run: |
+          shopt -s nullglob
+          drafts=(.github/drafts/issue-*.md .github/drafts/pr-*.md release-notes/draft/*.md)
+          if [ ${#drafts[@]} -eq 0 ]; then
+            echo "No drafts staged; nothing to verify."
+            exit 0
+          fi
+          for draft in "${drafts[@]}"; do
+            echo "── $draft"
+            node scripts/verify-issue.mjs "$draft" || echo "   (advisory failure)"
+          done

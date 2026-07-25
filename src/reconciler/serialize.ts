@@ -12,8 +12,13 @@ import type {
     ListItem,
     OutlineItem,
     PageLabelRange,
+    PdfAttachment,
+    PdfLayoutOptions,
     PdfRow,
+    PageTemplate,
+    WatermarkOptions,
 } from '../types.js';
+import { PdfStructureError } from '../errors.js';
 import {
     type ElementNode,
     type HostNode,
@@ -21,13 +26,12 @@ import {
     isElementNode,
 } from './nodes.js';
 
-/** Thrown when a component tree cannot be mapped onto the pdfnative model. */
-export class PdfStructureError extends Error {
-    constructor(message: string) {
-        super(message);
-        this.name = 'PdfStructureError';
-    }
-}
+/**
+ * Re-exported from `../errors.js` for backward compatibility: this was the
+ * original definition site, and it stays importable from here. It is the same
+ * class object, so `instanceof` keeps working across both paths.
+ */
+export { PdfStructureError };
 
 function collectText(node: HostNode): string {
     if (!isElementNode(node)) return node.text;
@@ -149,6 +153,23 @@ function toBlock(node: ElementNode): DocumentBlock | DocumentBlock[] {
                 stroke: p.stroke,
                 strokeWidth: p.strokeWidth,
                 alt: p.alt,
+            }) as DocumentBlock;
+
+        case 'chart':
+            return compact({
+                type: 'chart',
+                chartType: p.chartType,
+                series: p.series,
+                categories: p.categories,
+                width: p.width,
+                height: p.height,
+                title: p.title,
+                legend: p.legend,
+                axis: p.axis,
+                markers: p.markers,
+                colors: p.colors,
+                align: p.align,
+                altText: p.altText,
             }) as DocumentBlock;
 
         case 'formField':
@@ -298,6 +319,38 @@ function findDocument(container: RootContainer): ElementNode {
     throw new PdfStructureError('No <Document> found at the root of the tree.');
 }
 
+/** Normalize the `watermark` shorthand: `"DRAFT"` → `{ text: { text: 'DRAFT' } }`. */
+function toWatermark(value: unknown): WatermarkOptions | undefined {
+    if (value === undefined) return undefined;
+    if (typeof value === 'string') return { text: { text: value } };
+    return value as WatermarkOptions;
+}
+
+/**
+ * Fold the `<Document>` layout-sugar props (`watermark`, `header`, `footer`,
+ * `attachments`, `tagged`) into a single `layout` object.
+ *
+ * An explicit `layout` prop always wins, mirroring how `RenderOptions.layout`
+ * overrides `DocumentParams.layout` in `prepare()` (see `../render.ts`).
+ *
+ * Returns `undefined` — never an empty object — when neither sugar nor an
+ * explicit `layout` is present, so documents that use none of this serialize
+ * byte-identically to previous releases.
+ */
+function resolveLayout(p: Record<string, unknown>): Partial<PdfLayoutOptions> | undefined {
+    const sugar = compact({
+        watermark: toWatermark(p.watermark),
+        headerTemplate: p.header as PageTemplate | undefined,
+        footerTemplate: p.footer as PageTemplate | undefined,
+        attachments: p.attachments as readonly PdfAttachment[] | undefined,
+        tagged: p.tagged as PdfLayoutOptions['tagged'] | undefined,
+    });
+
+    const explicit = p.layout as Partial<PdfLayoutOptions> | undefined;
+    if (Object.keys(sugar).length === 0) return explicit;
+    return { ...sugar, ...explicit };
+}
+
 /** Convert a committed reconciler root into a `pdfnative` `DocumentParams`. */
 export function serialize(container: RootContainer): DocumentParams {
     const doc = findDocument(container);
@@ -309,7 +362,7 @@ export function serialize(container: RootContainer): DocumentParams {
         footerText: p.footerText as string | undefined,
         fontEntries: p.fontEntries,
         metadata: p.metadata as DocumentMetadata | undefined,
-        layout: p.layout,
+        layout: resolveLayout(p),
         outline: p.outline as readonly OutlineItem[] | 'auto' | undefined,
         pageLabels: p.pageLabels as readonly PageLabelRange[] | undefined,
     }) as DocumentParams;

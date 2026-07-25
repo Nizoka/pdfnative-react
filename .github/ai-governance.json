@@ -2,8 +2,8 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "pdfnative-react AI Governance Configuration",
   "description": "Machine-readable contract governing how AI coding agents may propose issues, contributions, and changes for pdfnative-react. Agents that scan repository configuration on initialization MUST honour this file. See .github/AGENT_RULES.md for the human-and-agent-readable protocol and docs/AI_GOVERNANCE.md for the narrative walk-through. The library ships NO code path that can write to GitHub or make an outbound network call; the shipped guardrail is the local `npm run verify:issue` CLI.",
-  "version": "1.0.0",
-  "spec_updated": "2026-07-17",
+  "version": "1.1.0",
+  "spec_updated": "2026-07-25",
   "applies_to": [
     "pdfnative",
     "pdfnative-cli",
@@ -55,14 +55,25 @@
       ".github/copilot-instructions.md",
       ".github/AGENT_RULES.md",
       "docs/AI_GOVERNANCE.md",
+      "docs/AGENT_CONTRACT.md",
       "docs/KNOWLEDGE_BASE.md",
+      "docs/RECIPES.md",
       "ROADMAP.md",
       "SECURITY.md",
       "llms.txt"
-    ]
+    ],
+    "runtime_api": {
+      "description": "Since 1.1.0 the contract also ships as runtime capability, so an agent working from an installed package (with no repository checkout) can read the rules it must follow.",
+      "policy": "aiGovernancePolicy()",
+      "rules": "agentRulesText()",
+      "validate": "validateIssueDraft(markdown)",
+      "capabilities": "capabilityManifest()",
+      "preflight": "doctor()"
+    }
   },
   "verification": {
     "command": "npm run verify:issue -- .github/drafts/<draft>.md",
+    "api": "validateIssueDraft(markdown)",
     "advisory_in_ci": true,
     "blocks_submission_on_failure": true
   },

@@ -33,6 +33,16 @@ import type {
     CellBorders,
     ListItem,
     StreamToFileResult,
+    ChartBlock,
+    ChartSeries,
+    ChartType,
+    PageTemplate,
+    WatermarkOptions,
+    WatermarkText,
+    WatermarkImage,
+    PdfAttachment,
+    PdfAttachmentRelationship,
+    EncryptionOptions,
 } from 'pdfnative';
 
 export type {
@@ -61,6 +71,16 @@ export type {
     CellBorders,
     ListItem,
     StreamToFileResult,
+    ChartBlock,
+    ChartSeries,
+    ChartType,
+    PageTemplate,
+    WatermarkOptions,
+    WatermarkText,
+    WatermarkImage,
+    PdfAttachment,
+    PdfAttachmentRelationship,
+    EncryptionOptions,
 };
 
 /** Horizontal alignment shared by several blocks. */

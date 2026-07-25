@@ -12,6 +12,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { agentRulesText, aiGovernancePolicy, validateIssueDraft } from '../src/index.js';
 
 const ROOT = process.cwd();
 const CLI = join(ROOT, 'scripts', 'verify-issue.mjs');
@@ -96,5 +97,103 @@ describe('repo governance artifacts', () => {
         expect(rules).toMatch(/human-in-the-loop/i);
         const draftsReadme = await readFile(join(ROOT, '.github', 'drafts', 'README.md'), 'utf8');
         expect(draftsReadme).toMatch(/staging area/i);
+    });
+});
+
+describe('governance as a runtime capability', () => {
+    it('validateIssueDraft agrees with the CLI on a good draft', () => {
+        expect(validateIssueDraft(GOOD_DRAFT)).toEqual({ ok: true, errors: [], warnings: [] });
+    });
+
+    it('flags a runtime-dependency proposal with E_POLICY', () => {
+        const result = validateIssueDraft(DEPENDENCY_DRAFT);
+        expect(result.ok).toBe(false);
+        expect(result.code).toBe('E_POLICY');
+        expect(result.errors[0]).toMatch(/minimal-dependency policy/);
+    });
+
+    it('flags a missing reproduction block', () => {
+        const result = validateIssueDraft(NO_REPRO_DRAFT);
+        expect(result.ok).toBe(false);
+        expect(result.errors.some((e) => /reproduction code block/.test(e))).toBe(true);
+    });
+
+    it('surfaces missing recommended fields as warnings only', () => {
+        const result = validateIssueDraft('# Title\n\n```\nrepro\n```\n');
+        expect(result.ok).toBe(true);
+        expect(result.warnings.length).toBeGreaterThan(0);
+    });
+
+    it('exposes the policy, matching .github/ai-governance.json', async () => {
+        const policy = aiGovernancePolicy();
+        const raw = await readFile(join(ROOT, '.github', 'ai-governance.json'), 'utf8');
+        const file = JSON.parse(raw) as {
+            policy: Record<string, boolean | string[]>;
+            human_in_the_loop: Record<string, string>;
+            pre_issue_checklist: string[];
+            compliance_report: { required_fields: string[] };
+            applies_to: string[];
+        };
+
+        expect(policy.policy.automaticIssueReporting).toBe(file.policy['automatic_issue_reporting']);
+        expect(policy.policy.runtimeDependenciesAllowed).toBe(
+            file.policy['runtime_dependencies_allowed'],
+        );
+        expect(policy.policy.humanInTheLoopMandatory).toBe(
+            file.policy['human_in_the_loop_mandatory'],
+        );
+        expect(policy.policy.autonomousGithubWritesAllowed).toBe(
+            file.policy['autonomous_github_writes_allowed'],
+        );
+        expect(policy.policy.outboundNetworkAllowed).toBe(file.policy['outbound_network_allowed']);
+        expect(policy.policy.telemetryAllowed).toBe(file.policy['telemetry_allowed']);
+        expect(policy.policy.requiredIssueFields).toEqual(file.policy['required_issue_fields']);
+        expect(policy.humanInTheLoop.roleOfAgent).toBe(file.human_in_the_loop['role_of_agent']);
+        expect(policy.humanInTheLoop.draftLocation).toBe(file.human_in_the_loop['draft_location']);
+        expect(policy.preIssueChecklist).toEqual(file.pre_issue_checklist);
+        expect(policy.complianceReportFields).toEqual(file.compliance_report.required_fields);
+        expect(policy.appliesTo).toEqual(file.applies_to);
+    });
+
+    it('ships the agent protocol text', () => {
+        const text = agentRulesText();
+        expect(text).toMatch(/DRAFTSMAN/);
+        expect(text).toMatch(/CRITICAL ETHICAL GATE/);
+        expect(text).toMatch(/NO new runtime dependency/);
+    });
+});
+
+/**
+ * `scripts/verify-issue.mjs` must stay zero-dependency and runnable with no
+ * build step (CI and the black-box tests above invoke it directly), so its
+ * pattern tables are necessarily duplicated in `src/governance.ts`. This test
+ * is what stops that duplication from drifting: it parses the script's source
+ * and compares both tables literally.
+ */
+describe('verifier ↔ library parity', () => {
+    it('uses byte-identical DEPENDENCY_PATTERNS and REQUIRED_FIELDS', async () => {
+        const [script, library] = await Promise.all([
+            readFile(CLI, 'utf8'),
+            readFile(join(ROOT, 'src', 'governance.ts'), 'utf8'),
+        ]);
+
+        const table = (source: string, name: string): string => {
+            const start = source.indexOf(`const ${name}`);
+            expect(start, `${name} not found`).toBeGreaterThan(-1);
+            // Anchor on `= [` so a TypeScript type annotation such as
+            // `: readonly RegExp[] =` cannot be mistaken for the array literal.
+            const open = source.indexOf('= [', start) + 2;
+            const close = source.indexOf('];', open);
+            expect(close, `${name} literal not closed`).toBeGreaterThan(open);
+            return source
+                .slice(open + 1, close)
+                .split('\n')
+                .map((line) => line.trim())
+                .filter((line) => line.length > 0)
+                .join('\n');
+        };
+
+        expect(table(library, 'DEPENDENCY_PATTERNS')).toBe(table(script, 'DEPENDENCY_PATTERNS'));
+        expect(table(library, 'REQUIRED_FIELDS')).toBe(table(script, 'REQUIRED_FIELDS'));
     });
 });

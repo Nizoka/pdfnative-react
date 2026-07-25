@@ -23,6 +23,7 @@ export type HostTag =
     | 'toc'
     | 'barcode'
     | 'svg'
+    | 'chart'
     | 'formField';
 
 /** A reconciled element node. */

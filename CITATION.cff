@@ -22,8 +22,11 @@ keywords:
   - document-generation
   - ai-agent
   - agentic
+  - ai-governance
   - json-schema
+  - charts
+  - accessibility
   - sbom
   - supply-chain
-version: 1.0.0
-date-released: 2026-07-17
+version: 1.1.0
+date-released: 2026-07-25

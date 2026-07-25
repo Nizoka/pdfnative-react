@@ -99,6 +99,34 @@ describe('capabilityManifest', () => {
         }
     });
 
+    it('advertises EVERY callable the barrel exports — the direction that matters', () => {
+        // A manifest that claims to describe "everything this package can do"
+        // while omitting part of the API is worse than none, because an agent
+        // trusts it. This is the reverse of the check above.
+        const named = new Set([
+            ...manifest.entrypoints.map((e) => e.name),
+            ...manifest.components.flatMap((c) => [c.name, ...(c.aliases ?? [])]),
+            ...manifest.clientComponents.map((c) => c.name),
+            ...manifest.errorClasses,
+        ]);
+
+        const exported = Object.entries(barrel)
+            .filter(([, value]) => typeof value === 'function')
+            .map(([name]) => name);
+
+        const undocumented = exported.filter((name) => !named.has(name));
+        expect(undocumented, `undocumented exports: ${undocumented.join(', ')}`).toEqual([]);
+    });
+
+    it('lists the client components and error classes it claims', () => {
+        expect(manifest.clientComponents.map((c) => c.name)).toEqual([
+            'PDFViewer',
+            'PDFDownloadLink',
+            'BlobProvider',
+        ]);
+        expect(manifest.errorClasses).toEqual(['PdfReactError', 'PdfStructureError']);
+    });
+
     it('advertises only components that really exist in the barrel', () => {
         for (const component of manifest.components) {
             expect(barrel, `component ${component.name}`).toHaveProperty(component.name);
@@ -248,5 +276,48 @@ describe('validateSpec', () => {
         for (const input of [null, undefined, 0, [], { blocks: [null, 1, [], ['br', 'x']] }]) {
             expect(() => validateSpec(input)).not.toThrow();
         }
+    });
+
+    it('bounds page nesting instead of exhausting the call stack', () => {
+        // validateSpec is the gate for untrusted input. Before the depth bound, a
+        // ~44 kB payload took the process down with a RangeError — while the
+        // JSDoc promised it never throws, so callers write `if (!ok)`, not
+        // try/catch.
+        let spec: { blocks: unknown[] } = { blocks: [['p', 'leaf']] };
+        for (let i = 0; i < 5000; i += 1) spec = { blocks: [['page', spec.blocks]] };
+
+        let result: ReturnType<typeof validateSpec> | undefined;
+        expect(() => {
+            result = validateSpec(spec);
+        }).not.toThrow();
+
+        expect(result?.ok).toBe(false);
+        expect(result?.errors.some((e) => e.code === 'V_TOO_DEEP')).toBe(true);
+    });
+
+    it('accepts legitimate nesting well below the bound', () => {
+        let spec: { blocks: unknown[] } = { blocks: [['p', 'leaf']] };
+        for (let i = 0; i < 5; i += 1) spec = { blocks: [['page', spec.blocks]] };
+        expect(validateSpec(spec).ok).toBe(true);
+    });
+
+    it('rejects Object.prototype keys as schema subjects', () => {
+        // schema() is the one API designed to be called with a model-generated
+        // string. A plain-object lookup resolves 'toString' through the
+        // prototype chain and returns something that is not a schema at all.
+        for (const key of ['toString', 'constructor', 'valueOf', '__proto__', 'hasOwnProperty']) {
+            expect(() => barrel.schema(key as never), key).toThrowError(
+                /Unknown schema subject/,
+            );
+        }
+    });
+
+    it('does not hand out a live reference to the lint registry', () => {
+        const before = barrel.LINT_RULES.L_IMAGE_ALT.severity;
+        const doc = barrel.schema('lint-report') as {
+            $defs: { rules: { const: Record<string, { severity: string }> } };
+        };
+        doc.$defs.rules.const['L_IMAGE_ALT'].severity = 'error';
+        expect(barrel.LINT_RULES.L_IMAGE_ALT.severity).toBe(before);
     });
 });

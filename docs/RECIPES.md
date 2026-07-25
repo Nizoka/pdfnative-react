@@ -149,15 +149,38 @@ const rotated = mergePdfs([{ bytes: protectedBytes, password: 'old' }], {
 ## Sign, annotate, inspect
 
 ```ts
-import { signPdfBytes, createModifier, openPdf, validatePdfUA } from 'pdfnative';
+import { signPdfBytes, validatePdfUA } from 'pdfnative';
 
 const signed = signPdfBytes(bytes, { /* certificate, key, … */ });
-
-const modifier = createModifier(bytes);
-modifier.addAnnotation(0, { /* highlight, note, … */ });
-
 const report = validatePdfUA(bytes);   // accessibility conformance
 ```
+
+Annotations take three steps, because the modifier works on a *parsed* document
+and `addAnnotation` takes a serialized dictionary, not an object:
+
+```ts
+import { openPdf, createModifier, buildAnnotationBody } from 'pdfnative';
+
+const modifier = createModifier(openPdf(bytes));   // a PdfReader, not raw bytes
+
+const body = buildAnnotationBody({
+    type: 'text',
+    rect: [72, 700, 92, 720],
+    contents: 'Check this figure against the source data.',
+    title: 'Reviewer',
+});
+
+modifier.addAnnotation(0, body);                    // 0-based page index
+const annotated = modifier.save();                  // incremental update appended
+```
+
+`buildAnnotationBody` emits the `<< … >>` dictionary; `buildAnnotation` emits a
+full indirect object instead, for when you are assembling a PDF yourself. Both
+accept the typed markup shapes — text note, highlight, underline, strikeout,
+squiggly, square, circle, line, free text.
+
+Note that `addRawObject` throws on encrypted documents (a verbatim body cannot
+be transparently encrypted); `addAnnotation` handles encryption correctly.
 
 ## Compile a font at runtime
 

@@ -19,13 +19,30 @@ Read [docs/KNOWLEDGE_BASE.md](../docs/KNOWLEDGE_BASE.md) and
   imports from there or from `src/types.ts`.
 - **Never add a CSS/flexbox layout model.** Map components 1:1 onto pdfnative
   blocks (heading, paragraph, list, table, image, link, spacer, pageBreak, toc,
-  barcode, svg, formField). `<Section>` is the single allowed *composite* (it
-  resolves to a heading + children, emitting no host tag).
-- **`pdfnative` is a peer dependency.** Never move it back to `dependencies`.
+  barcode, svg, **chart**, formField). `<Section>` is the single allowed
+  *composite* (it resolves to a heading + children, emitting no host tag).
+- **`src/registry.ts` is the single source of truth** for the block grammar, the
+  component list and the lint rules. `src/spec/schema.ts`, `src/spec/validate.ts`
+  and `src/manifest.ts` all *derive* from it — never restate a kind, an arity or
+  a rule in those files. Compile-time `Assert<Equals<…>>` locks mean forgetting
+  to register something fails `npm run typecheck`. See the 10-step checklist in
+  [AGENTS.md](../AGENTS.md).
+- **`pdfnative` is a peer dependency** (`^1.6.0`; Node ≥ 22). Never move it back
+  to `dependencies`.
 - **Authoring only.** Do not re-export byte-level post-processing (merge/split,
-  annotations, signing, crypto, font compilation) — point to the engine instead.
-- **Document-level `outline`/`pageLabels`** live on `<Document>` props (they
-  reference post-layout pages), not as content blocks.
+  form fill/flatten, text extraction, decryption, annotations, signing, crypto,
+  font compilation) — point to [docs/RECIPES.md](../docs/RECIPES.md) instead.
+- **Document-level props on `<Document>`**, not content blocks: `outline` and
+  `pageLabels` (they reference post-layout pages), plus the layout sugar
+  `watermark`, `header`, `footer`, `attachments`, `tagged`. The sugar folds into
+  `layout` via `resolveLayout()`, where an explicit `layout` always wins — and
+  which must keep returning `undefined`, never `{}`, when nothing is set, or
+  every existing document changes bytes.
+- **Agent-facing surface must stay honest.** `doctor()` must never throw;
+  `validateSpec()` must never throw and must bound its recursion; `schema()` must
+  reject unknown subjects with `E_INPUT` (use `Object.hasOwn`, not a truthiness
+  check); `capabilityManifest()` must list *every* public export, and a test
+  locks both directions.
 - **react-reconciler version contract:** React 19 ↔ `react-reconciler@^0.31` ↔
   `@types/react-reconciler@^0.32`. Specifically:
   - `getRootHostContext`/`getChildHostContext` must return a **non-null**
@@ -37,7 +54,9 @@ Read [docs/KNOWLEDGE_BASE.md](../docs/KNOWLEDGE_BASE.md) and
 - **Do not run the renderer synchronously inside a React effect/commit.** `usePdf`
   defers `renderToBytes` via `queueMicrotask` to avoid reconciler reentrancy
   (which deadlocks). Preserve this when editing hooks.
-- **Client modules carry `'use client'`** (`hooks.ts`, `viewer.tsx`).
+- **Client modules carry `'use client'`** (`hooks.ts`, `viewer.tsx`) — in source.
+  The bundle is a single file, so the directive does not survive into `dist/`;
+  `src/response.ts` is server-side and must never carry it.
 - **Strict TypeScript, no `any`** (lint-enforced). Use `type`-only imports.
 - **AI governance (draftsman, never submitter).** Do not open/submit issues or
   PRs autonomously. Draft into `.github/drafts/`, validate with

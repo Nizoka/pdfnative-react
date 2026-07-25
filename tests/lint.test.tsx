@@ -18,6 +18,7 @@ import {
     lintSpec,
     LINT_RULE_CODES,
 } from '../src/index.js';
+import { EMITTED_LINT_RULES } from '../src/lint.js';
 import type { ChartSeries, LintReport, LintRuleCode } from '../src/index.js';
 
 const PIXEL = new Uint8Array([0x89, 0x50, 0x4e, 0x47]);
@@ -122,6 +123,18 @@ describe('document-level rules', () => {
             blocks: Array.from({ length: 10 }, (_, i) => ['p', `line ${String(i)}`] as const),
         });
         expect(codes(report)).toContain('L_MAX_BLOCKS');
+        expect(report.ok).toBe(true);
+    });
+
+    it('L_MAX_BLOCKS_EXCEEDED — past the ceiling is an error, not an "approaching" warning', () => {
+        const report = lintSpec({
+            layout: { maxBlocks: 10 },
+            blocks: Array.from({ length: 50 }, (_, i) => ['p', `line ${String(i)}`] as const),
+        });
+        expect(codes(report)).toContain('L_MAX_BLOCKS_EXCEEDED');
+        expect(codes(report)).not.toContain('L_MAX_BLOCKS');
+        expect(report.ok).toBe(false);
+        expect(report.findings[0].message).toContain('exceeds');
     });
 });
 
@@ -149,6 +162,14 @@ describe('accessibility rules', () => {
     it('L_HEADING_HIERARCHY — flags a skipped heading level', () => {
         const report = lintSpec({ blocks: [['h1', 'Title'], ['h3', 'Too deep']] });
         expect(codes(report)).toContain('L_HEADING_HIERARCHY');
+    });
+
+    it('L_HEADING_HIERARCHY — flags a document whose first heading is too deep', () => {
+        expect(codes(lintSpec({ blocks: [['h3', 'Deep']] }))).toContain('L_HEADING_HIERARCHY');
+        expect(codes(lintSpec({ blocks: [['h2', 'Deep']] }))).toContain('L_HEADING_HIERARCHY');
+        expect(codes(lintSpec({ blocks: [['h1', 'Fine']] }))).not.toContain(
+            'L_HEADING_HIERARCHY',
+        );
     });
 
     it('L_HEADING_HIERARCHY — accepts descending back to a shallower level', () => {
@@ -229,6 +250,44 @@ describe('chart rules — pre-empting engine failures', () => {
         expect(codes(report)).toContain('L_CHART_CATEGORIES');
     });
 
+    it('L_CHART_EMPTY — rejects a chart with no series, or a series with no values', () => {
+        // Both throw inside the engine at render time.
+        expect(
+            codes(lintSpec({ blocks: [['chart', { chartType: 'bar', series: [], altText: 'x' }]] })),
+        ).toContain('L_CHART_EMPTY');
+
+        expect(
+            codes(
+                lintSpec({
+                    blocks: [
+                        [
+                            'chart',
+                            { chartType: 'bar', series: [{ label: 'A', values: [] }], altText: 'x' },
+                        ],
+                    ],
+                }),
+            ),
+        ).toContain('L_CHART_EMPTY');
+    });
+
+    it('L_CHART_VALUES — catches an undefined value, not just null', () => {
+        // `.find()` returns undefined for a *found* undefined, so an
+        // `!== undefined` guard silently passed this.
+        const report = lintSpec({
+            blocks: [
+                [
+                    'chart',
+                    {
+                        chartType: 'bar',
+                        series: [{ label: 'A', values: [1, undefined as unknown as number] }],
+                        altText: 'x',
+                    },
+                ],
+            ],
+        });
+        expect(codes(report)).toContain('L_CHART_VALUES');
+    });
+
     it('L_CHART_VALUES — rejects non-finite values', () => {
         const report = lintSpec({
             blocks: [
@@ -286,6 +345,23 @@ describe('geometry rules', () => {
         expect(codes(lintSpec(spec))).not.toContain('L_OVERFLOW');
     });
 
+    it('L_OVERFLOW — flags a block that runs past the bottom margin', () => {
+        // Exercises the `belowFloor` arm, which is the y-axis-sign-sensitive one:
+        // pdfnative's y increases upward, so a block occupies [top - height, top].
+        // Invert that comparison and this test fails.
+        const report = lintSpec(
+            {
+                layout: { pageHeight: 400, margins: { t: 40, r: 40, b: 40, l: 40 } },
+                blocks: [
+                    ['p', 'filler'],
+                    ['chart', { chartType: 'bar', series: SERIES, height: 300, altText: 'x' }],
+                ],
+            },
+            { overflow: true },
+        );
+        expect(codes(report)).toContain('L_OVERFLOW');
+    });
+
     it('L_OVERFLOW — flags a block taller than the content box', () => {
         const report = lintSpec(
             {
@@ -309,6 +385,13 @@ describe('report shape', () => {
             { rules: ['L_IMAGE_ALT'] },
         );
         expect(codes(report)).toEqual(['L_IMAGE_ALT']);
+    });
+
+    it('every registered rule is actually implemented', () => {
+        // The registry cannot catch a rule that is declared but never emitted:
+        // such a code ships into schema('lint-report') and the capability
+        // manifest, and an agent branches on a finding that can never arrive.
+        expect([...EMITTED_LINT_RULES].sort()).toEqual([...LINT_RULE_CODES].sort());
     });
 
     it('only reports codes that exist in the registry', () => {

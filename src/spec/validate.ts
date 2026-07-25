@@ -46,7 +46,19 @@ export const SpecCode = {
     OPTS_TYPE: 'V_OPTS_TYPE',
     /** An unrecognised top-level field (warning — forward compatibility). */
     UNKNOWN_FIELD: 'V_UNKNOWN_FIELD',
+    /** Page nesting exceeded {@link MAX_NESTING_DEPTH}. */
+    TOO_DEEP: 'V_TOO_DEEP',
 } as const;
+
+/**
+ * Maximum `['page', …]` nesting accepted before validation stops descending.
+ *
+ * `validateSpec` is the gate for *untrusted* input, so it must not be possible
+ * to exhaust the call stack with a deeply nested payload — a few tens of
+ * kilobytes of JSON would otherwise take the process down. Real documents nest
+ * one level; 64 is far beyond any legitimate use.
+ */
+export const MAX_NESTING_DEPTH = 64;
 
 /** The value type of {@link SpecCode}. */
 export type SpecCodeValue = (typeof SpecCode)[keyof typeof SpecCode];
@@ -74,7 +86,7 @@ export interface SpecValidation {
 }
 
 /** Every recognised top-level `DocSpec` field. */
-const KNOWN_FIELDS: readonly string[] = [
+const KNOWN_FIELDS = [
     'title',
     'footerText',
     'metadata',
@@ -88,7 +100,21 @@ const KNOWN_FIELDS: readonly string[] = [
     'attachments',
     'tagged',
     'blocks',
-];
+] as const satisfies readonly (keyof DocSpec)[];
+
+/**
+ * Compile-time lock: {@link KNOWN_FIELDS} must cover `DocSpec` exactly.
+ *
+ * Without this, adding a field to `DocSpec` would make every well-formed spec
+ * using it emit a spurious `V_UNKNOWN_FIELD` warning — silently, since the
+ * validator would still return `ok: true`.
+ */
+type Equals<A, B> =
+    (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2 ? true : false;
+type Assert<T extends true> = T;
+export type KnownFieldsAreExhaustive = Assert<
+    Equals<(typeof KNOWN_FIELDS)[number], keyof DocSpec>
+>;
 
 /** kind → descriptor, flattened from the registry once at module load. */
 const BY_KIND = new Map(
@@ -123,7 +149,17 @@ function describe(value: unknown): string {
     return typeof value;
 }
 
-function validateBlock(block: unknown, path: string, out: SpecFinding[]): void {
+function validateBlock(block: unknown, path: string, out: SpecFinding[], depth: number): void {
+    if (depth > MAX_NESTING_DEPTH) {
+        out.push({
+            code: SpecCode.TOO_DEEP,
+            severity: 'error',
+            path,
+            message: `Page nesting exceeds the ${String(MAX_NESTING_DEPTH)}-level limit; not descending further.`,
+        });
+        return;
+    }
+
     if (!Array.isArray(block) || block.length === 0) {
         out.push({
             code: SpecCode.BLOCK_SHAPE,
@@ -172,7 +208,7 @@ function validateBlock(block: unknown, path: string, out: SpecFinding[]): void {
             });
         } else if (descriptor.payload === 'blocks') {
             (payload as readonly unknown[]).forEach((nested, i) => {
-                validateBlock(nested, `${path}[1][${String(i)}]`, out);
+                validateBlock(nested, `${path}[1][${String(i)}]`, out, depth + 1);
             });
         }
     }
@@ -220,7 +256,7 @@ export function validateSpec(spec: unknown): SpecValidation {
     }
 
     for (const key of Object.keys(spec)) {
-        if (!KNOWN_FIELDS.includes(key)) {
+        if (!(KNOWN_FIELDS as readonly string[]).includes(key)) {
             findings.push({
                 code: SpecCode.UNKNOWN_FIELD,
                 severity: 'warning',
@@ -240,7 +276,7 @@ export function validateSpec(spec: unknown): SpecValidation {
         });
     } else {
         blocks.forEach((block, i) => {
-            validateBlock(block, `blocks[${String(i)}]`, findings);
+            validateBlock(block, `blocks[${String(i)}]`, findings, 0);
         });
     }
 

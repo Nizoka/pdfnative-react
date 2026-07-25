@@ -281,6 +281,32 @@ export const COMPONENT_REGISTRY = [
 /** A read-only view of a {@link COMPONENT_REGISTRY} entry. */
 export type ComponentDescriptor = (typeof COMPONENT_REGISTRY)[number];
 
+/**
+ * Client-side components — preview and download helpers.
+ *
+ * Kept separate from {@link COMPONENT_REGISTRY} because they emit no host tag
+ * and author no block: they *consume* a document rather than describing one.
+ * Folding them in would also defeat the `HostTag` exhaustiveness lock.
+ *
+ * These modules carry `'use client'` in source. Note that the published bundle
+ * is a single file with no directives — see `docs/SERVER.md` for what that
+ * means in a React Server Components app.
+ */
+export const CLIENT_COMPONENT_REGISTRY = [
+    {
+        name: 'PDFViewer',
+        summary: 'Live iframe preview of a document.',
+    },
+    {
+        name: 'PDFDownloadLink',
+        summary: 'Anchor that downloads a rendered document.',
+    },
+    {
+        name: 'BlobProvider',
+        summary: 'Render-prop giving access to the blob, URL, loading and error state.',
+    },
+] as const satisfies readonly { readonly name: string; readonly summary: string }[];
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Lint-rule registry
 // ─────────────────────────────────────────────────────────────────────────────
@@ -346,6 +372,14 @@ export const LINT_RULES = {
     L_MAX_BLOCKS: {
         severity: 'warning',
         description: 'The block count is within 10% of the configured maxBlocks ceiling.',
+    },
+    L_MAX_BLOCKS_EXCEEDED: {
+        severity: 'error',
+        description: 'The block count is past the configured maxBlocks ceiling.',
+    },
+    L_CHART_EMPTY: {
+        severity: 'error',
+        description: 'A chart has no series, or a series has no values.',
     },
     L_CHART_SERIES: {
         severity: 'error',

@@ -78,6 +78,38 @@ export interface LintOptions extends RenderOptions {
 
 const MAX_CHART_POINTS = 10_000;
 
+/**
+ * Every rule this module can actually emit.
+ *
+ * The registry alone cannot catch a rule that is *declared but never
+ * implemented*: such a code would ship into `schema('lint-report')` and
+ * `capabilityManifest().lintRules`, and an agent would branch on a finding that
+ * can never arrive. `tests/lint.test.tsx` asserts this list equals
+ * `LINT_RULE_CODES`, closing the direction the type system cannot.
+ *
+ * Keep it in sync when adding a rule — the test will tell you if you forget.
+ */
+export const EMITTED_LINT_RULES: readonly LintRuleCode[] = [
+    'L_EMPTY_DOCUMENT',
+    'L_IMAGE_ALT',
+    'L_CHART_ALT',
+    'L_TABLE_HEADERS',
+    'L_HEADING_HIERARCHY',
+    'L_FIELD_LABEL',
+    'L_LINK_TEXT',
+    'L_TAGGED_NO_FONTS',
+    'L_TAGGED_ENCRYPTED',
+    'L_ATTACHMENTS_NEED_PDFA3',
+    'L_MAX_BLOCKS',
+    'L_MAX_BLOCKS_EXCEEDED',
+    'L_CHART_EMPTY',
+    'L_CHART_SERIES',
+    'L_CHART_CATEGORIES',
+    'L_CHART_VALUES',
+    'L_CHART_POINTS',
+    'L_OVERFLOW',
+];
+
 function finding(
     code: LintRuleCode,
     message: string,
@@ -103,6 +135,28 @@ function lintChart(block: ChartBlock, index: number, out: LintFinding[]): void {
                 hint: 'Describe what the chart shows, e.g. altText="Revenue per quarter, rising from 12k to 31k".',
             }),
         );
+    }
+
+    // The engine throws on an empty series list or an empty value array, so
+    // report it here rather than letting the render blow up.
+    if (series.length === 0) {
+        out.push(
+            finding('L_CHART_EMPTY', `Chart #${index} has no series.`, {
+                blockIndex: index,
+                hint: 'Supply at least one { label, values } series.',
+            }),
+        );
+    }
+    for (const s of series) {
+        if (s.values.length === 0) {
+            out.push(
+                finding(
+                    'L_CHART_EMPTY',
+                    `Chart #${index} series "${s.label}" has no values.`,
+                    { blockIndex: index, hint: 'Every series needs at least one value.' },
+                ),
+            );
+        }
     }
 
     const isRadial = chartType === 'pie' || chartType === 'donut';
@@ -131,8 +185,9 @@ function lintChart(block: ChartBlock, index: number, out: LintFinding[]): void {
             );
         }
 
-        const bad = s.values.find((v) => !Number.isFinite(v));
-        if (bad !== undefined) {
+        // `.some`, not `.find`: when the offending value *is* `undefined`,
+        // `find` returns `undefined` and an `!== undefined` check silently passes.
+        if (s.values.some((v) => !Number.isFinite(v))) {
             out.push(
                 finding(
                     'L_CHART_VALUES',
@@ -168,11 +223,16 @@ function lintBlocks(blocks: readonly DocumentBlock[], out: LintFinding[]): void 
     blocks.forEach((block, index) => {
         switch (block.type) {
             case 'heading': {
-                if (lastHeadingLevel > 0 && block.level > lastHeadingLevel + 1) {
+                // A document whose *first* heading is h2 or h3 skips a level just
+                // as surely as one that jumps mid-document — WCAG 1.3.1 treats
+                // both as a broken outline.
+                if (block.level > lastHeadingLevel + 1) {
                     out.push(
                         finding(
                             'L_HEADING_HIERARCHY',
-                            `Heading jumps from level ${String(lastHeadingLevel)} to ${String(block.level)} ("${block.text}").`,
+                            lastHeadingLevel === 0
+                                ? `The first heading is level ${String(block.level)}; a document should start at level 1 ("${block.text}").`
+                                : `Heading jumps from level ${String(lastHeadingLevel)} to ${String(block.level)} ("${block.text}").`,
                             {
                                 blockIndex: index,
                                 hint: `Use level ${String(lastHeadingLevel + 1)}, or add the intermediate heading.`,
@@ -306,11 +366,20 @@ function lintDocumentParams(params: DocumentParams, out: LintFinding[]): void {
     }
 
     const maxBlocks = layout?.maxBlocks;
-    if (maxBlocks !== undefined && params.blocks.length > maxBlocks * 0.9) {
+    const blockCount = params.blocks.length;
+    if (maxBlocks !== undefined && blockCount > maxBlocks) {
+        out.push(
+            finding(
+                'L_MAX_BLOCKS_EXCEEDED',
+                `${String(blockCount)} blocks exceeds the maxBlocks ceiling of ${String(maxBlocks)}.`,
+                { hint: 'Raise layout.maxBlocks, or split the document.' },
+            ),
+        );
+    } else if (maxBlocks !== undefined && blockCount > maxBlocks * 0.9) {
         out.push(
             finding(
                 'L_MAX_BLOCKS',
-                `${String(params.blocks.length)} blocks is within 10% of the maxBlocks ceiling (${String(maxBlocks)}).`,
+                `${String(blockCount)} blocks is within 10% of the maxBlocks ceiling (${String(maxBlocks)}).`,
                 { hint: 'Raise layout.maxBlocks, or split the document.' },
             ),
         );

@@ -158,6 +158,8 @@ Notes learned the hard way:
   `viewerPreferences`/`debug` survive it.
 - `tests/hooks.test.tsx` — exercises `usePdf`/`usePdfStream` under jsdom,
   including the async `options.fonts` path.
+- `tests/viewer.test.tsx` — `PDFViewer`, `PDFDownloadLink` (both children forms)
+  and `BlobProvider`.
 - `tests/spec.test.tsx` — asserts `compileSpec` parity with the equivalent JSX,
   nested list/outline/pageLabels/cellBorders forwarding, `inspectSpec`, real
   `renderSpec*` PDF output, and the JSON Schema `$id`/version/recursive `$defs`.

@@ -60,6 +60,27 @@ describe('renderToResponse', () => {
         expect(disposition).toContain("filename*=UTF-8''facture-%C3%A9crite.pdf");
     });
 
+    it('percent-escapes characters that are not RFC 8187 attr-char', async () => {
+        // encodeURIComponent leaves ' ( ) ! * ~ alone. A raw apostrophe is
+        // actively harmful: a strict parser splits the ext-value on ' as
+        // charset'lang'value and mis-reads the filename.
+        const response = await renderToResponse(DOC, { fileName: "O'Néill (final)!.pdf" });
+        const disposition = response.headers.get('content-disposition') ?? '';
+        const ext = /filename\*=UTF-8''(.+)$/.exec(disposition)?.[1] ?? '';
+
+        expect(ext).not.toContain("'");
+        expect(ext).not.toContain('(');
+        expect(ext).not.toContain(')');
+        expect(ext).not.toContain('!');
+        expect(decodeURIComponent(ext)).toBe("O'Néill (final)!.pdf");
+    });
+
+    it('releases the generator when the client disconnects', async () => {
+        const response = await renderToResponse(DOC);
+        expect(response.body).not.toBeNull();
+        await expect(response.body?.cancel()).resolves.toBeUndefined();
+    });
+
     it('sets content-length only in buffered mode', async () => {
         const streamed = await renderToResponse(DOC);
         expect(streamed.headers.get('content-length')).toBeNull();

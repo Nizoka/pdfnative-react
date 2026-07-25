@@ -417,12 +417,28 @@ const BLOCK_SCHEMAS = {
  * so the schema and `validateSpec` can never disagree about how long a tuple is.
  */
 function blockDefs(): readonly JsonSchema[] {
-    return BLOCK_REGISTRY.map((entry) => ({
-        ...BLOCK_SCHEMAS[entry.id](),
-        description: entry.summary,
-        minItems: entry.minItems,
-        maxItems: entry.maxItems,
-    }));
+    return BLOCK_REGISTRY.map((entry) => {
+        const built = BLOCK_SCHEMAS[entry.id]();
+        const prefixItems = [...(built['prefixItems'] as JsonSchema[])];
+
+        // Overwrite the kind discriminator from the registry rather than trusting
+        // the builder's hardcoded literal. Without this the `satisfies` lock only
+        // covers *group ids*: a new kind could be added to `BLOCK_REGISTRY` and
+        // accepted by `validateSpec` while the schema still advertised the old
+        // enum — the two claiming to be derived from one source while disagreeing.
+        prefixItems[0] =
+            entry.kinds.length === 1
+                ? { const: entry.kinds[0] }
+                : { enum: [...entry.kinds] };
+
+        return {
+            ...built,
+            prefixItems,
+            description: entry.summary,
+            minItems: entry.minItems,
+            maxItems: entry.maxItems,
+        };
+    });
 }
 
 /**
@@ -623,7 +639,16 @@ function lintReportSchema(): JsonSchema {
         $defs: {
             rules: {
                 description: 'The full rule registry: code → severity + description.',
-                const: LINT_RULES,
+                // A fresh copy, never the live `LINT_RULES` object. Schema tooling
+                // routinely walks and annotates a returned document ($id rewriting,
+                // $ref dereferencing); handing out the registry by reference would
+                // let that mutate every subsequent lint severity process-wide.
+                const: Object.fromEntries(
+                    LINT_RULE_CODES.map((code) => [
+                        code,
+                        { severity: LINT_RULES[code].severity, description: LINT_RULES[code].description },
+                    ]),
+                ),
             },
         },
     };
@@ -658,6 +683,7 @@ function specValidationSchema(): JsonSchema {
                             'V_PAYLOAD_TYPE',
                             'V_OPTS_TYPE',
                             'V_UNKNOWN_FIELD',
+                            'V_TOO_DEEP',
                         ],
                     },
                     severity: { enum: ['error', 'warning'] },
@@ -772,14 +798,18 @@ const SUBJECT_SCHEMAS = {
  * ```
  */
 export function schema(subject: SchemaSubject = 'doc-spec'): JsonSchema {
-    const build = SUBJECT_SCHEMAS[subject] as (() => JsonSchema) | undefined;
-    if (build === undefined) {
+    // `Object.hasOwn`, not `SUBJECT_SCHEMAS[subject] !== undefined`: this is the
+    // one API explicitly designed to be called with a model-generated string,
+    // and a plain-object lookup would happily resolve 'toString' or
+    // 'constructor' through Object.prototype and return something that is not a
+    // schema at all.
+    if (!Object.hasOwn(SUBJECT_SCHEMAS, subject)) {
         throw new PdfReactError(
             `Unknown schema subject ${JSON.stringify(subject)}. Valid subjects: ${SCHEMA_SUBJECTS.join(', ')}.`,
             ErrorCode.INPUT,
         );
     }
-    return build();
+    return SUBJECT_SCHEMAS[subject]();
 }
 
 // Re-export the type for convenience at the schema entry point.

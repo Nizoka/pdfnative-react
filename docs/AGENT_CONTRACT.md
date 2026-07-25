@@ -134,28 +134,33 @@ const result = validateSpec(JSON.parse(untrusted));
 // { ok, errors: [{ code, severity, path, message }], warnings: [...] }
 ```
 
-Never throws. Findings are path-anchored (`blocks[3][1]`), so an agent can
-repair its own output rather than guessing. Codes: `V_NOT_OBJECT`, `V_BLOCKS`,
+Never throws — including on deliberately hostile input. Page nesting is bounded
+at 64 levels (`V_TOO_DEEP`), so a deep payload cannot exhaust the call stack.
+Findings are path-anchored (`blocks[3][1]`), so an agent can repair its own
+output rather than guessing. Codes: `V_NOT_OBJECT`, `V_BLOCKS`,
 `V_BLOCK_SHAPE`, `V_UNKNOWN_KIND`, `V_ARITY`, `V_PAYLOAD_TYPE`, `V_OPTS_TYPE`,
-`V_UNKNOWN_FIELD` (warning only — unknown fields are ignored, not fatal, so
-forward compatibility is preserved).
+`V_TOO_DEEP`, and `V_UNKNOWN_FIELD` (warning only — unknown fields are ignored,
+not fatal, so forward compatibility is preserved).
 
 Arity and payload rules derive from the same table that builds the JSON Schema,
 so the two can never disagree.
 
 ### Tier 3 — `lintSpec`
 
-Sixteen rules with stable `L_*` codes. Five of them pre-empt failures that
-would otherwise happen *inside the engine*, at render time:
+Eighteen rules with stable `L_*` codes (10 error, 7 warning, 1 info). Six of
+them pre-empt an exception the engine raises *mid-render*:
 
 | Code | Would otherwise |
 |---|---|
+| `L_CHART_EMPTY` | Throw — no series, or a series with no values |
 | `L_CHART_SERIES` | Throw — pie/donut need exactly one series |
 | `L_CHART_CATEGORIES` | Throw — series length must match categories |
 | `L_CHART_VALUES` | Throw — non-finite, or negative in a pie/donut |
 | `L_CHART_POINTS` | Throw — 10 000-point ceiling |
 | `L_ATTACHMENTS_NEED_PDFA3` | Throw — attachments require `tagged="pdfa3b"` |
-| `L_TAGGED_NO_FONTS` | Produce a PDF/A file veraPDF rejects |
+
+Two more catch output that renders successfully but is wrong:
+`L_TAGGED_NO_FONTS` (a PDF/A file veraPDF rejects) and `L_MAX_BLOCKS_EXCEEDED`.
 
 Gate on `report.ok` (true when no `error`-severity finding). See
 [LINTING.md](LINTING.md).

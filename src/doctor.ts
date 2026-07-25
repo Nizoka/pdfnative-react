@@ -6,9 +6,17 @@
  * autonomous agent should make in an unfamiliar environment, and a fast way for
  * a human to see why an install is misbehaving.
  *
- * It is **total**: every check is wrapped, so `doctor()` never throws, even
- * when the `pdfnative` peer is missing entirely — that is precisely the
- * situation it exists to diagnose.
+ * It is **total**: every check is wrapped, so `doctor()` never throws. It
+ * reports rather than raises, which is what makes it safe to call first.
+ *
+ * One limit worth knowing. `core-bridge` re-exports the engine with a *static*
+ * `export … from 'pdfnative'`, so if the peer is not installed at all the module
+ * graph fails to resolve and this function is never reached — you get
+ * `ERR_MODULE_NOT_FOUND` at import time instead. That is already an unambiguous
+ * diagnosis, so we do not contort the architecture to route it through here.
+ * What `doctor()` does catch is the subtler case: an engine that resolves but is
+ * **older than 1.6.0**, which under a bundler or CJS interop yields an
+ * `undefined` export rather than a link error.
  *
  * @packageDocumentation
  */
@@ -94,8 +102,9 @@ function reactCheck(): DoctorCheck {
 function engineCheck(): DoctorCheck {
     return check(
         'pdfnative',
-        `The pdfnative peer dependency must be installed at ${REQUIRED_ENGINE} or later `
-            + '(probed via a capability that first ships in 1.6.0).',
+        `The pdfnative peer dependency must be at ${REQUIRED_ENGINE} or later (probed via a `
+            + 'capability that first ships in 1.6.0). A peer that is absent entirely fails '
+            + 'earlier, at module resolution.',
         () => {
             const present = typeof estimateChartHeight === 'function';
             return present
@@ -143,7 +152,8 @@ function blobCheck(): DoctorCheck {
 /**
  * Run every environment check and return a structured report.
  *
- * Never throws. `ok` is `false` when any check has status `'error'`.
+ * Never throws. `ok` is `false` when any check has status `'error'`. See the
+ * module docs for the one case it cannot reach (a peer that is absent entirely).
  *
  * @example
  * ```ts

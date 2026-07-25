@@ -64,15 +64,14 @@ No public API was removed or changed in a backward-incompatible way. Two
 
 #### Linting
 
-- **`lintDocument(node, options?)`** / **`lintSpec(spec, options?)`** — sixteen
-  deterministic accessibility and layout rules with stable `L_*` codes. Runs on
-  the compiled document model, so JSX and `DocSpec` share one implementation.
-  Pure: no console output, no throwing.
-- Five rules pre-empt hard failures further down the pipeline:
-  `L_CHART_SERIES`, `L_CHART_CATEGORIES`, `L_CHART_VALUES` and `L_CHART_POINTS`
-  mirror the engine's own chart validation (which throws at render time), and
-  `L_ATTACHMENTS_NEED_PDFA3` / `L_TAGGED_NO_FONTS` catch PDF/A documents the
-  engine or veraPDF would reject.
+- **`lintDocument(node, options?)`** / **`lintSpec(spec, options?)`** — eighteen
+  deterministic accessibility and layout rules with stable `L_*` codes (10
+  error, 7 warning, 1 info). Runs on the compiled document model, so JSX and
+  `DocSpec` share one implementation. Pure: no console output, no throwing.
+- Six rules pre-empt an exception the engine raises mid-render: the five
+  `L_CHART_*` errors (`EMPTY`, `SERIES`, `CATEGORIES`, `VALUES`, `POINTS`) and
+  `L_ATTACHMENTS_NEED_PDFA3`. Two more — `L_TAGGED_NO_FONTS` and
+  `L_MAX_BLOCKS_EXCEEDED` — catch output that renders successfully but is wrong.
 
 #### Agent surface
 
@@ -94,7 +93,8 @@ No public API was removed or changed in a backward-incompatible way. Two
   so it survives bundling into a browser build.
 - **`validateSpec(spec: unknown)`** — structural validation of an untrusted
   `DocSpec` with no JSON-Schema engine, returning path-anchored `V_*` findings
-  (`blocks[3][1]`). Never throws. This is dry-run tier 1; `compileSpec`,
+  (`blocks[3][1]`). Never throws, and bounds page nesting at 64 levels so a deep
+  payload cannot exhaust the call stack. This is dry-run tier 1; `compileSpec`,
   `lintSpec` and `inspectSpec` are tiers 2–4.
 - **`schema(subject?)`** / **`schemaId(subject?)`** — seven subjects
   (`doc-spec`, `render-options`, `lint-report`, `spec-validation`, `doctor`,
@@ -125,9 +125,9 @@ No public API was removed or changed in a backward-incompatible way. Two
   `extractText`, `fillForm`/`flattenForm`, `openPdf({ password })`,
   merge/split and re-encryption on the bytes this library produces.
 - `docs/KNOWLEDGE_BASE.md` gains an "Agent Automation Contract" chapter.
-- 6 new samples (charts, layout sugar, a Next.js route handler, linting, the
-  full agent loop, the error envelope) and 3 new agent samples, all
-  type-checked in CI.
+- 7 new samples — charts, layout sugar, a Next.js route handler, linting, and
+  three agent samples (the full loop, the capability manifest, the error
+  envelope). All type-checked in CI and executed end to end.
 
 ## [1.0.0] — Stable release
 

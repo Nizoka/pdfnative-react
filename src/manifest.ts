@@ -17,6 +17,7 @@
 
 import {
     BLOCK_REGISTRY,
+    CLIENT_COMPONENT_REGISTRY,
     COMPONENT_REGISTRY,
     LINT_RULES,
     type LintRuleCode,
@@ -85,6 +86,10 @@ export interface CapabilityManifest {
         readonly network: 'none';
     };
     readonly components: readonly ManifestComponent[];
+    /** Preview/download components. Client-side; they consume a document rather than describing one. */
+    readonly clientComponents: readonly { readonly name: string; readonly summary: string }[];
+    /** Error classes exported for `instanceof` checks. */
+    readonly errorClasses: readonly string[];
     readonly specBlocks: readonly ManifestBlock[];
     readonly entrypoints: readonly ManifestEntrypoint[];
     readonly errorCodes: readonly ErrorCodeValue[];
@@ -93,11 +98,13 @@ export interface CapabilityManifest {
 }
 
 /**
- * The callable surface.
+ * The callable surface — **every** exported function, not a curated subset.
  *
- * Kept adjacent to the registries it accompanies; `tests/manifest.test.ts`
- * asserts every `name` here is a real export of `src/index.ts`, which is what
- * stops this list from going stale.
+ * `tests/agent.test.tsx` locks it in *both* directions: every name here must be
+ * a real export of `src/index.ts`, and every exported function of the barrel
+ * must appear here. The second direction is the one that matters — a manifest
+ * that claims to describe "everything this package can do" while omitting a
+ * third of the API is worse than no manifest, because an agent trusts it.
  */
 const ENTRYPOINTS: readonly ManifestEntrypoint[] = [
     {
@@ -229,6 +236,118 @@ const ENTRYPOINTS: readonly ManifestEntrypoint[] = [
         kind: 'async',
     },
     {
+        name: 'renderSpecToBlob',
+        signature: '(spec, options?) => Blob',
+        summary: 'Render a DocSpec to an application/pdf Blob.',
+        kind: 'sync',
+    },
+    {
+        name: 'renderSpecToStream',
+        signature: '(spec, options?) => AsyncGenerator<Uint8Array>',
+        summary: 'Render a DocSpec to a constant-memory byte stream.',
+        kind: 'stream',
+    },
+    {
+        name: 'renderSpecToFile',
+        signature: '(spec, path, options?) => Promise<void>',
+        summary: 'Render a DocSpec and write it to a file.',
+        kind: 'async',
+        nodeOnly: true,
+    },
+    {
+        name: 'renderSpecToFileStream',
+        signature: '(spec, path, options?) => Promise<StreamToFileResult>',
+        summary: 'Stream a DocSpec to a file with constant memory.',
+        kind: 'async',
+        nodeOnly: true,
+    },
+    {
+        name: 'schemaId',
+        signature: '(subject?) => string',
+        summary: 'The versioned $id for a schema subject. Compare to detect contract drift.',
+        kind: 'sync',
+    },
+    {
+        name: 'docSpecSchema',
+        signature: '() => JsonSchema',
+        summary: 'Backward-compatible alias for schema("doc-spec").',
+        kind: 'sync',
+    },
+    {
+        name: 'docSpecSchemaId',
+        signature: '() => string',
+        summary: 'Backward-compatible alias for schemaId("doc-spec").',
+        kind: 'sync',
+    },
+    {
+        name: 'toErrorEnvelope',
+        signature: '(err: unknown) => ErrorEnvelope',
+        summary:
+            'Normalise any thrown value to { ok: false, error: { code, message } }, so a '
+            + 'caller only ever handles one shape.',
+        kind: 'sync',
+    },
+    {
+        name: 'fromUrl',
+        signature: '(url, init?) => Promise<Uint8Array>',
+        summary: 'Fetch image bytes for <Image>.',
+        kind: 'async',
+    },
+    {
+        name: 'fromBase64',
+        signature: '(payload) => Uint8Array',
+        summary: 'Decode base64 or a data: URI into image bytes for <Image>.',
+        kind: 'sync',
+    },
+    {
+        name: 'registerFont',
+        signature: '(lang, loader) => void',
+        summary: 'Register a single font-data loader with the engine.',
+        kind: 'sync',
+    },
+    {
+        name: 'registerFonts',
+        signature: '(map) => void',
+        summary: 'Register several font-data loaders with the engine.',
+        kind: 'sync',
+    },
+    {
+        name: 'loadFontData',
+        signature: '(lang) => Promise<FontData>',
+        summary: 'Load a previously registered font.',
+        kind: 'async',
+    },
+    {
+        name: 'validateFontData',
+        signature: '(data) => FontValidationResult',
+        summary: 'Opt-in structural check on a custom font module before embedding it.',
+        kind: 'sync',
+    },
+    {
+        name: 'initNodeCompression',
+        signature: '() => void',
+        summary: 'Enable zlib compression under Node.',
+        kind: 'sync',
+    },
+    {
+        name: 'downloadBlob',
+        signature: '(blob, fileName) => void',
+        summary: 'Trigger a browser download. Browser only.',
+        kind: 'sync',
+    },
+    {
+        name: 'usePdf',
+        signature: '(element, options?) => UsePdfResult',
+        summary: 'React hook: live blob-URL preview. Client only.',
+        kind: 'sync',
+    },
+    {
+        name: 'usePdfStream',
+        signature: '(element, options?) => UsePdfStreamResult',
+        summary: 'React hook: stream factory. Client only.',
+        kind: 'sync',
+    },
+    {
         name: 'validateIssueDraft',
         signature: '(markdown) => GovernanceValidation',
         summary: 'Gate an AI-authored issue/PR draft against the governance policy.',
@@ -238,6 +357,12 @@ const ENTRYPOINTS: readonly ManifestEntrypoint[] = [
         name: 'aiGovernancePolicy',
         signature: '() => AiGovernancePolicy',
         summary: 'The machine-readable human-in-the-loop policy this repo enforces.',
+        kind: 'sync',
+    },
+    {
+        name: 'agentRulesText',
+        signature: '() => string',
+        summary: 'The agent-facing protocol as text, for use without a repository checkout.',
         kind: 'sync',
     },
 ];
@@ -273,6 +398,11 @@ export function capabilityManifest(): CapabilityManifest {
             summary: c.summary,
             ...('aliases' in c ? { aliases: c.aliases } : {}),
         })),
+        clientComponents: CLIENT_COMPONENT_REGISTRY.map((c) => ({
+            name: c.name,
+            summary: c.summary,
+        })),
+        errorClasses: ['PdfReactError', 'PdfStructureError'],
         specBlocks: BLOCK_REGISTRY.map((b) => ({
             kinds: [...b.kinds],
             tuple: b.tuple,

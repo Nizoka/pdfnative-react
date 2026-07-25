@@ -72,7 +72,7 @@ Every component maps 1:1 onto a pdfnative block.
 |---|---|
 | `Document` | The required root (`title`, `footerText`, `metadata`, `fontEntries`, `layout`, `outline`, `pageLabels`, `watermark`, `header`, `footer`, `attachments`, `tagged`). |
 | `Page` | An explicit page boundary (content auto-paginates otherwise). |
-| `Section` | Sugar: a heading grouped with its content (`title`, `level`, `break`). |
+| `Section` | Sugar: a heading grouped with its content (`title`, `level`, `color`, `break`). |
 | `Heading` | A section heading (`level` 1–3); feeds the auto `TableOfContents`. |
 | `Paragraph` / `Text` | A wrapping paragraph (`fontSize`, `lineHeight`, `align`, `indent`, `color`). |
 | `List` / `Item` | A bullet or numbered (`ordered`) list; items may nest sub-lists. |
@@ -143,8 +143,8 @@ PDF/A mode, encryption, viewer preferences, debug overlay, and non-Latin fonts.
 `renderToFileStream` writes page by page with constant memory and preserves
 document-level features (outline, page labels). The `fonts` loader map is
 honored only by the async entry points (`renderToFile`, `renderToFileStream`,
-`usePdf`, `usePdfStream`); for the synchronous entries resolve it first with
-`fontEntries: await resolveFonts({ … })`.
+`renderToResponse`, `usePdf`, `usePdfStream`); for the synchronous entries
+resolve it first with `fontEntries: await resolveFonts({ … })`.
 
 ### Bookmarks, page labels & viewer preferences
 
@@ -182,7 +182,10 @@ the `items` data prop (`{ text, items }`). Nested lists inherit the parent style
 
 ## Hooks & client components
 
-Client modules carry `'use client'`.
+These run in the browser. The published bundle is a single file with no
+`'use client'` directive — the source modules carry it, but bundling collapses
+them — so in a React Server Components app, declare the directive in the file
+that imports them.
 
 ```tsx
 'use client';

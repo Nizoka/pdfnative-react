@@ -55,7 +55,16 @@ export interface PdfResponseOptions extends RenderOptions {
  */
 function contentDisposition(disposition: 'inline' | 'attachment', fileName: string): string {
     const ascii = fileName.replace(/[^\x20-\x7e]/g, '_').replace(/["\\]/g, '_');
-    const encoded = encodeURIComponent(fileName);
+
+    // RFC 8187 ext-values allow only `attr-char`. `encodeURIComponent` leaves
+    // ' ( ) ! * ~ unescaped — and a raw apostrophe is actively harmful, since a
+    // strict parser splits the ext-value on ' (charset'lang'value) and would
+    // mis-read the filename. Percent-escape the stragglers.
+    const encoded = encodeURIComponent(fileName).replace(
+        /['()!*~]/g,
+        (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`,
+    );
+
     const base = `${disposition}; filename="${ascii}"`;
     return encoded === ascii ? base : `${base}; filename*=UTF-8''${encoded}`;
 }

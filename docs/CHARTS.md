@@ -89,6 +89,7 @@ turns each of them into a finding you can read first:
 
 | Rule | Constraint |
 |---|---|
+| `L_CHART_EMPTY` | At least one series, and every series needs at least one value |
 | `L_CHART_SERIES` | Pie and donut take exactly one series |
 | `L_CHART_CATEGORIES` | Every series length must equal `categories.length` |
 | `L_CHART_VALUES` | All values finite; no negatives in a pie/donut |

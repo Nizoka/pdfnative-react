@@ -112,9 +112,10 @@ benefit. No `'use client'` — this is server code.
 `DocumentParams`, so JSX and `DocSpec` share one implementation for free
 (`lintSpec` is a two-line delegate, and a test asserts they agree).
 
-Sixteen rules. Five pre-empt failures the engine raises by throwing mid-render;
-`L_ATTACHMENTS_NEED_PDFA3` exists because writing
-`samples/layout/watermark-header-footer.tsx` hit exactly that throw.
+Eighteen rules (10 error, 7 warning, 1 info). Six pre-empt failures the engine
+raises by throwing mid-render; `L_ATTACHMENTS_NEED_PDFA3` exists because writing
+`samples/layout/watermark-header-footer.tsx` hit exactly that throw, and
+`L_CHART_EMPTY` because the architecture review found two more.
 
 Pure by design: no console output, no throwing, `overflow` opt-in because it
 costs a layout pass.
@@ -149,14 +150,14 @@ costs a layout pass.
 
 ### Samples & tests
 
-- 6 new samples: `charts/charts.tsx`, `layout/watermark-header-footer.tsx`,
+- 7 new samples: `charts/charts.tsx`, `layout/watermark-header-footer.tsx`,
   `server/next-route-handler.tsx`, `quality/lint.tsx`, `agent/agent-loop.ts`,
   `agent/manifest.ts`, `agent/error-envelope.tsx`. All added to
   `samples/README.md` (with new "Server" and "Quality" sections) and all executed
   end to end, not just type-checked.
-- 6 new test files: `registry`, `chart`, `layout-sugar`, `response`, `lint`,
+- 7 new test files: `registry`, `chart`, `layout-sugar`, `response`, `lint`,
   `agent`, `schema`. `governance` and `version` extended.
-- **79 → 205 tests**, 8 → 15 files. Coverage improved on every axis.
+- **79 → 219 tests**, 8 → 15 files. Coverage improved on every axis.
 
 ### Docs & governance
 
@@ -181,11 +182,11 @@ costs a layout pass.
 ```
 npm run typecheck:all   clean (src + tests + samples)
 npm run lint            clean, zero warnings
-npm test                205 passed / 205, 15 files
-npm run test:coverage   94.74 stmts · 85.71 branches · 97.15 funcs · 96.00 lines
+npm test                219 passed / 219, 15 files
+npm run test:coverage   95.41 stmts · 86.94 branches · 97.76 funcs · 96.32 lines
                         (thresholds 85/80/85/85 — unchanged, not lowered)
-npm run build           ESM 80.8kB · CJS 83.2kB · d.ts + d.cts 67.1kB
-npm pack --dry-run      llms.txt present; 10 files, 205.8 kB
+npm run build           ESM 84.9kB · CJS 87.2kB · d.ts + d.cts 66.7kB
+npm pack --dry-run      llms.txt present in the tarball
 ```
 
 Additionally verified by hand:
@@ -195,6 +196,44 @@ Additionally verified by hand:
   kinds, `schema()['$id']` carries `1.1.0`.
 - Every new sample executed and confirmed to write a valid PDF.
 - The registry lock verified destructively (see above).
+- The corrected annotation recipe in `docs/RECIPES.md` executed end to end.
+
+## Adversarial review
+
+Two independent reviews were run before this draft: one on architecture and
+state of the art, one on documentation accuracy. Both found real defects. Every
+confirmed finding is fixed:
+
+| Finding | Fix |
+|---|---|
+| `validateSpec` — the "never throws" untrusted-input gate — overflowed the stack on a ~44 kB deeply nested payload | Nesting bounded at 64 levels, new `V_TOO_DEEP` code, regression test at depth 5000 |
+| `schema('toString')` resolved through `Object.prototype` and returned a string | `Object.hasOwn` guard; test covers five prototype keys |
+| `schema('lint-report')` handed out a live reference to `LINT_RULES`; mutating the returned schema changed every subsequent lint severity process-wide | Fresh copy; regression test |
+| `L_CHART_VALUES` missed an `undefined` value (`.find()` returns `undefined` for a *found* `undefined`) | `.some()`; test |
+| `L_MAX_BLOCKS` reported "within 10% of the ceiling" when 5× over it, as a warning | New `L_MAX_BLOCKS_EXCEEDED` error; both tested |
+| `L_HEADING_HIERARCHY` never flagged a document whose *first* heading was h2/h3 | Guard removed; test |
+| Two engine throws had no lint rule (empty series, empty values) | New `L_CHART_EMPTY`; test |
+| `capabilityManifest()` claimed to describe "everything" while omitting 24 of 73 exports | All added, plus `clientComponents`/`errorClasses`; a test now locks **both** directions |
+| `schema.ts` hardcoded every kind discriminator, so the registry and the schema could disagree (proved: registry `h1–h4`, schema `h1–h3`, typecheck green) | `blockDefs()` overwrites the discriminator from the registry; `registry.test.ts` asserts it |
+| `KNOWN_FIELDS` in `validate.ts` had no lock | `satisfies readonly (keyof DocSpec)[]` plus an `Assert<Equals<…>>` |
+| `LINT_RULES` was not locked in either direction — a declared-but-unimplemented rule would ship into the schema and the manifest | New `EMITTED_LINT_RULES` + equality test |
+| `Content-Disposition` `filename*` emitted `' ( ) ! *`, which are not RFC 8187 `attr-char`; a raw apostrophe mis-parses the ext-value | Percent-escaped; test |
+| `docs/RECIPES.md` annotation example was wrong on both arguments and could not run | Rewritten against the real API (`createModifier(openPdf(bytes))`, `buildAnnotationBody`, `save()`) and **executed** |
+| `.github/copilot-instructions.md` and `.github/instructions/spec.instructions.md` still described pre-1.1.0 architecture — no `chart`, no `registry.ts` — so an agent following them would fail the repo's own compile-time lock | Both rewritten, including the 10-step block checklist |
+| `doctor()`'s headline claim ("works when the peer is missing") was false — a static re-export means the module graph fails first | Claim corrected in code and docs to what is actually true |
+| `docs/SERVER.md` documented a Server Action, but RSC-layer imports fail at module load (`react-server` has no `createContext`); `'use client'` is stripped from the bundle | New "React Server Components boundary" section stating the real constraint and the wrapper pattern; README and `llms.txt` corrected |
+| Hand-maintained counts wrong in six places ("five rules" over six-row tables, "6 new samples" over a list of seven) | All recounted against the code: 18 rules (10/7/1), 7 samples, 7 test files |
+
+Findings acknowledged but **not** acted on, with reasons:
+
+- **The two install-time floors as a minor.** One reviewer argues `^1.6.0` + Node
+  `>=22` warrant a major. Neither is source-breaking, both are documented at the
+  top of the release notes, and the alternative for the peer (`^1.5.0 || ^1.6.0`
+  plus a capability guard on every chart path) trades a build-time error for a
+  runtime surprise. Recorded here so a reviewer can overrule it.
+- **Subpath exports (`./client`, `./server`).** The right long-term fix for the
+  RSC boundary, but architectural rather than a patch. Documented accurately for
+  1.1.0; tracked for a future release.
 
 ## Backward compatibility
 

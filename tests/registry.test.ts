@@ -80,12 +80,23 @@ describe('BLOCK_REGISTRY', () => {
         const defs = docSpecSchema()['$defs'] as { block: { oneOf: Record<string, unknown>[] } };
         expect(defs.block.oneOf).toHaveLength(BLOCK_REGISTRY.length);
 
-        // Arity and description come from the registry, not from the builders.
+        // Arity, description AND the kind discriminator come from the registry,
+        // not from the builders. The discriminator is the one that used to drift:
+        // the `satisfies` lock covers group ids, not kinds, so a new kind could
+        // be accepted by validateSpec while the schema still advertised the old
+        // enum — both claiming to derive from one source while disagreeing.
         defs.block.oneOf.forEach((branch, i) => {
             const entry = BLOCK_REGISTRY[i];
             expect(branch['minItems']).toBe(entry.minItems);
             expect(branch['maxItems']).toBe(entry.maxItems);
             expect(branch['description']).toBe(entry.summary);
+
+            const discriminator = (branch['prefixItems'] as Record<string, unknown>[])[0];
+            const advertised =
+                'const' in discriminator
+                    ? [discriminator['const']]
+                    : (discriminator['enum'] as string[]);
+            expect(advertised, `kinds for ${entry.id}`).toEqual([...entry.kinds]);
         });
     });
 
@@ -149,6 +160,8 @@ describe('LINT_RULES', () => {
             'L_TAGGED_ENCRYPTED',
             'L_ATTACHMENTS_NEED_PDFA3',
             'L_MAX_BLOCKS',
+            'L_MAX_BLOCKS_EXCEEDED',
+            'L_CHART_EMPTY',
             'L_CHART_SERIES',
             'L_CHART_CATEGORIES',
             'L_CHART_VALUES',

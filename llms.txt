@@ -82,11 +82,21 @@ usePdfStream); for sync entries do `fontEntries: await resolveFonts({...})`.
 - fromUrl(url, init?) -> Promise<Uint8Array>  (image bytes)
 - fromBase64(payload) -> Uint8Array           (base64 or data: URI)
 
-## Hooks & client components (carry 'use client')
+## Hooks & client components (browser only)
+
+The published bundle is one file with no 'use client' directive (source modules
+carry it; bundling collapses them). In a React Server Components app, declare
+the directive in the file that imports these.
+
+IMPORTANT — the RSC boundary: this package drives a React reconciler and needs
+createContext, which React's 'react-server' condition does not provide. Importing
+it from a Server Component or a 'use server' file fails at module load. Use a
+Route Handler (app/**/route.ts) instead — that is what renderToResponse is for.
+
 
 - usePdf(element, options?) -> { url, blob, bytes, loading, error, update }
 - usePdfStream(element, options?) -> { getStream() }
-- PDFViewer({ document, options?, ...iframeProps }) — live iframe preview
+- PDFViewer({ document, options?, className?, style?, width?, height?, title? }) — live iframe preview
 - PDFDownloadLink({ document, fileName?, options?, children }) — anchor download
 - BlobProvider({ document, options?, children: (state) => ReactNode })
 
@@ -162,15 +172,17 @@ Every error carries a stable code. Branch on the code, never the message.
 
 ## Lint rules (stable L_* codes)
 
+18 rules — 10 error, 7 warning, 1 info.
+
 errors:   L_EMPTY_DOCUMENT, L_TAGGED_NO_FONTS, L_TAGGED_ENCRYPTED,
-          L_ATTACHMENTS_NEED_PDFA3, L_CHART_SERIES, L_CHART_CATEGORIES,
-          L_CHART_VALUES, L_CHART_POINTS
+          L_ATTACHMENTS_NEED_PDFA3, L_MAX_BLOCKS_EXCEEDED, L_CHART_EMPTY,
+          L_CHART_SERIES, L_CHART_CATEGORIES, L_CHART_VALUES, L_CHART_POINTS
 warnings: L_IMAGE_ALT, L_TABLE_HEADERS, L_HEADING_HIERARCHY, L_FIELD_LABEL,
           L_LINK_TEXT, L_MAX_BLOCKS, L_OVERFLOW
 info:     L_CHART_ALT
 
-The five chart/attachment errors pre-empt failures the engine would otherwise
-raise by throwing mid-render. L_OVERFLOW requires { overflow: true }.
+Six of them — the five L_CHART_* errors and L_ATTACHMENTS_NEED_PDFA3 — pre-empt
+an exception the engine raises mid-render. L_OVERFLOW requires { overflow: true }.
 
 ## Notes
 

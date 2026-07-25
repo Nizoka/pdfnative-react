@@ -9,10 +9,10 @@
  * for a finding; what you do with the report is your call. Wire it into CI, a
  * dev-mode warning, or an agent's self-check loop.
  *
- * Four rules pre-empt hard failures further down the pipeline: the three
- * `L_CHART_*` errors mirror the engine's own validation (which throws at render
- * time), and `L_TAGGED_NO_FONTS` catches the PDF/A file that veraPDF would
- * reject for a non-embedded font.
+ * Six rules pre-empt hard failures further down the pipeline: the five
+ * `L_CHART_*` errors and `L_ATTACHMENTS_NEED_PDFA3` mirror validation the engine
+ * performs by throwing mid-render. Two more — `L_TAGGED_NO_FONTS` and
+ * `L_MAX_BLOCKS_EXCEEDED` — catch output that renders but is wrong.
  */
 
 import React from 'react';

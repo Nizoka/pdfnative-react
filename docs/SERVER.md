@@ -125,20 +125,49 @@ app.get('/invoice.pdf', async (_req, res) => {
 });
 ```
 
-## Server Actions
+## The React Server Components boundary
 
-A Server Action cannot return a `Response`, so return the bytes and let the
-client build the download — or, better, point the client at a route handler and
-keep the PDF out of the RSC payload entirely:
+**Use a Route Handler, not a Server Component or a Server Action.**
+
+`pdfnative-react` drives a React reconciler, which needs `createContext` at
+module scope. React's `react-server` export condition — the one Next.js applies
+to Server Components and `'use server'` files — does not provide it, so
+importing this package from the RSC layer fails at module load:
+
+```
+TypeError: react.createContext is not a function
+```
+
+Route Handlers (`app/**/route.ts`) are **not** in the RSC layer, which is why
+every example on this page works. This is the supported path, and it is also the
+better design: the PDF stays out of the RSC payload entirely.
+
+If you need a Server Action to *trigger* generation, have it return a URL and
+let the browser fetch the route handler:
 
 ```tsx
 'use server';
-import { renderToBytes } from 'pdfnative-react';
-
-export async function generate(id: string): Promise<Uint8Array> {
-    return renderToBytes(<InvoiceDocument invoice={await loadInvoice(id)} />);
+export async function prepare(id: string): Promise<string> {
+    await recordDownload(id);
+    return `/invoice/${id}`;   // the route handler above
 }
 ```
+
+### Client components
+
+The published bundle is a single file with no `'use client'` directive. The
+source modules carry it, but bundling collapses them, so the marker does not
+survive into `dist/`. In an App Router project, import the preview and download
+components from a file that declares the directive itself:
+
+```tsx
+// components/pdf-preview.tsx
+'use client';
+export { PDFViewer, PDFDownloadLink, BlobProvider, usePdf } from 'pdfnative-react';
+```
+
+Then import from that file in your client components. Server-side rendering
+(`renderToResponse`, `renderToBytes`, `renderToFile`) needs no such wrapper.
 
 ## Runtime requirements
 

@@ -35,6 +35,20 @@ export {
     inspectDocument,
 } from './render.js';
 
+// Web-standard Response (Next.js route handlers, Remix, Hono, Workers…)
+export { renderToResponse } from './response.js';
+export type { PdfResponseOptions } from './response.js';
+
+// Accessibility & layout linting
+export { lintDocument, LINT_RULES, LINT_RULE_CODES } from './lint.js';
+export type {
+    LintFinding,
+    LintOptions,
+    LintReport,
+    LintRuleCode,
+    LintSeverity,
+} from './lint.js';
+
 // Font convenience (async loader map → FontEntry[])
 export { resolveFonts } from './fonts.js';
 
@@ -59,11 +73,17 @@ export {
     specToElement,
     compileSpec,
     inspectSpec,
+    lintSpec,
+    validateSpec,
     renderSpecToBytes,
     renderSpecToBlob,
     renderSpecToStream,
     renderSpecToFile,
     renderSpecToFileStream,
+    renderSpecToResponse,
+    schema,
+    schemaId,
+    SCHEMA_SUBJECTS,
     docSpecSchema,
     docSpecSchemaId,
 } from './spec/index.js';
@@ -95,8 +115,16 @@ export type {
     TocSpecOpts,
     BarcodeSpecOpts,
     SvgSpecOpts,
+    ChartSpec,
+    ChartSpecBody,
+    SchemaSubject,
+    SpecCodeValue,
+    SpecFinding,
+    SpecFindingSeverity,
+    SpecValidation,
     JsonSchema,
 } from './spec/index.js';
+export { SpecCode } from './spec/index.js';
 
 // Font + environment helpers (re-exported from the pdfnative engine)
 export {
@@ -108,8 +136,23 @@ export {
     initNodeCompression,
 } from './core-bridge/index.js';
 
-// Errors
-export { PdfStructureError } from './reconciler/serialize.js';
+// Errors — stable, machine-readable taxonomy
+export { PdfStructureError, PdfReactError, ErrorCode, toErrorEnvelope } from './errors.js';
+export type { ErrorCodeValue, ErrorEnvelope } from './errors.js';
+
+// Agent surface: discovery, pre-flight, governance
+export { capabilityManifest } from './manifest.js';
+export type {
+    CapabilityManifest,
+    ManifestBlock,
+    ManifestComponent,
+    ManifestEntrypoint,
+    ManifestLintRule,
+} from './manifest.js';
+export { doctor } from './doctor.js';
+export type { CheckStatus, DoctorCheck, DoctorReport } from './doctor.js';
+export { aiGovernancePolicy, agentRulesText, validateIssueDraft } from './governance.js';
+export type { AiGovernancePolicy, GovernanceValidation } from './governance.js';
 
 // Version
 export { version } from './version.js';
@@ -147,4 +190,14 @@ export type {
     CellBorders,
     ListItem,
     StreamToFileResult,
+    ChartBlock,
+    ChartSeries,
+    ChartType,
+    PageTemplate,
+    WatermarkOptions,
+    WatermarkText,
+    WatermarkImage,
+    PdfAttachment,
+    PdfAttachmentRelationship,
+    EncryptionOptions,
 } from './types.js';

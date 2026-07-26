@@ -39,9 +39,19 @@ const bytes = renderToBytes(
   with no DOM — to the `pdfnative` model and renders the bytes locally.
 - **Honest model.** Components map 1:1 onto pdfnative blocks. There is no
   CSS/flexbox engine and no `<View>` — it is a declarative *block flow*.
+- **Server-ready.** `renderToResponse` returns a web-standard `Response`,
+  streaming by default — one line in a Next.js route handler, and the same code
+  on Edge, Deno, Bun and Workers. See [Server rendering](docs/SERVER.md).
 - **Token-frugal AI authoring.** A compact `DocSpec` lets LLM agents emit
   documents with a fraction of the tokens of JSX, validated by a versioned JSON
   Schema — see [Agent authoring](#agent-authoring-token-frugal).
+- **Autonomously usable.** `doctor()`, `capabilityManifest()`, `validateSpec()`
+  and a stable `E_*` error taxonomy let an agent check the environment, discover
+  the API and verify its own output before rendering — see the
+  [agent contract](docs/AGENT_CONTRACT.md).
+- **Checks its own work.** `lintDocument` reports accessibility problems and
+  pre-empts the engine constraints that would otherwise throw mid-render — see
+  [Linting](docs/LINTING.md).
 - **Typed, tested, tree-shakeable.** Strict TypeScript, dual ESM + CJS, source
   maps, provenance-signed publishes.
 
@@ -51,7 +61,8 @@ const bytes = renderToBytes(
 npm install pdfnative-react pdfnative react
 ```
 
-Requires **React 19** and **Node.js ≥ 20**.
+Requires **React 19**, **`pdfnative` ≥ 1.6**, and **Node.js ≥ 22** (the engine's
+own floor since 1.6.0).
 
 ## Components
 
@@ -59,9 +70,9 @@ Every component maps 1:1 onto a pdfnative block.
 
 | Component | Renders |
 |---|---|
-| `Document` | The required root (`title`, `footerText`, `metadata`, `fontEntries`, `layout`, `outline`, `pageLabels`). |
+| `Document` | The required root (`title`, `footerText`, `metadata`, `fontEntries`, `layout`, `outline`, `pageLabels`, `watermark`, `header`, `footer`, `attachments`, `tagged`). |
 | `Page` | An explicit page boundary (content auto-paginates otherwise). |
-| `Section` | Sugar: a heading grouped with its content (`title`, `level`, `break`). |
+| `Section` | Sugar: a heading grouped with its content (`title`, `level`, `color`, `break`). |
 | `Heading` | A section heading (`level` 1–3); feeds the auto `TableOfContents`. |
 | `Paragraph` / `Text` | A wrapping paragraph (`fontSize`, `lineHeight`, `align`, `indent`, `color`). |
 | `List` / `Item` | A bullet or numbered (`ordered`) list; items may nest sub-lists. |
@@ -73,7 +84,28 @@ Every component maps 1:1 onto a pdfnative block.
 | `TableOfContents` / `Toc` | An auto-generated TOC built from headings. |
 | `Barcode` | QR, Code 128, EAN-13, PDF417, Data Matrix (`format`, `data`). |
 | `Svg` | Inline vector graphics (path data or markup; `<text>` renders as selectable PDF text). |
+| `Chart` | Native vector charts — bar, barH, line, pie, donut ([guide](docs/CHARTS.md)). |
 | `FormField` | Interactive AcroForm widgets (`fieldType`, `name`). |
+
+### Document-level page furniture
+
+`watermark`, `header`, `footer`, `attachments` and `tagged` are props on
+`<Document>` rather than components, because they are page furniture, not blocks
+in the flow. They fold into `layout` under the engine's own keys, and an
+explicit `layout` prop always wins.
+
+```tsx
+<Document
+    watermark="DRAFT"                                  // or the full WatermarkOptions
+    header={{ left: 'Acme Inc', right: '{date}' }}
+    footer={{ center: '{title}', right: 'Page {page} of {pages}' }}
+    tagged="pdfa3b"
+    attachments={[{ filename: 'data.xml', data, mimeType: 'application/xml' }]}
+/>
+```
+
+Header and footer templates resolve `{page}`, `{pages}`, `{date}` and `{title}`
+at render time.
 
 ## Rendering
 
@@ -84,10 +116,26 @@ import {
     renderToStream,     // (node, options?) => AsyncGenerator<Uint8Array> (constant memory)
     renderToFile,       // (node, path, options?) => Promise<void> (Node only)
     renderToFileStream, // (node, path, options?) => Promise<StreamToFileResult> (Node, constant memory)
+    renderToResponse,   // (node, options?) => Promise<Response> (streams; web standard)
     compileDocument,    // (node) => DocumentParams (inspect the model, no render)
     inspectDocument,    // (node, options?) => LayoutInspection (page/block geometry, no render)
+    lintDocument,       // (node, options?) => LintReport (accessibility + engine constraints)
 } from 'pdfnative-react';
 ```
+
+### Serving a PDF
+
+```tsx
+// app/invoice/[id]/route.tsx — Next.js App Router
+export async function GET() {
+    return renderToResponse(<Invoice />, { fileName: 'invoice.pdf' });
+}
+```
+
+Streams page by page, so peak memory stays flat and the client receives bytes
+immediately. `buffered: true` switches to a single buffer and adds
+`Content-Length`. Works unchanged on Node, Edge, Deno, Bun and Cloudflare
+Workers — see [docs/SERVER.md](docs/SERVER.md).
 
 `options` is `{ layout?: Partial<PdfLayoutOptions>; fontEntries?: FontEntry[]; fonts?: FontsMap }`
 and merges on top of anything set on `<Document>` — page size, margins, colors,
@@ -95,8 +143,8 @@ PDF/A mode, encryption, viewer preferences, debug overlay, and non-Latin fonts.
 `renderToFileStream` writes page by page with constant memory and preserves
 document-level features (outline, page labels). The `fonts` loader map is
 honored only by the async entry points (`renderToFile`, `renderToFileStream`,
-`usePdf`, `usePdfStream`); for the synchronous entries resolve it first with
-`fontEntries: await resolveFonts({ … })`.
+`renderToResponse`, `usePdf`, `usePdfStream`); for the synchronous entries
+resolve it first with `fontEntries: await resolveFonts({ … })`.
 
 ### Bookmarks, page labels & viewer preferences
 
@@ -134,11 +182,13 @@ the `items` data prop (`{ text, items }`). Nested lists inherit the parent style
 
 ## Hooks & client components
 
-Client modules carry `'use client'`.
+These run in the browser. In a React Server Components app, import them from the
+**`pdfnative-react/client`** subpath, which ships with `'use client'` already
+applied — no wrapper file needed. The root barrel exports them too, for apps
+without an RSC boundary.
 
 ```tsx
-'use client';
-import { usePdf } from 'pdfnative-react';
+import { usePdf } from 'pdfnative-react/client';
 
 function Preview({ doc }: { doc: React.ReactElement }) {
     const { url, loading } = usePdf(doc);
@@ -181,17 +231,42 @@ widens on larger ones), because every block carries opening/closing tags and
 prop names. Same bytes out, far fewer tokens in.
 
 - `compileSpec(spec)` → `DocumentParams` · `specToElement(spec)` → `<Document>` element
-- `renderSpecToBytes` / `renderSpecToBlob` / `renderSpecToStream` / `renderSpecToFile`
-- `docSpecSchema()` → a Draft 2020-12 JSON Schema whose `$id` embeds the package
-  version, so agents can self-validate a spec before rendering.
+- `renderSpecToBytes` / `renderSpecToBlob` / `renderSpecToStream` / `renderSpecToFile` /
+  `renderSpecToFileStream` / `renderSpecToResponse`
+- `schema(subject?)` → a Draft 2020-12 JSON Schema whose `$id` embeds the package
+  version, so agents can detect contract drift. Subjects: `doc-spec`,
+  `render-options`, `lint-report`, `spec-validation`, `doctor`, `manifest`,
+  `list`. (`docSpecSchema()` is retained and returns `schema('doc-spec')`.)
 
 Block tuples: `['h1'|'h2'|'h3', text, opts?]`, `['p', text, opts?]`,
 `['ul'|'ol', items, opts?]` (items may be `{ text, items }` for nesting),
 `['table', { h?, r, cellBorders?, cellVAlign?, … }]`, `['img', { data }]`,
 `['link', text, { url }]`, `['sp', height?]`, `['br']`, `['page', blocks]`,
 `['toc', opts?]`, `['qr'|'code128'|'ean13'|'pdf417'|'datamatrix', data, opts?]`,
-`['svg', data, opts?]`, `['field', { fieldType, name, … }]`. A spec also accepts
-top-level `outline` and `pageLabels`, mirroring `<Document>`.
+`['svg', data, opts?]`, `['chart', { chartType, series, … }]`,
+`['field', { fieldType, name, … }]`. A spec also accepts top-level `outline`,
+`pageLabels`, `watermark`, `header`, `footer`, `attachments` and `tagged`,
+mirroring `<Document>`.
+
+### Running autonomously
+
+An agent driving this package without a human should work through four cheap
+checks before spending a render:
+
+```ts
+import { doctor, capabilityManifest, validateSpec, lintSpec } from 'pdfnative-react';
+
+doctor();                  // will this environment work? never throws
+capabilityManifest();      // every component, block, entry point, error code
+validateSpec(json);        // is the JSON well-formed? path-anchored findings
+lintSpec(spec);            // is it accessible, and legal for the engine?
+```
+
+Every error carries a stable `E_*` code and serializes to
+`{ ok: false, error: { code, message } }`. Branch on the code, never the message.
+
+Full contract: [docs/AGENT_CONTRACT.md](docs/AGENT_CONTRACT.md). Runnable:
+[samples/agent/agent-loop.ts](samples/agent/agent-loop.ts).
 
 ## Fonts & environment
 
@@ -212,6 +287,31 @@ The async entry points accept the loader map directly as `options.fonts`.
 `validateFontData(data)` runs an opt-in, read-only structural check on a custom
 font module (`{ valid, errors, warnings }`) before you embed it.
 
+### Font weight — check before shipping to a browser
+
+Font modules are embedded in your bundle when you import them, and some are
+large. Engine 1.6.0 expanded the colour-emoji subset from 221 to 1167 glyphs,
+which took it from ~0.25 MB to **4.0 MB** — worth knowing, since this is the one
+package in the ecosystem that targets a browser bundle.
+
+| Module | Size |
+|---|---|
+| `noto-sans-math-data.js` | 1.5 MB |
+| `noto-sans-data.js` | 2.8 MB |
+| `noto-color-emoji-data.js` | **4.0 MB** |
+| `noto-jp-data.js` | 12.6 MB |
+| `noto-sc-data.js` | 23.4 MB |
+
+The loaders passed to `resolveFonts` are dynamic imports, so a bundler puts each
+in its own chunk and loads it on demand rather than up front. For a smaller
+emoji set, generate one covering only the codepoints you use:
+
+```bash
+npx pdfnative-build-emoji-font --codepoints "1F600,1F44D,2764"
+```
+
+Server-side rendering is unaffected — nothing is bundled there.
+
 ### Image helpers
 
 `fromBase64(base64)` and `fromUrl(url)` produce the `Uint8Array` that `<Image>`
@@ -220,24 +320,39 @@ expects, from a base64/data-URI payload or a fetched URL respectively.
 ## Beyond authoring: post-processing
 
 pdfnative-react covers document *authoring*. For byte-level post-processing —
-merging/splitting PDFs, reading/writing annotations, digital signatures, custom
-crypto providers, or in-app font compilation — use the
+merging/splitting, filling and flattening forms, text extraction, decryption,
+digital signatures, annotations, or in-app font compilation — use the
 [`pdfnative`](https://www.npmjs.com/package/pdfnative) engine directly on the
 bytes this library produces.
 
-## Migrating from 0.2 to 1.0
+[docs/RECIPES.md](docs/RECIPES.md) shows each of those, with working code.
 
-1.0 marks the API as stable. The only breaking change: **`pdfnative` is now a
-peer dependency**, so install it yourself alongside the wrapper:
+## Upgrading to 1.1
+
+Everything in 1.1.0 is additive. Two install-time floors moved:
 
 ```bash
-npm install pdfnative-react pdfnative react
+npm install pdfnative-react@^1.1.0 pdfnative@^1.6.0 react@^19
 ```
 
-Everything else is additive — `<Section>`, nested lists, `outline`/`pageLabels`
-on `<Document>`, table `cellBorders`/`cellVAlign`, `inspectDocument`,
-`renderToFileStream`, `resolveFonts`, and `fromUrl`/`fromBase64`. Requires
-`pdfnative` ≥ 1.5, React 19, and Node.js ≥ 20.
+- **`pdfnative` ≥ 1.6** is now required. `<Chart>` compiles to a block type that
+  does not exist before 1.6.0, so an older engine would silently mis-render it.
+- **Node ≥ 22** — inherited, not invented: `pdfnative@1.6.0` requires it, so a
+  compliant install is already there.
+
+No API was removed or changed. New: `<Chart>`, `renderToResponse`,
+`lintDocument`, the `watermark`/`header`/`footer`/`attachments`/`tagged`
+document props, and the agent surface (`doctor`, `capabilityManifest`,
+`validateSpec`, `schema(subject)`, `ErrorCode`). `docSpecSchema()` still works
+and delegates to `schema('doc-spec')`.
+
+## Migrating from 0.2 to 1.0
+
+1.0 marked the API as stable. The only breaking change was **`pdfnative`
+becoming a peer dependency**, installed alongside the wrapper. Everything else
+was additive — `<Section>`, nested lists, `outline`/`pageLabels` on
+`<Document>`, table `cellBorders`/`cellVAlign`, `inspectDocument`,
+`renderToFileStream`, `resolveFonts`, and `fromUrl`/`fromBase64`.
 
 ## Migrating from `@react-pdf/renderer`
 
@@ -266,6 +381,18 @@ fonts, layout/PDF-A, the client hooks/components, and the compact agent spec.
 | [`pdfnative-mcp`](https://www.npmjs.com/package/pdfnative-mcp) | Generate PDFs from Claude Desktop, Cursor, Continue, Zed. |
 
 ## Documentation
+
+**Guides**
+
+- [Charts](docs/CHARTS.md) — the five chart types, accessibility, PDF/A.
+- [Server rendering](docs/SERVER.md) — `renderToResponse` on Next.js, Remix,
+  Hono, Deno, Bun, Workers and Express.
+- [Linting](docs/LINTING.md) — the eighteen rules, and how to gate on them.
+- [Recipes](docs/RECIPES.md) — merging, form filling, text extraction,
+  decryption: calling the engine on the bytes this library produces.
+- [Agent contract](docs/AGENT_CONTRACT.md) — driving the package autonomously.
+
+**Reference**
 
 - [Knowledge Base](docs/KNOWLEDGE_BASE.md) — architecture, the compile pipeline,
   the react-reconciler version contract, and the agent authoring contract.

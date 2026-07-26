@@ -18,6 +18,9 @@ import type {
     Align,
     BarcodeFormat,
     CellBorders,
+    ChartBlock,
+    ChartSeries,
+    ChartType,
     ColumnDef,
     DocumentMetadata,
     FontEntry,
@@ -25,11 +28,14 @@ import type {
     ListItem,
     OutlineItem,
     PageLabelRange,
+    PageTemplate,
+    PdfAttachment,
     PdfColor,
     PdfLayoutOptions,
     PdfRow,
     QRErrorLevel,
     SvgRenderOptions,
+    WatermarkOptions,
 } from './types.js';
 import type { HostTag } from './reconciler/nodes.js';
 
@@ -71,6 +77,40 @@ export interface DocumentProps {
      * (e.g. roman front matter, then decimal body). PDF/A-safe.
      */
     readonly pageLabels?: readonly PageLabelRange[];
+    /**
+     * Semi-transparent watermark repeated on every page.
+     *
+     * Pass a plain string for the common case (`watermark="DRAFT"`, rendered
+     * with the engine's defaults), or the full {@link WatermarkOptions} object
+     * for text/image control.
+     *
+     * Sugar over `layout.watermark`; an explicit `layout` wins.
+     */
+    readonly watermark?: string | WatermarkOptions;
+    /**
+     * Running page header. Supports the `{page}`, `{pages}`, `{date}` and
+     * `{title}` placeholders. Sugar over `layout.headerTemplate`.
+     */
+    readonly header?: PageTemplate;
+    /**
+     * Running page footer. Supports the `{page}`, `{pages}`, `{date}` and
+     * `{title}` placeholders. Sugar over `layout.footerTemplate`.
+     *
+     * Distinct from `footerText`, which is the engine's single centered line;
+     * `footer` gives independent left/center/right slots.
+     */
+    readonly footer?: PageTemplate;
+    /** Embedded file attachments (PDF/A-3). Sugar over `layout.attachments`. */
+    readonly attachments?: readonly PdfAttachment[];
+    /**
+     * Emit a tagged (accessible) PDF, optionally targeting a PDF/A conformance
+     * level. `true` tags the document; `'pdfa2b'` &c. additionally enforce the
+     * matching PDF/A profile. Sugar over `layout.tagged`.
+     *
+     * PDF/A requires every rendering font to be embedded — pair it with
+     * `fontEntries`, and see `lintDocument` (rule `L_TAGGED_NO_FONTS`).
+     */
+    readonly tagged?: PdfLayoutOptions['tagged'];
     readonly children?: ReactNode;
 }
 
@@ -435,6 +475,66 @@ export interface SvgProps {
 /** Inline vector graphics rendered with PDF path operators. */
 export function Svg(props: SvgProps): ReactElement {
     return h('svg', { ...props });
+}
+
+/** Props for {@link Chart}. Mirrors the engine's `ChartBlock` one-for-one. */
+export interface ChartProps {
+    /** Chart kind: `'bar'`, `'barH'`, `'line'`, `'pie'` or `'donut'`. */
+    readonly chartType: ChartType;
+    /** Data series. Pie/donut take exactly one series. */
+    readonly series: readonly ChartSeries[];
+    /** Category / slice labels. Defaults to 1-based indices. */
+    readonly categories?: readonly string[];
+    /** Plot width in points (clamped to content width). Default: `460`. */
+    readonly width?: number;
+    /** Plot-area height in points. Default: `240`. */
+    readonly height?: number;
+    /** Chart title drawn above the plot. */
+    readonly title?: string;
+    /** Legend placement. Default: `'bottom'` for multi-series/pie, else `'none'`. */
+    readonly legend?: ChartBlock['legend'];
+    /** Value-axis options (bar/line only). */
+    readonly axis?: ChartBlock['axis'];
+    /** Draw point markers on line series. Default: `false`. */
+    readonly markers?: boolean;
+    /** Palette override, per series (bar/line) or per slice (pie/donut). */
+    readonly colors?: readonly PdfColor[];
+    /** Horizontal alignment. Default: `'left'`. */
+    readonly align?: Align;
+    /**
+     * Alt text for the tagged-PDF `/Figure /Alt` entry. The engine generates a
+     * generic description when omitted; supply your own for real accessibility
+     * (see `lintDocument`, rule `L_CHART_ALT`).
+     */
+    readonly altText?: string;
+}
+
+/**
+ * Compile-time lock: {@link ChartProps} must mirror the engine's `ChartBlock`
+ * exactly (minus the `type` discriminator, which the serializer adds).
+ *
+ * The engine's roadmap has "Charts v2" — stacked bars, area, scatter, log/time
+ * axes, per-point data labels — so `ChartBlock` *will* gain optional fields, and
+ * `docs/CHARTS.md` already promises they arrive here as new `ChartProps`. This
+ * turns that promise into a build error on the next engine minor instead of a
+ * silently under-exposed component.
+ */
+type ChartPropsAssert<T extends true> = T;
+type ChartPropsExact =
+    (<T>() => T extends keyof ChartProps ? 1 : 2) extends
+        <T>() => T extends keyof Omit<ChartBlock, 'type'> ? 1 : 2
+        ? true
+        : false;
+export type ChartPropsCoversChartBlock = ChartPropsAssert<ChartPropsExact>;
+
+/**
+ * A native vector chart — bar, horizontal bar, line, pie or donut — rendered as
+ * pure PDF path operators. No rasterisation, no chart library, and PDF/A-safe.
+ *
+ * Requires the `pdfnative` engine ≥ 1.6.0.
+ */
+export function Chart(props: ChartProps): ReactElement {
+    return h('chart', { ...props });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

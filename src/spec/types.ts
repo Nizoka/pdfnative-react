@@ -32,6 +32,8 @@
 
 import type {
     BarcodeProps,
+    ChartProps,
+    DocumentProps,
     FormFieldProps,
     HeadingProps,
     ImageProps,
@@ -85,6 +87,9 @@ export type ImageSpecBody = ImageProps;
 
 /** Body of a form-field block (`['field', body]`). */
 export type FormFieldSpecBody = FormFieldProps;
+
+/** Body of a chart block (`['chart', body]`). */
+export type ChartSpecBody = ChartProps;
 
 /**
  * A table row in a {@link TableSpecBody}: either a plain array of cell strings
@@ -158,6 +163,15 @@ export type BarcodeSpec = readonly [
 ];
 /** SVG: `['svg', data, opts?]`. */
 export type SvgSpec = readonly ['svg', string, SvgSpecOpts?];
+/**
+ * Chart: `['chart', body]`.
+ *
+ * Uses a body object rather than positional payloads — like `['table', …]` and
+ * `['img', …]`, and for the same reason: the payload is a nested structure
+ * (`series[].values`, `axis.yMin`), and named keys are far less error-prone to
+ * generate than a deep positional tuple.
+ */
+export type ChartSpec = readonly ['chart', ChartSpecBody];
 /** Form field: `['field', body]`. */
 export type FormFieldSpec = readonly ['field', FormFieldSpecBody];
 
@@ -175,6 +189,7 @@ export type BlockSpec =
     | TocSpec
     | BarcodeSpec
     | SvgSpec
+    | ChartSpec
     | FormFieldSpec;
 
 /** The kind discriminator (first tuple element) of any {@link BlockSpec}. */
@@ -207,6 +222,19 @@ export interface DocSpec {
     readonly outline?: readonly OutlineItem[] | 'auto';
     /** Page labels shown in the viewer's page box (e.g. roman front matter). */
     readonly pageLabels?: readonly PageLabelRange[];
+    /**
+     * Watermark repeated on every page. A plain string is shorthand for
+     * `{ text: { text: … } }`. Sugar over `layout.watermark`; `layout` wins.
+     */
+    readonly watermark?: DocumentProps['watermark'];
+    /** Running page header (`{page}`, `{pages}`, `{date}`, `{title}` placeholders). */
+    readonly header?: DocumentProps['header'];
+    /** Running page footer (`{page}`, `{pages}`, `{date}`, `{title}` placeholders). */
+    readonly footer?: DocumentProps['footer'];
+    /** Embedded file attachments (PDF/A-3). */
+    readonly attachments?: DocumentProps['attachments'];
+    /** Emit a tagged (accessible) PDF, optionally at a PDF/A conformance level. */
+    readonly tagged?: DocumentProps['tagged'];
     /** Ordered document blocks. */
     readonly blocks: readonly BlockSpec[];
 }

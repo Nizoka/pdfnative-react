@@ -31,7 +31,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
-          node-version: '>=20'
+          node-version: '22'
           registry-url: https://registry.npmjs.org
           cache: npm
 
@@ -56,11 +56,58 @@ jobs:
           test -f dist/index.js
           test -f dist/index.d.ts
           test -f dist/index.d.cts
+          test -f dist/client.cjs
+          test -f dist/client.js
+          test -f dist/client.d.ts
+          test -f dist/client.d.cts
 
-      - name: Import smoke test
+      # Resolve through the packed tarball and the `exports` map, not by file
+      # path. Importing `./dist/index.js` directly proves the file parses; it
+      # proves nothing about the `exports` map, so a wrong `types` target or a
+      # dropped condition would ship unnoticed. This is the last gate before
+      # `npm publish`, so it exercises what a consumer will actually resolve.
+      - name: Consumer resolution smoke test
         run: |
-          node -e "const m = require('./dist/index.cjs'); if (typeof m.renderToBytes !== 'function' || typeof m.renderSpecToBytes !== 'function') { throw new Error('CJS export surface missing'); }"
-          node --input-type=module -e "import('./dist/index.js').then(m => { if (typeof m.renderToBytes !== 'function' || typeof m.docSpecSchema !== 'function') { throw new Error('ESM export surface missing'); } })"
+          set -euo pipefail
+          npm pack --pack-destination /tmp
+          TARBALL=$(ls /tmp/pdfnative-react-*.tgz)
+          mkdir -p /tmp/consumer && cd /tmp/consumer
+          npm init -y > /dev/null
+          npm install --no-audit --no-fund "$TARBALL" react react-dom pdfnative
+
+          node -e "
+            const root = require('pdfnative-react');
+            const client = require('pdfnative-react/client');
+            for (const n of ['renderToBytes','renderSpecToBytes','renderToResponse','capabilityManifest','doctor']) {
+              if (typeof root[n] !== 'function') throw new Error('CJS root missing ' + n);
+            }
+            for (const n of ['usePdf','PDFViewer','BlobProvider']) {
+              if (typeof client[n] !== 'function') throw new Error('CJS client missing ' + n);
+            }
+            console.log('CJS ok');
+          "
+          node --input-type=module -e "
+            const [root, client] = await Promise.all([
+              import('pdfnative-react'),
+              import('pdfnative-react/client'),
+            ]);
+            for (const n of ['renderToBytes','docSpecSchema','schema','lintDocument']) {
+              if (typeof root[n] !== 'function') throw new Error('ESM root missing ' + n);
+            }
+            if (typeof client.usePdfStream !== 'function') throw new Error('ESM client missing usePdfStream');
+            console.log('ESM ok');
+          "
+
+          # Render a real PDF from the installed package — proves the postbuild
+          # rewrite of the dynamic node:fs/promises import did not corrupt it.
+          node --input-type=module -e "
+            const { renderSpecToFile } = await import('pdfnative-react');
+            const { readFile } = await import('node:fs/promises');
+            await renderSpecToFile({ blocks: [['h1','Release smoke test']] }, 'out.pdf');
+            const bytes = await readFile('out.pdf');
+            if (!bytes.subarray(0, 5).toString('latin1').startsWith('%PDF-')) throw new Error('not a PDF');
+            console.log('rendered', bytes.length, 'bytes');
+          "
 
       - name: Generate SBOM (CycloneDX)
         # Software Bill of Materials for supply-chain transparency. Uses the

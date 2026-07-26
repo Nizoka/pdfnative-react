@@ -7,6 +7,178 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] — Charts, server rendering, and an autonomous agent surface
+
+Tracks the `pdfnative` engine's 1.6.0 release, opens three adoption paths
+(server-side rendering, document-level layout sugar, linting), and completes the
+agent-automation contract so an AI agent can drive the package without a human
+in the loop.
+
+No public API was removed or changed in a backward-incompatible way. Two
+*install-time* floors were raised — see **Changed** first.
+
+### Security
+
+Both of these are engine fixes that arrive with the `^1.6.0` peer floor. They
+are listed here because they affect documents **this package authored**.
+
+- **Encrypted documents no longer leak their outline, link URIs or metadata.**
+  Before engine 1.6.0, only *streams* were encrypted — strings were not. Since
+  `<Document outline="auto">` derives bookmark titles from every `<Heading>`, a
+  password-protected document produced by pdfnative-react disclosed its section
+  headings, its `<Link url>` targets and its `metadata` to anyone opening the
+  file without the password. Re-render anything you shipped with
+  `layout.encryption`.
+- **AES-256 output is now spec-compliant.** The engine's R6 hash substituted
+  SHA-256 for every round instead of the SHA-256/384/512 rotation ISO 32000-2
+  Algorithm 2.B requires, so `algorithm: 'aes256'` files written on engine
+  ≤ 1.5.0 were not readable by strictly compliant readers. Output changes
+  bit-for-bit; the engine's decryptor keeps a legacy fallback so old files still
+  open.
+
+### Changed
+
+- **`pdfnative` peer floor is now `^1.6.0`** (was `^1.5.0`). `<Chart>` compiles
+  to a block type that does not exist before 1.6.0; a 1.5 engine would receive
+  an unknown block and silently drop or mis-render it. A loud install-time
+  requirement is better than a quiet wrong PDF.
+- **Node floor is now `>=22`** (was `>=20`). This is *inherited*, not invented:
+  `pdfnative@1.6.0` itself requires Node ≥ 22, so any compliant install is
+  already there. CI now runs on Node 22 and 24.
+- `llms.txt` is now included in the published tarball (`package.json#files`), so
+  an agent working from an installed package — with no repository checkout — can
+  read the capability summary.
+
+### Added
+
+#### Charts (engine 1.6.0)
+
+- **`<Chart>`** — native vector charts rendered as pure PDF path operators: no
+  rasterisation, no chart library, no new runtime dependency. Five types
+  (`bar`, `barH`, `line`, `pie`, `donut`), multi-series, legends, "nice" axis
+  ticks, gridlines, point markers, palette overrides, negative values, and a
+  tagged-PDF `/Figure` + `/Alt` entry.
+- **`['chart', body]`** — the matching `DocSpec` tuple, a schema branch, and the
+  `ChartBlock` / `ChartSeries` / `ChartType` type re-exports.
+
+#### Server rendering
+
+- **`renderToResponse(node, options?)`** and **`renderSpecToResponse(spec, options?)`**
+  return a web-standard `Response`. Streams page by page from the engine's
+  generator, so peak memory stays flat and the client receives bytes
+  immediately; `buffered: true` switches to a single buffer and adds
+  `Content-Length`. Handles `Content-Disposition` including RFC 6266
+  `filename*` for non-ASCII names. Runs unchanged on Node, the Edge runtime,
+  Deno, Bun and Cloudflare Workers.
+
+#### Packaging — a client subpath, and two fixes that make the runtime claims true
+
+- **New `pdfnative-react/client` export.** `usePdf`, `usePdfStream`,
+  `PDFViewer`, `PDFDownloadLink` and `BlobProvider`, shipped with the
+  `'use client'` directive already applied. In a React Server Components app,
+  import them from there — no wrapper file of your own. The root barrel still
+  exports them for apps with no RSC boundary, and is deliberately *not* marked
+  as client code, because `renderToResponse` must stay server-safe.
+
+  Note the boundary this does **not** move: importing this package from a
+  Server Component or a `'use server'` file still fails, because the reconciler
+  needs `createContext` and React's `react-server` condition does not provide
+  it. Use a Route Handler. See [docs/SERVER.md](docs/SERVER.md).
+
+- **The published bundle now keeps the `node:` prefix on its dynamic
+  `node:fs/promises` import.** It was being rewritten to the bare specifier,
+  which Deno and Cloudflare `nodejs_compat` refuse to resolve — so a wrangler or
+  Vite-browser build of the very runtimes listed above failed to compile.
+  `scripts/postbuild.mjs` now verifies the shipped artifacts and fails the build
+  if it regresses; CI additionally bundles both artifacts the way a non-Node
+  bundler would.
+
+- **Importing pure data no longer drags in the React reconciler.**
+  `import { version }` cost 10 137 bytes and forced `react-reconciler` to
+  resolve; it is now 3 216 with no reconciler. Same for `validateSpec`,
+  `schema()` and `capabilityManifest()`. The build fails if this regresses.
+
+#### Document-level layout sugar
+
+- New `<Document>` props — **`watermark`**, **`header`**, **`footer`**,
+  **`attachments`**, **`tagged`** — surfacing `PdfLayoutOptions` fields that
+  previously worked only as an opaque, undocumented `layout` pass-through.
+  `watermark` accepts a plain string as shorthand for the common case. An
+  explicit `layout` prop always wins. Mirrored on `DocSpec` and in the schema.
+  A document that uses none of them still serializes with `layout: undefined`,
+  so existing output is byte-identical.
+
+#### Linting
+
+- **`lintDocument(node, options?)`** / **`lintSpec(spec, options?)`** — eighteen
+  deterministic accessibility and layout rules with stable `L_*` codes (10
+  error, 7 warning, 1 info). Runs on the compiled document model, so JSX and
+  `DocSpec` share one implementation. Pure: no console output, no throwing.
+- **Eight** rules pre-empt an exception the engine raises mid-render: the five
+  `L_CHART_*` errors (`EMPTY`, `SERIES`, `CATEGORIES`, `VALUES`, `POINTS`),
+  `L_ATTACHMENTS_NEED_PDFA3`, `L_TAGGED_ENCRYPTED` and `L_MAX_BLOCKS_EXCEEDED` —
+  the last firing against the engine's default ceiling of 100 000 blocks even
+  when you set none yourself. Two more catch output that renders successfully
+  but is wrong: `L_EMPTY_DOCUMENT` (a blank page) and `L_TAGGED_NO_FONTS` (a
+  PDF/A file veraPDF rejects).
+
+#### Agent surface
+
+- **`ErrorCode`** — a stable `E_*` taxonomy (`E_STRUCTURE`, `E_INPUT`,
+  `E_UNSUPPORTED`, `E_ENV`, `E_POLICY`, `E_RUNTIME`) with a `PdfReactError`
+  base class carrying `code`, a `toJSON()` producing the ecosystem's standard
+  `{ ok: false, error: { code, message } }` envelope, and `toErrorEnvelope()`
+  for arbitrary thrown values. `PdfStructureError` now extends `PdfReactError`
+  and carries `E_STRUCTURE`; it remains importable from its original path and
+  is the same class object, so `instanceof` is unaffected.
+- **`capabilityManifest()`** — one call describing every component, `DocSpec`
+  block, entry point, error code, lint rule and schema subject as plain JSON.
+  Derived entirely from the internal registries, and a test asserts every name
+  it advertises resolves to a real export.
+- **`doctor()`** — environment pre-flight returning
+  `{ ok, checks: [{ name, status, value, detail }] }`. Never throws — it reports
+  rather than raises. The engine check is a *capability probe* rather than a
+  version-string parse, so it survives bundling into a browser build and catches
+  an engine that resolves but is older than 1.6.0. A peer that is absent
+  *entirely* fails earlier, at module resolution, and never reaches `doctor()`.
+- **`validateSpec(spec: unknown)`** — structural validation of an untrusted
+  `DocSpec` with no JSON-Schema engine, returning path-anchored `V_*` findings
+  (`blocks[3][1]`). Never throws, and bounds page nesting at 64 levels so a deep
+  payload cannot exhaust the call stack. This is dry-run tier 1; `compileSpec`,
+  `lintSpec` and `inspectSpec` are tiers 2–4.
+- **`schema(subject?)`** / **`schemaId(subject?)`** — seven subjects
+  (`doc-spec`, `render-options`, `lint-report`, `spec-validation`, `doctor`,
+  `manifest`, `list`), each with a versioned `$id` so a caching consumer can
+  detect contract drift. `docSpecSchema()` and `docSpecSchemaId()` are retained
+  and delegate; a test pins the equivalence.
+- **`aiGovernancePolicy()`**, **`agentRulesText()`**, **`validateIssueDraft(md)`**
+  — the human-in-the-loop contract shipped as runtime capability, so an agent
+  working from an installed package can read the rules it must follow. Still
+  zero network, zero telemetry, zero autonomous GitHub writes.
+- npm keywords extended for discovery (`ai-governance`, `hitl`, `llms-txt`,
+  `rag`, `mcp`, `nextjs`, `rsc`, `accessibility`, `pdf-ua`, `charts`, …).
+
+#### Internal — the anti-drift mechanism
+
+- New `src/registry.ts` holds the block grammar, the component list and the
+  lint rules as single-source tables. The JSON Schema, `validateSpec` and the
+  capability manifest all *derive* from them rather than restating them, and
+  compile-time `Assert<Equals<…>>` types make omission a build error: adding a
+  member to `BlockSpec` or `HostTag` without registering it fails
+  `npm run typecheck`.
+
+### Documentation
+
+- New guides: `docs/CHARTS.md`, `docs/SERVER.md`, `docs/LINTING.md`,
+  `docs/AGENT_CONTRACT.md`, and **`docs/RECIPES.md`** — the counterpart to the
+  authoring-only boundary, showing how to call the engine directly for
+  `extractText`, `fillForm`/`flattenForm`, `openPdf({ password })`,
+  merge/split and re-encryption on the bytes this library produces.
+- `docs/KNOWLEDGE_BASE.md` gains an "Agent Automation Contract" chapter.
+- 7 new samples — charts, layout sugar, a Next.js route handler, linting, and
+  three agent samples (the full loop, the capability manifest, the error
+  envelope). All type-checked in CI and executed end to end.
+
 ## [1.0.0] — Stable release
 
 First stable release. The public API is now covered by semantic versioning.
@@ -114,7 +286,8 @@ through 1.5.0 and ships the previously-planned 0.4.0 authoring conveniences.
 
 - Placeholder release reserving the `pdfnative-react` package name on npm.
 
-[Unreleased]: https://github.com/Nizoka/pdfnative-react/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/Nizoka/pdfnative-react/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/Nizoka/pdfnative-react/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/Nizoka/pdfnative-react/compare/v0.2.0...v1.0.0
 [0.2.0]: https://github.com/Nizoka/pdfnative-react/releases/tag/v0.2.0
 [0.1.0]: https://github.com/Nizoka/pdfnative-react/releases/tag/v0.1.0

@@ -3,19 +3,22 @@
  *
  * Browser/React component module (not a standalone script). Mirrors the
  * familiar `@react-pdf/renderer` ergonomics.
+ *
+ * In your own app the two imports below become:
+ *
+ *     import { PDFViewer, PDFDownloadLink, BlobProvider } from 'pdfnative-react/client';
+ *     import { Document, Heading, Paragraph } from 'pdfnative-react';
+ *
+ * The `/client` subpath ships with `'use client'` already applied. The document
+ * components stay on the root entry — they are isomorphic, and the root bundle
+ * is deliberately not marked as client code so server rendering keeps working.
  */
 
 'use client';
 
 import React from 'react';
-import {
-    BlobProvider,
-    Document,
-    Heading,
-    PDFDownloadLink,
-    PDFViewer,
-    Paragraph,
-} from '../../src/index.js';
+import { Document, Heading, Paragraph } from '../../src/index.js';
+import { BlobProvider, PDFDownloadLink, PDFViewer } from '../../src/client.js';
 
 const report = (
     <Document title="Report">

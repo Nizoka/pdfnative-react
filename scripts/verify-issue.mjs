@@ -29,7 +29,12 @@ const DEPENDENCY_PATTERNS = [
     /\b(yarn|pnpm|bun)\s+add\s+/i,
     /\bpnpm\s+install\s+[a-z@]/i,
     /add\s+[`"']?[\w@/-]+[`"']?\s+to\s+(the\s+)?(runtime\s+)?dependencies\b/i,
-    /"dependencies"\s*:\s*\{[^}]*[\w-]+[^}]*\}/i,
+    // Matches a `"dependencies": {` block whose first content is a quoted key.
+    // Deliberately NOT `\{[^}]*[\w-]+[^}]*\}`: `[\w-]` is a subset of `[^}]`, so
+    // that form backtracked quadratically (CodeQL js/polynomial-redos) — over
+    // two minutes on `"dependencies":{` plus 2000 hyphens. Keep this in sync
+    // with src/governance.ts; a test asserts both tables are identical.
+    /"dependencies"\s*:\s*\{\s*"/i,
 ];
 
 /** Required issue fields (advisory — surfaced as warnings when missing). */

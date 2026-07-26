@@ -11,15 +11,25 @@ export {
     specToElement,
     compileSpec,
     inspectSpec,
+    lintSpec,
     renderSpecToBytes,
     renderSpecToBlob,
     renderSpecToStream,
     renderSpecToFile,
     renderSpecToFileStream,
+    renderSpecToResponse,
 } from './compile.js';
 
-export { docSpecSchema, docSpecSchemaId } from './schema.js';
-export type { JsonSchema } from './schema.js';
+export { schema, schemaId, SCHEMA_SUBJECTS, docSpecSchema, docSpecSchemaId } from './schema.js';
+export type { JsonSchema, SchemaSubject } from './schema.js';
+
+export { validateSpec, SpecCode } from './validate.js';
+export type {
+    SpecCodeValue,
+    SpecFinding,
+    SpecFindingSeverity,
+    SpecValidation,
+} from './validate.js';
 
 export type {
     DocSpec,
@@ -40,6 +50,8 @@ export type {
     TocSpec,
     BarcodeSpec,
     SvgSpec,
+    ChartSpec,
+    ChartSpecBody,
     FormFieldSpec,
     FormFieldSpecBody,
     HeadingSpecOpts,

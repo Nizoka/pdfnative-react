@@ -32,7 +32,7 @@ type TransitionStatus = null;
 // React's reconciler treats a `null` host context as "no context" and throws
 // "Expected host context to exist". We have no real context, so we hand back a
 // single stable, frozen sentinel object instead.
-const HOST_CONTEXT = Object.freeze({});
+const HOST_CONTEXT = /* @__PURE__ */ Object.freeze({});
 type HostContext = typeof HOST_CONTEXT;
 
 function appendChild(parent: Instance | Container, child: HostNode): void {
@@ -164,7 +164,11 @@ const hostConfig: Config = {
 
     // ── Transition / priority surface (react-reconciler 0.31+) ──────────────
     NotPendingTransition: null,
-    HostTransitionContext: createContext<TransitionStatus>(
+    // `/* @__PURE__ */` matters here: a bare call inside this object literal is
+    // a side effect a bundler cannot prove away, which pins the entire
+    // `hostConfig` — and with it the whole reconciler — into any bundle that
+    // imports *anything* from the package, including `version` or `schema()`.
+    HostTransitionContext: /* @__PURE__ */ createContext<TransitionStatus>(
         null,
     ) as unknown as Config['HostTransitionContext'],
     setCurrentUpdatePriority(newPriority) {
@@ -213,6 +217,9 @@ const hostConfig: Config = {
     },
 };
 
-export const reconciler = ReactReconciler(hostConfig);
+// `/* @__PURE__ */` so a bundler may drop this when nothing imports the
+// reconciler. Without it, every consumer — including one importing only
+// `version` or `validateSpec` — pays for the whole React renderer.
+export const reconciler = /* @__PURE__ */ ReactReconciler(hostConfig);
 
 export { isElementNode };

@@ -45,15 +45,37 @@ npx tsx samples/agent/compact-spec.ts # writes compact-spec.pdf
 | [layout/page-setup.tsx](layout/page-setup.tsx) | Page size, margins, and PDF/A-2b archival mode via `layout`. |
 | [layout/viewer-preferences.tsx](layout/viewer-preferences.tsx) | `layout.viewerPreferences` — control how a reader opens the PDF. |
 | [layout/debug-inspect.tsx](layout/debug-inspect.tsx) | `layout.debug` overlay + `inspectDocument` layout report. |
+| [layout/watermark-header-footer.tsx](layout/watermark-header-footer.tsx) | `watermark` / `header` / `footer` / `attachments` / `tagged` props, and a real PDF/A-3 document. |
+| [charts/charts.tsx](charts/charts.tsx) | All five chart types: bar, horizontal bar, line, pie, donut — with axes, legends, palettes and negative values. |
 
-## Agent samples — token-frugal authoring
+## Server samples — HTTP responses
 
-The compact `DocSpec` lets LLM agents author documents with a fraction of the
-tokens of JSX, compiling to the **same** PDF.
+`renderToResponse` returns a web-standard `Response`, so one implementation
+covers Next.js, Remix, Hono, Deno, Bun and Cloudflare Workers.
 
 | Sample | Shows |
 |---|---|
+| [server/next-route-handler.tsx](server/next-route-handler.tsx) | A Next.js App Router route handler, streaming and buffered modes, the `DocSpec` variant, and an Express recipe. |
+
+## Quality samples
+
+| Sample | Shows |
+|---|---|
+| [quality/lint.tsx](quality/lint.tsx) | `lintDocument` — accessibility findings, rule filtering, the opt-in overflow check, and a CI gate. |
+
+## Agent samples — autonomous usage
+
+The compact `DocSpec` lets LLM agents author documents with a fraction of the
+tokens of JSX, compiling to the **same** PDF. The rest of the agent surface —
+discovery, pre-flight, validation — is designed to be driven without a human in
+the loop. See [docs/AGENT_CONTRACT.md](../docs/AGENT_CONTRACT.md).
+
+| Sample | Shows |
+|---|---|
+| [agent/agent-loop.ts](agent/agent-loop.ts) | **Start here.** The full loop: `doctor` → `capabilityManifest` → `schema` → `validateSpec` → `compileSpec` → `lintSpec` → render. |
 | [agent/compact-spec.ts](agent/compact-spec.ts) | A full invoice from a terse `DocSpec` → `renderSpecToFile`. |
+| [agent/manifest.ts](agent/manifest.ts) | `capabilityManifest()` — every component, block, entry point, error code and lint rule. Pass `--json` to pipe it. |
+| [agent/error-envelope.tsx](agent/error-envelope.tsx) | The `E_*` taxonomy, `toErrorEnvelope`, and branching on codes rather than messages. |
 | [agent/schema.ts](agent/schema.ts) | Print the versioned JSON Schema agents validate against. |
 
 ## Client samples (React components)

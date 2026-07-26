@@ -5,13 +5,18 @@
 > object and renders real PDF bytes — no DOM, no headless browser, no native
 > modules. It is a declarative block flow, not a CSS/flexbox layout engine.
 
+Version: 1.1.0 · pairs with pdfnative 1.6.0.
+
+This file is an LLM-facing capability summary. For the machine-readable JSON
+version, call `capabilityManifest()`; for schemas, call `schema(subject)`.
+
 ## Install
 
 ```
 npm install pdfnative-react pdfnative react
 ```
 
-Requires React 19 and Node.js >= 20.
+Requires React 19, pdfnative >= 1.6, Node.js >= 22.
 
 ## Core idea
 
@@ -21,7 +26,7 @@ to a `Uint8Array` PDF.
 
 ## Components
 
-- Document (root: title, footerText, metadata, fontEntries, layout, outline, pageLabels)
+- Document (root: title, footerText, metadata, fontEntries, layout, outline, pageLabels, watermark, header, footer, attachments, tagged)
 - Page (explicit page boundary; auto-pagination otherwise)
 - Section (sugar: title + grouped content; level?, color?, break?)
 - Heading (level 1-3)
@@ -35,24 +40,40 @@ to a `Uint8Array` PDF.
 - TableOfContents / Toc (alias)
 - Barcode (format, data) — qr, code128, ean13, pdf417, datamatrix
 - Svg (data: path or markup; <text>/<tspan> render as selectable PDF text)
+- Chart (chartType, series) — bar, barH, line, pie, donut; native vector, PDF/A-safe
 - FormField (fieldType, name) — interactive AcroForm widgets
 
-Document.outline: OutlineItem[] | 'auto' (bookmarks). Document.pageLabels: PageLabelRange[].
+## Document-level page furniture (props on <Document>, not components)
+
+- watermark: string | WatermarkOptions   (a string is shorthand for { text: { text } })
+- header / footer: PageTemplate { left?, center?, right?, fontSize?, color? }
+  Placeholders resolved at render time: {page} {pages} {date} {title}
+- attachments: PdfAttachment[] { filename, data, mimeType, description?, relationship? }
+  Requires tagged: 'pdfa3b' — the engine throws otherwise.
+- tagged: boolean | 'pdfa1b' | 'pdfa2b' | 'pdfa2u' | 'pdfa3b'
+  PDF/A requires embedded fonts: pair with fontEntries.
+
+All five fold into `layout` under the engine's keys (watermark, headerTemplate,
+footerTemplate, attachments, tagged). An explicit `layout` prop wins.
+Document.outline: OutlineItem[] | 'auto'. Document.pageLabels: PageLabelRange[].
 
 ## Rendering
 
 - renderToBytes(node, options?) -> Uint8Array
 - renderToBlob(node, options?) -> Blob (application/pdf)
 - renderToStream(node, options?) -> AsyncGenerator<Uint8Array> (constant memory)
+- renderToResponse(node, options?) -> Promise<Response>  (web standard; streams by default)
 - renderToFile(node, path, options?) -> Promise<void> (Node only)
-- renderToFileStream(node, path, options?) -> Promise<StreamToFileResult> (Node, constant memory, keeps outline/pageLabels)
+- renderToFileStream(node, path, options?) -> Promise<StreamToFileResult> (Node, constant memory)
 - compileDocument(node) -> DocumentParams (inspect the model)
 - inspectDocument(node, options?) -> LayoutInspection (page/block geometry, no render)
+- lintDocument(node, options?) -> LintReport (accessibility + engine constraints)
 
 `options`: { layout?: Partial<PdfLayoutOptions>, fontEntries?: FontEntry[], fonts?: FontsMap }.
-layout supports viewerPreferences and debug (overlay). fonts (loader map) is honored only by
-async entries (renderToFile, renderToFileStream, usePdf, usePdfStream); for sync entries do
-`fontEntries: await resolveFonts({...})`.
+`renderToResponse` also takes { fileName?, disposition?: 'inline'|'attachment',
+buffered?, status?, headers? }. fonts (loader map) is honored only by async
+entries (renderToFile, renderToFileStream, renderToResponse, usePdf,
+usePdfStream); for sync entries do `fontEntries: await resolveFonts({...})`.
 
 ## Fonts & assets
 
@@ -61,11 +82,23 @@ async entries (renderToFile, renderToFileStream, usePdf, usePdfStream); for sync
 - fromUrl(url, init?) -> Promise<Uint8Array>  (image bytes)
 - fromBase64(payload) -> Uint8Array           (base64 or data: URI)
 
-## Hooks & client components (carry 'use client')
+## Hooks & client components (browser only)
+
+Import these from the `pdfnative-react/client` subpath, which ships with the
+'use client' directive applied. The root barrel exports them too, for apps with
+no RSC boundary.
+
+    import { PDFViewer, usePdf } from 'pdfnative-react/client';
+
+IMPORTANT — the RSC boundary: this package drives a React reconciler and needs
+createContext, which React's 'react-server' condition does not provide. Importing
+it from a Server Component or a 'use server' file fails at module load. Use a
+Route Handler (app/**/route.ts) instead — that is what renderToResponse is for.
+
 
 - usePdf(element, options?) -> { url, blob, bytes, loading, error, update }
 - usePdfStream(element, options?) -> { getStream() }
-- PDFViewer({ document, options?, ...iframeProps }) — live iframe preview
+- PDFViewer({ document, options?, className?, style?, width?, height?, title? }) — live iframe preview
 - PDFDownloadLink({ document, fileName?, options?, children }) — anchor download
 - BlobProvider({ document, options?, children: (state) => ReactNode })
 
@@ -82,13 +115,13 @@ Prefer it when generating documents programmatically.
 - compileSpec(spec) -> DocumentParams
 - specToElement(spec) -> ReactElement (<Document> tree)
 - renderSpecToBytes / renderSpecToBlob / renderSpecToStream / renderSpecToFile
-- docSpecSchema() -> Draft 2020-12 JSON Schema ($id embeds the package version)
-- docSpecSchemaId() -> the schema $id string
-
+- renderSpecToFileStream / renderSpecToResponse
 - inspectSpec(spec, options?) -> LayoutInspection
-- renderSpecToFileStream(spec, path, options?) -> Promise<StreamToFileResult>
+- lintSpec(spec, options?) -> LintReport
+- validateSpec(spec: unknown) -> { ok, errors, warnings }   (no JSON-Schema engine needed)
 
-DocSpec = { title?, footerText?, metadata?, fontEntries?, layout?, outline?, pageLabels?, blocks }.
+DocSpec = { title?, footerText?, metadata?, fontEntries?, layout?, outline?,
+pageLabels?, watermark?, header?, footer?, attachments?, tagged?, blocks }.
 Block tuples (kind, ...payload, opts?):
 - ['h1'|'h2'|'h3', text, opts?]
 - ['p', text, opts?]
@@ -102,22 +135,72 @@ Block tuples (kind, ...payload, opts?):
 - ['toc', opts?]
 - ['qr'|'code128'|'ean13'|'pdf417'|'datamatrix', data, opts?]
 - ['svg', data, opts?]
+- ['chart', { chartType, series, categories?, title?, width?, height?, legend?, axis?, markers?, colors?, align?, altText? }]
 - ['field', { fieldType, name, ... }]
+
+## Agent surface
+
+- doctor() -> { ok, checks: [{ name, status: 'ok'|'warn'|'error', value, detail }] }
+  Environment pre-flight. NEVER throws, including when the pdfnative peer is
+  missing. Call this first in an unfamiliar environment.
+- capabilityManifest() -> everything the package can do, as plain JSON:
+  components, specBlocks (the whole grammar), entrypoints, errorCodes,
+  lintRules, schemaSubjects, and the contract invariants.
+- schema(subject?) -> Draft 2020-12 JSON Schema; schemaId(subject?) -> versioned $id.
+  Subjects: doc-spec (default), render-options, lint-report, spec-validation,
+  doctor, manifest, list. The $id embeds the package version, so a caching
+  consumer can detect contract drift. Unknown subject throws E_INPUT.
+  docSpecSchema() / docSpecSchemaId() are retained and delegate to 'doc-spec'.
+- aiGovernancePolicy(), agentRulesText(), validateIssueDraft(md) — the
+  human-in-the-loop contract, shipped as runtime capability.
+
+Recommended loop:
+  doctor -> capabilityManifest -> schema -> validateSpec -> compileSpec -> lintSpec -> render
+
+Four dry-run tiers, cheapest first:
+  1. validateSpec(unknown)  malformed shape (V_* codes, path-anchored)
+  2. compileSpec(spec)      structure that cannot map onto the model
+  3. lintSpec(spec)         accessibility + engine constraints (L_* codes)
+  4. inspectSpec(spec)      pagination and geometry (costs ~a render)
 
 ## Errors
 
-PdfStructureError — thrown when a tree cannot be mapped (e.g. root is not
-<Document>).
+Every error carries a stable code. Branch on the code, never the message.
+
+- PdfReactError (base) — .code, .toJSON() -> { ok: false, error: { code, message } }
+- PdfStructureError extends PdfReactError — code 'E_STRUCTURE'
+- toErrorEnvelope(unknown) -> the same envelope for any thrown value
+- ErrorCode: E_STRUCTURE, E_INPUT, E_UNSUPPORTED, E_ENV, E_POLICY, E_RUNTIME
+
+## Lint rules (stable L_* codes)
+
+18 rules — 10 error, 7 warning, 1 info.
+
+errors:   L_EMPTY_DOCUMENT, L_TAGGED_NO_FONTS, L_TAGGED_ENCRYPTED,
+          L_ATTACHMENTS_NEED_PDFA3, L_MAX_BLOCKS_EXCEEDED, L_CHART_EMPTY,
+          L_CHART_SERIES, L_CHART_CATEGORIES, L_CHART_VALUES, L_CHART_POINTS
+warnings: L_IMAGE_ALT, L_TABLE_HEADERS, L_HEADING_HIERARCHY, L_FIELD_LABEL,
+          L_LINK_TEXT, L_MAX_BLOCKS, L_OVERFLOW
+info:     L_CHART_ALT
+
+EIGHT of them pre-empt an exception the engine raises mid-render: the five
+L_CHART_* errors, L_ATTACHMENTS_NEED_PDFA3, L_TAGGED_ENCRYPTED and
+L_MAX_BLOCKS_EXCEEDED. The last fires against the engine default of 100 000
+blocks even when layout.maxBlocks is unset. L_OVERFLOW requires { overflow: true }.
 
 ## Notes
 
 - No `<View>` / flexbox by design — pdfnative is a declarative block flow.
 - React 19 only (single react-reconciler version contract); React 18 is not planned.
-- Authoring only. For byte-level post-processing (merge/split, annotations,
-  signing, crypto, font compilation) use the pdfnative engine directly.
+- Authoring only. For byte-level post-processing (merge/split, form fill/flatten,
+  text extraction, decryption, annotations, signing, font compilation) use the
+  pdfnative engine directly on the bytes this library produces — see docs/RECIPES.md.
+- No outbound network calls, no telemetry, no autonomous GitHub writes.
 
 ## Links
 
 - npm: https://www.npmjs.com/package/pdfnative-react
 - repo: https://github.com/Nizoka/pdfnative-react
 - engine: https://www.npmjs.com/package/pdfnative
+- agent contract: docs/AGENT_CONTRACT.md
+- recipes (post-processing): docs/RECIPES.md

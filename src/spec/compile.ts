@@ -12,6 +12,7 @@
 import { createElement, type ReactElement, type ReactNode } from 'react';
 import {
     Barcode,
+    Chart,
     Document,
     FormField,
     Heading,
@@ -37,7 +38,9 @@ import {
     renderToFileStream,
     renderToStream,
 } from '../render.js';
-import { PdfStructureError } from '../reconciler/serialize.js';
+import { renderToResponse, type PdfResponseOptions } from '../response.js';
+import { lintDocument, type LintOptions, type LintReport } from '../lint.js';
+import { PdfStructureError } from '../errors.js';
 import type {
     DocumentParams,
     LayoutInspection,
@@ -112,6 +115,8 @@ function blockToElement(block: BlockSpec, key: number): ReactElement {
             });
         case 'svg':
             return createElement(Svg, { key, data: block[1], ...block[2] });
+        case 'chart':
+            return createElement(Chart, { key, ...block[1] });
         case 'field':
             return createElement(FormField, { key, ...block[1] });
         default: {
@@ -138,6 +143,11 @@ export function specToElement(spec: DocSpec): ReactElement {
             layout: spec.layout,
             outline: spec.outline,
             pageLabels: spec.pageLabels,
+            watermark: spec.watermark,
+            header: spec.header,
+            footer: spec.footer,
+            attachments: spec.attachments,
+            tagged: spec.tagged,
         },
         children,
     );
@@ -154,6 +164,15 @@ export function compileSpec(spec: DocSpec): DocumentParams {
  */
 export function inspectSpec(spec: DocSpec, options?: RenderOptions): LayoutInspection {
     return inspectDocument(specToElement(spec), options);
+}
+
+/**
+ * Check a {@link DocSpec} for accessibility and layout problems without
+ * rendering it. The spec twin of `lintDocument` — identical rules, since both
+ * inspect the compiled document model.
+ */
+export function lintSpec(spec: DocSpec, options?: LintOptions): LintReport {
+    return lintDocument(specToElement(spec), options);
 }
 
 /** Render a {@link DocSpec} to raw PDF bytes (`Uint8Array`). */
@@ -193,4 +212,15 @@ export function renderSpecToFileStream(
     options?: RenderOptions,
 ): Promise<StreamToFileResult> {
     return renderToFileStream(specToElement(spec), path, options);
+}
+
+/**
+ * Render a {@link DocSpec} straight to a web-standard `Response`.
+ * The spec twin of `renderToResponse` — see it for streaming semantics.
+ */
+export function renderSpecToResponse(
+    spec: DocSpec,
+    options?: PdfResponseOptions,
+): Promise<Response> {
+    return renderToResponse(specToElement(spec), options);
 }

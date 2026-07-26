@@ -21,8 +21,24 @@ side-effect-free factory that emits a lowercase **host tag** via the typed
 - Keep aliases intentional: `Text = Paragraph`, `Toc = TableOfContents`.
 - Every exported component and its props interface needs a TSDoc comment.
 
-When you add a component, also: add a host tag in `reconciler/nodes.ts`, a case
-in `reconciler/serialize.ts`, an export in `src/index.ts`, and a test in
-`tests/compile.test.tsx`. If the component adds authoring capability, mirror it
-in the `DocSpec` grammar + schema (`src/spec/`) to keep parity. (Composites like
-`Section` skip the nodes/serialize steps.)
+When you add a component:
+
+1. `reconciler/nodes.ts` — add the host tag.
+2. `reconciler/serialize.ts` — add the `case` in `toBlock`. **Compiler-enforced:**
+   a missing case fails `npm run typecheck` on the `const exhaustive: never` guard.
+3. **`src/registry.ts`** — add the `COMPONENT_REGISTRY` entry. **Compiler-enforced:**
+   `ComponentRegistryIsExhaustive` fails typecheck if a `HostTag` has no component.
+4. `src/index.ts` — export the component and its props type.
+5. `tests/compile.test.tsx` — a serialization test, plus the ordered list in
+   `tests/registry.test.ts`.
+6. If it adds authoring capability, mirror it in the `DocSpec` grammar + schema
+   (`src/spec/`) — see `spec.instructions.md` for that checklist — and refresh
+   `tests/compile-snapshot.test.tsx` deliberately, reading the diff.
+
+Composites like `Section` skip steps 1–3: they emit no host tag, and
+`COMPONENT_REGISTRY` records them with `tag: null`. A test asserts `Section` is
+the *only* one.
+
+Client-side components (`PDFViewer`, `PDFDownloadLink`, `BlobProvider`) go in
+`CLIENT_COMPONENT_REGISTRY` instead, and must be re-exported from
+`src/client.ts` so they reach the `pdfnative-react/client` subpath.

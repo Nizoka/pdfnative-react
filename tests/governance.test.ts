@@ -155,6 +155,31 @@ describe('governance as a runtime capability', () => {
         expect(policy.appliesTo).toEqual(file.applies_to);
     });
 
+    it('flags a JSON dependencies block, but not an empty one shown in prose', () => {
+        const repro = '\n```\nrepro\n```\n';
+        expect(validateIssueDraft(`"dependencies": { "left-pad": "^1.0.0" }${repro}`).ok).toBe(
+            false,
+        );
+        expect(validateIssueDraft(`"dependencies":{"a":"1"}${repro}`).ok).toBe(false);
+        // An empty block, or the word in prose, is not a proposal.
+        expect(validateIssueDraft(`We ship "dependencies": {} — nothing else.${repro}`).ok).toBe(
+            true,
+        );
+        expect(validateIssueDraft(`Our "dependencies" list is empty.${repro}`).ok).toBe(true);
+    });
+
+    it('stays linear on input crafted to backtrack (CodeQL js/polynomial-redos)', () => {
+        // `validateIssueDraft` is a public export that takes untrusted markdown.
+        // The original `"dependencies"\s*:\s*\{[^}]*[\w-]+[^}]*\}` had two
+        // unbounded quantifiers around a subset class and went quadratic: 225 ms
+        // at 800 hyphens, over two minutes at 2000. Anything near-instant here
+        // means the ambiguity is gone; a regression would hang this test.
+        const evil = `"dependencies":{${'-'.repeat(50_000)}`;
+        const started = performance.now();
+        expect(validateIssueDraft(evil).ok).toBe(false); // no repro block
+        expect(performance.now() - started).toBeLessThan(1_000);
+    });
+
     it('ships the agent protocol text', () => {
         const text = agentRulesText();
         expect(text).toMatch(/DRAFTSMAN/);
@@ -189,7 +214,10 @@ describe('verifier ↔ library parity', () => {
                 .slice(open + 1, close)
                 .split('\n')
                 .map((line) => line.trim())
-                .filter((line) => line.length > 0)
+                // Compare the *patterns*, not the prose. Each file explains the
+                // duplication in its own terms, and a comment rewrite must not
+                // read as a policy divergence.
+                .filter((line) => line.length > 0 && !line.startsWith('//'))
                 .join('\n');
         };
 

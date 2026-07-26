@@ -40,7 +40,20 @@ const DEPENDENCY_PATTERNS: readonly RegExp[] = [
     /\b(yarn|pnpm|bun)\s+add\s+/i,
     /\bpnpm\s+install\s+[a-z@]/i,
     /add\s+[`"']?[\w@/-]+[`"']?\s+to\s+(the\s+)?(runtime\s+)?dependencies\b/i,
-    /"dependencies"\s*:\s*\{[^}]*[\w-]+[^}]*\}/i,
+    // Matches a `"dependencies": {` block whose first content is a quoted key —
+    // what an actual dependency addition looks like.
+    //
+    // The previous form was `\{[^}]*[\w-]+[^}]*\}`. Because `[\w-]` is a subset
+    // of `[^}]`, the engine had ambiguous ways to split the input and degraded
+    // to quadratic backtracking: on `"dependencies":{` followed by n hyphens and
+    // no closing brace, it took 3.5 ms at n=100, 225 ms at n=800, and over two
+    // minutes at n=2000 (CodeQL js/polynomial-redos). `validateIssueDraft` is a
+    // public export that takes untrusted markdown, so that was reachable.
+    //
+    // This form has one unbounded quantifier with a deterministic follow, so it
+    // is linear — and it is stricter: an empty `"dependencies": {}` shown in
+    // prose no longer trips the policy check.
+    /"dependencies"\s*:\s*\{\s*"/i,
 ];
 
 /** Required issue fields (advisory — surfaced as warnings when missing). */

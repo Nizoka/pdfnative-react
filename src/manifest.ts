@@ -84,10 +84,29 @@ export interface CapabilityManifest {
         readonly sideEffects: 'none';
         /** Outbound network calls and telemetry are never made. */
         readonly network: 'none';
+        /** Import specifier for the root surface. */
+        readonly entry: string;
+        /**
+         * Import specifier for the client components, which ship with the
+         * `'use client'` directive applied. Named here because an agent reading
+         * only this manifest would otherwise have no way to discover it.
+         */
+        readonly clientEntry: string;
+        /**
+         * Importing from a React Server Component or a `'use server'` file fails
+         * at module load: the reconciler needs `createContext`, which React's
+         * `react-server` condition does not provide. Use a Route Handler.
+         */
+        readonly reactServerCondition: 'unsupported';
     };
     readonly components: readonly ManifestComponent[];
     /** Preview/download components. Client-side; they consume a document rather than describing one. */
-    readonly clientComponents: readonly { readonly name: string; readonly summary: string }[];
+    readonly clientComponents: readonly {
+        readonly name: string;
+        readonly summary: string;
+        /** Always `'pdfnative-react/client'` — the subpath carrying `'use client'`. */
+        readonly importFrom: string;
+    }[];
     /** Error classes exported for `instanceof` checks. */
     readonly errorClasses: readonly string[];
     readonly specBlocks: readonly ManifestBlock[];
@@ -391,6 +410,9 @@ export function capabilityManifest(): CapabilityManifest {
             node: '>=22',
             sideEffects: 'none',
             network: 'none',
+            entry: 'pdfnative-react',
+            clientEntry: 'pdfnative-react/client',
+            reactServerCondition: 'unsupported',
         },
         components: COMPONENT_REGISTRY.map((c) => ({
             name: c.name,
@@ -401,6 +423,7 @@ export function capabilityManifest(): CapabilityManifest {
         clientComponents: CLIENT_COMPONENT_REGISTRY.map((c) => ({
             name: c.name,
             summary: c.summary,
+            importFrom: 'pdfnative-react/client',
         })),
         errorClasses: ['PdfReactError', 'PdfStructureError'],
         specBlocks: BLOCK_REGISTRY.map((b) => ({

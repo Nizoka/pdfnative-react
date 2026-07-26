@@ -81,11 +81,12 @@ Start by reading [docs/KNOWLEDGE_BASE.md](docs/KNOWLEDGE_BASE.md).
 
 ## The registry is the single source of truth
 
-`src/registry.ts` holds three tables — the `DocSpec` block grammar, the
-component list, and the lint rules. Four things *derive* from them rather than
-restating them:
+`src/registry.ts` holds four tables — the `DocSpec` block grammar, the component
+list, the client components, and the lint rules. Four things *derive* from them
+rather than restating them:
 
-1. `src/spec/schema.ts` — `$defs.block.oneOf`, plus tuple arity and descriptions.
+1. `src/spec/schema.ts` — `$defs.block.oneOf`, plus each tuple's kind
+   discriminator, arity and description.
 2. `src/spec/validate.ts` — arity and payload-type rules.
 3. `src/manifest.ts` — the capability manifest.
 4. `tests/registry.test.ts` — pins the exact, ordered contents.
@@ -145,6 +146,23 @@ npm run build
 
 Add or update tests under `tests/` for any behavioural change, and update
 `CHANGELOG.md` under **[Unreleased]**.
+
+### Documentation drift gate
+
+The same fact is stated in README, `llms.txt`, the Knowledge Base, the agent
+contract, the CHANGELOG, the release notes and the capability manifest. When you
+change a **count** or a **claim**, sweep for the old one before you commit:
+
+```bash
+grep -rniE "six (rules|of these|pre-empt)|sixteen|five (rules|constraints)|three tables|peer is missing" \
+  --include=*.md --include=*.txt --include=*.ts --include=*.tsx . \
+  | grep -v node_modules | grep -v '^\./dist'
+```
+
+Widen the alternation to whatever phrasing you are retiring — and widen it
+*generously*. A previous release shipped a wrong count in `CHANGELOG.md` for a
+full round because the sweep searched `six pre-empt` while the text read
+`Six rules pre-empt`. The gate is only as good as its regex.
 
 ## Conventions
 

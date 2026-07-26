@@ -71,6 +71,33 @@ are listed here because they affect documents **this package authored**.
   `filename*` for non-ASCII names. Runs unchanged on Node, the Edge runtime,
   Deno, Bun and Cloudflare Workers.
 
+#### Packaging — a client subpath, and two fixes that make the runtime claims true
+
+- **New `pdfnative-react/client` export.** `usePdf`, `usePdfStream`,
+  `PDFViewer`, `PDFDownloadLink` and `BlobProvider`, shipped with the
+  `'use client'` directive already applied. In a React Server Components app,
+  import them from there — no wrapper file of your own. The root barrel still
+  exports them for apps with no RSC boundary, and is deliberately *not* marked
+  as client code, because `renderToResponse` must stay server-safe.
+
+  Note the boundary this does **not** move: importing this package from a
+  Server Component or a `'use server'` file still fails, because the reconciler
+  needs `createContext` and React's `react-server` condition does not provide
+  it. Use a Route Handler. See [docs/SERVER.md](docs/SERVER.md).
+
+- **The published bundle now keeps the `node:` prefix on its dynamic
+  `node:fs/promises` import.** It was being rewritten to the bare specifier,
+  which Deno and Cloudflare `nodejs_compat` refuse to resolve — so a wrangler or
+  Vite-browser build of the very runtimes listed above failed to compile.
+  `scripts/postbuild.mjs` now verifies the shipped artifacts and fails the build
+  if it regresses; CI additionally bundles both artifacts the way a non-Node
+  bundler would.
+
+- **Importing pure data no longer drags in the React reconciler.**
+  `import { version }` cost 10 137 bytes and forced `react-reconciler` to
+  resolve; it is now 3 216 with no reconciler. Same for `validateSpec`,
+  `schema()` and `capabilityManifest()`. The build fails if this regresses.
+
 #### Document-level layout sugar
 
 - New `<Document>` props — **`watermark`**, **`header`**, **`footer`**,
@@ -87,10 +114,13 @@ are listed here because they affect documents **this package authored**.
   deterministic accessibility and layout rules with stable `L_*` codes (10
   error, 7 warning, 1 info). Runs on the compiled document model, so JSX and
   `DocSpec` share one implementation. Pure: no console output, no throwing.
-- Six rules pre-empt an exception the engine raises mid-render: the five
-  `L_CHART_*` errors (`EMPTY`, `SERIES`, `CATEGORIES`, `VALUES`, `POINTS`) and
-  `L_ATTACHMENTS_NEED_PDFA3`. Two more — `L_TAGGED_NO_FONTS` and
-  `L_MAX_BLOCKS_EXCEEDED` — catch output that renders successfully but is wrong.
+- **Eight** rules pre-empt an exception the engine raises mid-render: the five
+  `L_CHART_*` errors (`EMPTY`, `SERIES`, `CATEGORIES`, `VALUES`, `POINTS`),
+  `L_ATTACHMENTS_NEED_PDFA3`, `L_TAGGED_ENCRYPTED` and `L_MAX_BLOCKS_EXCEEDED` —
+  the last firing against the engine's default ceiling of 100 000 blocks even
+  when you set none yourself. Two more catch output that renders successfully
+  but is wrong: `L_EMPTY_DOCUMENT` (a blank page) and `L_TAGGED_NO_FONTS` (a
+  PDF/A file veraPDF rejects).
 
 #### Agent surface
 

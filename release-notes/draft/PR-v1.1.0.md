@@ -158,7 +158,7 @@ costs a layout pass.
   end to end, not just type-checked.
 - 8 new test files: `registry`, `chart`, `layout-sugar`, `response`, `lint`,
   `agent`, `schema`, `compile-snapshot`. `governance` and `version` extended.
-- **79 → 224 tests**, 8 → 16 files, including a golden compile snapshot.
+- **79 → 226 tests**, 8 → 16 files, including a golden compile snapshot.
 
 ### Docs & governance
 
@@ -183,7 +183,7 @@ costs a layout pass.
 ```
 npm run typecheck:all   clean (src + tests + samples)
 npm run lint            clean, zero warnings
-npm test                224 passed / 224, 16 files
+npm test                226 passed / 226, 16 files
 npm run test:coverage   94.77 stmts · 86.04 branches · 97.76 funcs · 95.80 lines
                         (thresholds 85/80/85/85 — unchanged, not lowered)
 npm run build           root ESM/CJS + client ESM/CJS + four .d.ts; postbuild verifies
@@ -203,12 +203,31 @@ Additionally verified by hand:
 
 ## Adversarial review
 
-**Five** independent reviews were run against this branch across two rounds —
+**Five** independent reviews were run against this branch across three rounds —
 architecture, documentation accuracy, engine-1.6.0 gap analysis, ecosystem
-state-of-the-art, and a final documentation pass. Every confirmed finding is
-fixed. The second round is listed first, because it found the more serious
-defects **and** caught three claims the first round's fixes had asserted but not
-completed.
+state-of-the-art, and a final go/no-go verification. Every confirmed finding is
+fixed. Rounds are listed newest first, because each caught claims the previous
+round's fixes had asserted but not completed.
+
+### Round 3 — go/no-go
+
+| Finding | Fix |
+|---|---|
+| **`CHANGELOG.md` still said "Six rules pre-empt"** and filed `L_MAX_BLOCKS_EXCEEDED` under "renders successfully but is wrong" — the last live instance of the very defect round 2 was named after. The round-2 sweep missed it because its regex read `six pre-empt` and the text reads `Six rules pre-empt` | Paragraph corrected. **The gate itself was the real defect**, so `AGENTS.md` now documents the sweep, with this miss as the cautionary example |
+| **The `./client` subpath — new public API — was absent from `CHANGELOG.md`, from the user-facing release note, from `capabilityManifest()`, and from every sample.** So were the two other user-visible packaging fixes of round 2 (the `node:` prefix restoration, the tree-shaking win) | `### Added` entry; a release-note section; `contract.entry` / `contract.clientEntry` / `contract.reactServerCondition` and `clientComponents[].importFrom` on the manifest; both `samples/client/*` switched to `src/client.js` with the real-world import shown in the header |
+| **The encryption security notice never reached the release note.** The CHANGELOG tells readers to re-render anything shipped with `layout.encryption`; the artifact users actually read did not | Dedicated `## Security` section, placed above the highlights |
+| "Two independent adversarial reviews" in the release note, when there were five | Corrected, with the two *rejected* findings recorded |
+| `docs/KNOWLEDGE_BASE.md` §3 had no `src/client.ts`, §6 had no `tests/compile-snapshot.test.tsx`, and §304's enumeration listed six under the word "eight" | All three fixed |
+| "Three tables" survived in `docs/KNOWLEDGE_BASE.md` and `AGENTS.md`; `src/registry.ts` and `.github/copilot-instructions.md` still said the bundle strips the `'use client'` directive | All four corrected |
+| **`publish.yml` verified only the four `dist/index.*` artifacts and never resolved the `exports` map** — both workflows imported by file path, so a wrong `types` target or a dropped condition would have shipped unseen | Now packs a tarball, installs it into a throwaway project, resolves `.` and `./client` in both conditions, and renders a real PDF from the installed package |
+| **`postbuild.mjs` failed *open*** — its headline tree-shaking guard degraded to a `console.log` and exit 0 if `esbuild` was absent | Fails closed, with an explicit `POSTBUILD_SKIP_SHAKE_CHECK=1` opt-out |
+
+Two round-3 findings were **rejected after verification**: the reported
+`upload-artifact` version inconsistency is shared verbatim by `pdfnative-cli`
+and `pdfnative-mcp`, so "fixing" it would have created the ecosystem divergence
+it claimed to remove; and a reported total test-suite failure turned out to be
+an audit tool perturbing `node_modules` — `npm ci` from the committed lockfile
+restores 224/224, which is also what CI does.
 
 ### Round 2
 
@@ -218,7 +237,7 @@ completed.
 | **`import { version }` pulled the entire React reconciler into a consumer's bundle** — 10 137 bytes for a string constant, and `react-reconciler` forced to resolve. A single-file bundle makes `sideEffects: false` inoperative | `/* @__PURE__ */` on `ReactReconciler(hostConfig)`, `HostTransitionContext`, `HOST_CONTEXT`, `LINT_RULE_CODES` and `BY_KIND`. Now **3 216 bytes, no reconciler**; postbuild fails the build if it regresses |
 | **`'use client'` never reached `dist/`**, so RSC users needed a hand-written wrapper — while `README.md` claimed the directive was carried | New **`pdfnative-react/client`** subpath export, built separately with the directive applied and verified by postbuild. The root bundle is asserted *not* to carry it |
 | **`L_MAX_BLOCKS` could not fire on the engine's default ceiling.** It checked only an explicit `layout.maxBlocks`, but the engine applies `DEFAULT_MAX_BLOCKS = 100 000` unconditionally and throws — so a large generated document linted clean and then crashed | `layout?.maxBlocks ?? 100_000`; test at 100 001 blocks |
-| **"Six rules pre-empt an engine throw" was wrong — it is eight.** `L_TAGGED_ENCRYPTED` (`pdf-document.ts:169`) and `L_MAX_BLOCKS_EXCEEDED` (`:146`) both throw; the docs listed them as safe. Repeated in 7 files | Verified against each engine throw site and corrected everywhere |
+| **"Six rules pre-empt an engine throw" was wrong — it is eight.** `L_TAGGED_ENCRYPTED` (`pdf-document.ts:169`) and `L_MAX_BLOCKS_EXCEEDED` (`:146`) both throw; the docs listed them as safe. Repeated in 7 files | Verified against each engine throw site and corrected in 7 of 8 sites — round 3 caught the eighth (`CHANGELOG.md`), which the sweep's own regex had missed |
 | **`schema('manifest')` described 10 of the manifest's 13 properties** — missing `clientComponents`, `errorClasses`, `schemaSubjects`, two of which were added *for* agent honesty. No test covered it | Completed, plus a test comparing `Object.keys(capabilityManifest())` to the schema's properties **and** `required` |
 | **`ChartProps` had no compile-time tie to `ChartBlock`**, while `docs/CHARTS.md` promises Charts-v2 fields "arrive as new `ChartProps`" | `ChartPropsCoversChartBlock` assert; verified destructively |
 | **`toBlock` had no exhaustiveness guard** — a new `HostTag` without a case compiled cleanly and failed at render, while the DocSpec side had a `never` guard since 1.0 | `const exhaustive: never`; verified destructively |
@@ -331,7 +350,7 @@ Also dropped, with reasons recorded in `ROADMAP.md`:
 |---|---|
 | `no_new_runtime_dependency_confirmed` | ✅ `dependencies` is still exactly `["react-reconciler"]`, asserted by `tests/version.test.ts` |
 | `reproduction_command` | `npm run typecheck:all && npm run lint && npm run test:coverage && npm run build && npm pack --dry-run` |
-| `reproduction_result` | All green; 224/224 tests; coverage above thresholds on all four axes; runtime `npm audit` clean |
+| `reproduction_result` | All green on a clean `npm ci`; 226/226 tests; coverage above thresholds on all four axes; runtime `npm audit` clean; both export subpaths resolved from a real packed tarball |
 | `duplicate_search_performed` | N/A — release PR, not an issue report |
 | `affected_packages` | `pdfnative-react` only. Upstream `pdfnative` docs still reference `pdfnative-react v1.0.0` in `docs/guides/react.md`, `llms.txt`, `AGENTS.md` and `README.md` — a companion PR there would be worthwhile, and is **not** included here. |
 | `identity_reminder_shown` | ✅ This draft must be reviewed and submitted by a human under their own GitHub identity. You share responsibility for its content. |

@@ -289,9 +289,10 @@ export type ComponentDescriptor = (typeof COMPONENT_REGISTRY)[number];
  * and author no block: they *consume* a document rather than describing one.
  * Folding them in would also defeat the `HostTag` exhaustiveness lock.
  *
- * These modules carry `'use client'` in source. Note that the published bundle
- * is a single file with no directives — see `docs/SERVER.md` for what that
- * means in a React Server Components app.
+ * These modules carry `'use client'` in source, and reach consumers through the
+ * dedicated `pdfnative-react/client` subpath (built from `src/client.ts`), which
+ * ships the directive applied. The root bundle deliberately does **not** carry
+ * it — marking it would break every server usage. See `docs/SERVER.md`.
  */
 export const CLIENT_COMPONENT_REGISTRY = [
     {

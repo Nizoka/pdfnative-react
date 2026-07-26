@@ -7,6 +7,8 @@
  * what stops the manifest from drifting into fiction.
  */
 import { describe, expect, it } from 'vitest';
+import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import * as barrel from '../src/index.js';
 import {
     Document,
@@ -125,6 +127,26 @@ describe('capabilityManifest', () => {
             'BlobProvider',
         ]);
         expect(manifest.errorClasses).toEqual(['PdfReactError', 'PdfStructureError']);
+    });
+
+    it('names both import specifiers, so an agent can discover the client subpath', () => {
+        // Without this the manifest describes components it gives no way to
+        // import: `PDFViewer` is not on the root barrel's documented RSC path.
+        expect(manifest.contract.entry).toBe('pdfnative-react');
+        expect(manifest.contract.clientEntry).toBe('pdfnative-react/client');
+        expect(manifest.contract.reactServerCondition).toBe('unsupported');
+        for (const c of manifest.clientComponents) {
+            expect(c.importFrom).toBe('pdfnative-react/client');
+        }
+    });
+
+    it('advertises a client entry that matches the package exports map', async () => {
+        const pkg = JSON.parse(
+            await readFile(join(process.cwd(), 'package.json'), 'utf8'),
+        ) as { exports: Record<string, unknown> };
+
+        const subpath = manifest.contract.clientEntry.replace('pdfnative-react', '.');
+        expect(Object.keys(pkg.exports)).toContain(subpath);
     });
 
     it('advertises only components that really exist in the barrel', () => {

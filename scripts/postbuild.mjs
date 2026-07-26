@@ -125,7 +125,19 @@ async function checkTreeShaking() {
     try {
         esbuild = await import('esbuild');
     } catch {
-        console.log('postbuild: esbuild unavailable, skipping the tree-shaking check.');
+        // Fail closed. esbuild is a transitive dependency of tsup, so if it is
+        // gone something is wrong with the tree — and a guard that quietly stops
+        // guarding is worse than no guard, because the build still reports
+        // success. Set POSTBUILD_SKIP_SHAKE_CHECK=1 to opt out deliberately.
+        if (process.env['POSTBUILD_SKIP_SHAKE_CHECK'] === '1') {
+            console.warn('postbuild: tree-shaking check skipped by POSTBUILD_SKIP_SHAKE_CHECK.');
+            return;
+        }
+        errors.push(
+            'esbuild is unavailable, so the tree-shaking check could not run. It is a '
+                + 'transitive dependency of tsup — reinstall, or set '
+                + 'POSTBUILD_SKIP_SHAKE_CHECK=1 to skip this check on purpose.',
+        );
         return;
     }
 

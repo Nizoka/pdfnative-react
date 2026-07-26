@@ -49,6 +49,7 @@ Key properties:
 | `src/reconciler/render.ts` | `compile(node)` — drives the reconciler and serializes. |
 | `src/render.ts` | `renderToBytes/Blob/Stream/File/FileStream`, `compileDocument`, `inspectDocument`. |
 | `src/response.ts` | `renderToResponse` — web-standard `Response`, streaming by default. Server-only; **never** `'use client'`. |
+| `src/client.ts` | The `pdfnative-react/client` subpath entry. Re-exports the hooks and viewer components; built separately so the `'use client'` directive reaches `dist/client.*`. |
 | `src/lint.ts` | `lintDocument` — runs on the *compiled* model, so JSX and `DocSpec` share one implementation. |
 | `src/registry.ts` | **Single source of truth**: block grammar, components, lint rules. Pure data, no engine import. See §9. |
 | `src/errors.ts` | `ErrorCode`, `PdfReactError`, `PdfStructureError`, `toErrorEnvelope`. |
@@ -158,6 +159,11 @@ Notes learned the hard way:
   `viewerPreferences`/`debug` survive it.
 - `tests/hooks.test.tsx` — exercises `usePdf`/`usePdfStream` under jsdom,
   including the async `options.fonts` path.
+- `tests/compile-snapshot.test.tsx` — a committed golden snapshot of the compiled
+  model for a document using every block and every document-level prop. The rest
+  of the suite asserts *shapes*; this asserts the whole output, so a serializer
+  change that silently drops a prop or reorders blocks cannot pass unnoticed.
+  When it changes, read the diff before running `vitest -u`.
 - `tests/viewer.test.tsx` — `PDFViewer`, `PDFDownloadLink` (both children forms)
   and `BlobProvider`.
 - `tests/spec.test.tsx` — asserts `compileSpec` parity with the equivalent JSX,
@@ -259,12 +265,13 @@ CLI solved it by deriving both its shell completions and its capability manifest
 from one `COMMANDS` table; we apply the same idea, with a compile-time lock on
 top.
 
-`src/registry.ts` holds three tables and imports nothing at runtime:
+`src/registry.ts` holds four tables and imports nothing at runtime:
 
 | Table | Consumers |
 |---|---|
-| `BLOCK_REGISTRY` | `spec/schema.ts` (`$defs.block.oneOf`, arity, descriptions), `spec/validate.ts` (arity + payload rules), `manifest.ts` (`specBlocks`) |
+| `BLOCK_REGISTRY` | `spec/schema.ts` (`$defs.block.oneOf`, kind discriminators, arity, descriptions), `spec/validate.ts` (arity + payload rules), `manifest.ts` (`specBlocks`) |
 | `COMPONENT_REGISTRY` | `manifest.ts` (`components`) |
+| `CLIENT_COMPONENT_REGISTRY` | `manifest.ts` (`clientComponents`) — the preview/download components, which emit no host tag and are therefore kept out of the `HostTag` exhaustiveness lock |
 | `LINT_RULES` | `lint.ts` (severities), `spec/schema.ts` (`lint-report` enum), `manifest.ts` (`lintRules`) |
 
 Two independent locks make omission a failure rather than a silent gap:
@@ -300,10 +307,13 @@ output rather than guessing. Unknown top-level fields are a *warning*, not an
 error, which preserves forward compatibility when a newer spec meets an older
 package.
 
-Tier 3 is where the real leverage is: eight of the eighteen lint rules
-(`L_CHART_*`, `L_ATTACHMENTS_NEED_PDFA3`) mirror validation the engine performs
-by **throwing mid-render**. `L_ATTACHMENTS_NEED_PDFA3` exists because writing
-`samples/layout/watermark-header-footer.tsx` hit exactly that throw.
+Tier 3 is where the real leverage is: eight of the eighteen lint rules — the
+five `L_CHART_*` errors, `L_ATTACHMENTS_NEED_PDFA3`, `L_TAGGED_ENCRYPTED` and
+`L_MAX_BLOCKS_EXCEEDED` — mirror validation the engine performs by **throwing
+mid-render**. `L_ATTACHMENTS_NEED_PDFA3` exists because writing
+`samples/layout/watermark-header-footer.tsx` hit exactly that throw;
+`L_CHART_EMPTY` and `L_MAX_BLOCKS_EXCEEDED` because later review rounds found
+three more engine throws with no rule behind them.
 
 ### Error taxonomy
 

@@ -54,9 +54,11 @@ Read [docs/KNOWLEDGE_BASE.md](../docs/KNOWLEDGE_BASE.md) and
 - **Do not run the renderer synchronously inside a React effect/commit.** `usePdf`
   defers `renderToBytes` via `queueMicrotask` to avoid reconciler reentrancy
   (which deadlocks). Preserve this when editing hooks.
-- **Client modules carry `'use client'`** (`hooks.ts`, `viewer.tsx`) — in source.
-  The bundle is a single file, so the directive does not survive into `dist/`;
-  `src/response.ts` is server-side and must never carry it.
+- **Client modules carry `'use client'`** (`hooks.ts`, `viewer.tsx`), and are
+  re-exported from `src/client.ts`, which is built as the separate
+  `pdfnative-react/client` subpath so the directive reaches `dist/client.*`.
+  The root bundle must never carry it — marking it would break every server
+  usage — and `src/response.ts` is server-side by design.
 - **Strict TypeScript, no `any`** (lint-enforced). Use `type`-only imports.
 - **AI governance (draftsman, never submitter).** Do not open/submit issues or
   PRs autonomously. Draft into `.github/drafts/`, validate with

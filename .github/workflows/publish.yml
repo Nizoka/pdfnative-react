@@ -35,6 +35,31 @@ jobs:
           registry-url: https://registry.npmjs.org
           cache: npm
 
+      # Trusted Publishing needs npm >= 11.5.1 — that is where the OIDC token
+      # exchange landed. Node 22 bundles npm 10.9.x, which has no OIDC support
+      # at all: it signs the provenance statement (that uses the GitHub OIDC
+      # token directly, via Sigstore), then sends an **unauthenticated** PUT and
+      # the registry answers `404 Not Found` rather than 403, because npm does
+      # not disclose whether a package exists to an anonymous caller.
+      #
+      # That 404 is why pinning `node-version` here is a trap: it looks like a
+      # policy declaration, but it also selects the npm that does the publish.
+      # Upgrading npm explicitly decouples the two, so the Node we support and
+      # the npm that can authenticate are no longer the same decision.
+      - name: Upgrade npm for Trusted Publishing
+        run: npm install -g npm@latest
+
+      - name: Verify npm supports Trusted Publishing
+        run: |
+          set -euo pipefail
+          MAJOR=$(npm --version | cut -d. -f1)
+          echo "npm $(npm --version) on node $(node --version)"
+          if [ "$MAJOR" -lt 11 ]; then
+            echo "::error::npm $(npm --version) cannot use Trusted Publishing (OIDC); npm >= 11.5.1 is required."
+            echo "Publishing would fail with a misleading '404 Not Found' after the whole job has run."
+            exit 1
+          fi
+
       - name: Install dependencies
         run: npm ci
 
@@ -122,11 +147,20 @@ jobs:
           path: sbom.cdx.json
           retention-days: 90
 
+      # Works for both triggers. Deriving the tag from package.json rather than
+      # from `github.event.release` means a `workflow_dispatch` recovery run —
+      # the way you republish after a failed release — still attaches the SBOM
+      # instead of silently skipping it.
       - name: Attach SBOM to release
-        if: github.event_name == 'release'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "${{ github.event.release.tag_name }}" sbom.cdx.json --clobber
+        run: |
+          TAG="v$(node -p "require('./package.json').version")"
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            gh release upload "$TAG" sbom.cdx.json --clobber
+          else
+            echo "No release $TAG exists yet; the SBOM remains available as a build artifact."
+          fi
 
       - name: Publish (provenance via OIDC)
         run: npm publish --provenance --access public

@@ -130,7 +130,7 @@
     "@types/react": "^19.0.0",
     "@types/react-reconciler": "^0.32.0",
     "@vitest/coverage-v8": "^4.1.7",
-    "eslint": "^9.0.0",
+    "eslint": "^10.8.0",
     "jsdom": "^25.0.0",
     "pdfnative": "^1.6.0",
     "react": "^19.0.0",

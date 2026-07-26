@@ -2,9 +2,14 @@
  * Versioned JSON Schema (Draft 2020-12) for the compact {@link DocSpec} authoring
  * format, so agents and tooling can self-validate a spec before rendering.
  *
- * The schema is hand-authored, pure data (zero runtime deps — no validator is
- * bundled), and versioned via a `$id` that embeds the package version, so any
- * drift is detectable and pinned by a test.
+ * Pure data — zero runtime deps, no validator is bundled — and versioned via a
+ * `$id` that embeds the package version, so drift is detectable and pinned by a
+ * test.
+ *
+ * The per-block *shapes* are hand-authored here, but the **contract** is not:
+ * `blockDefs()` sources each tuple's kind discriminator, arity and description
+ * from `BLOCK_REGISTRY`, and the `lint-report` enum from `LINT_RULE_CODES`. A
+ * builder cannot disagree with the registry, because the registry overwrites it.
  *
  * @packageDocumentation
  */
@@ -733,18 +738,68 @@ function manifestSchema(): JsonSchema {
             'Machine-readable description of everything this package can do. Fetch it with '
             + 'capabilityManifest() to register pdfnative-react as an agent tool set.',
         type: 'object',
-        required: ['kind', 'name', 'version', 'contract', 'components', 'specBlocks', 'entrypoints'],
+        // Every key `capabilityManifest()` emits. `tests/schema.test.ts` asserts
+        // the two stay in step — a manifest property the schema does not describe
+        // is invisible to an agent that discovers the API through the schema,
+        // which is the documented path.
+        required: [
+            'kind',
+            'name',
+            'version',
+            'schemaId',
+            'contract',
+            'components',
+            'clientComponents',
+            'errorClasses',
+            'specBlocks',
+            'entrypoints',
+            'errorCodes',
+            'lintRules',
+            'schemaSubjects',
+        ],
         properties: {
             kind: { const: 'capability-manifest' },
             name: { const: 'pdfnative-react' },
             version: { type: 'string' },
-            schemaId: { type: 'string' },
-            contract: { type: 'object' },
-            components: { type: 'array', items: { type: 'object' } },
-            specBlocks: { type: 'array', items: { type: 'object' } },
-            entrypoints: { type: 'array', items: { type: 'object' } },
+            schemaId: { type: 'string', description: "The $id of this schema." },
+            contract: {
+                type: 'object',
+                description: 'Invariants a caller can rely on (authoring-only, block flow, versions).',
+            },
+            components: {
+                type: 'array',
+                items: { type: 'object' },
+                description: 'JSX components, their host tag and aliases.',
+            },
+            clientComponents: {
+                type: 'array',
+                items: { type: 'object' },
+                description:
+                    'Preview/download components. Client-side; import them from '
+                    + '"pdfnative-react/client" in a React Server Components app.',
+            },
+            errorClasses: {
+                type: 'array',
+                items: { type: 'string' },
+                description: 'Error classes exported for instanceof checks.',
+            },
+            specBlocks: {
+                type: 'array',
+                items: { type: 'object' },
+                description: 'The whole DocSpec grammar: tuple form, summary, equivalent component.',
+            },
+            entrypoints: {
+                type: 'array',
+                items: { type: 'object' },
+                description: 'Every callable export, with signature and sync/async/stream kind.',
+            },
             errorCodes: { type: 'array', items: { type: 'string' } },
             lintRules: { type: 'array', items: { type: 'object' } },
+            schemaSubjects: {
+                type: 'array',
+                items: { enum: [...SCHEMA_SUBJECTS] },
+                description: 'The subjects schema(subject) answers to.',
+            },
         },
     };
 }

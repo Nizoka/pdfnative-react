@@ -155,19 +155,18 @@ export async function prepare(id: string): Promise<string> {
 
 ### Client components
 
-The published bundle is a single file with no `'use client'` directive. The
-source modules carry it, but bundling collapses them, so the marker does not
-survive into `dist/`. In an App Router project, import the preview and download
-components from a file that declares the directive itself:
+Import them from the **`pdfnative-react/client`** subpath, which ships with the
+`'use client'` directive already applied:
 
 ```tsx
-// components/pdf-preview.tsx
-'use client';
-export { PDFViewer, PDFDownloadLink, BlobProvider, usePdf } from 'pdfnative-react';
+import { PDFViewer, PDFDownloadLink, BlobProvider, usePdf, usePdfStream }
+    from 'pdfnative-react/client';
 ```
 
-Then import from that file in your client components. Server-side rendering
-(`renderToResponse`, `renderToBytes`, `renderToFile`) needs no such wrapper.
+No wrapper file, no directive of your own. The root barrel still exports the
+same components for non-RSC apps, but in an App Router project use the subpath —
+the root bundle is deliberately *not* marked as client code, because
+`renderToResponse` and friends must stay server-safe.
 
 ## Runtime requirements
 

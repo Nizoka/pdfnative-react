@@ -117,7 +117,7 @@ export type KnownFieldsAreExhaustive = Assert<
 >;
 
 /** kind → descriptor, flattened from the registry once at module load. */
-const BY_KIND = new Map(
+const BY_KIND = /* @__PURE__ */ new Map(
     BLOCK_REGISTRY.flatMap((entry) => entry.kinds.map((kind) => [kind as string, entry] as const)),
 );
 

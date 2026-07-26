@@ -34,10 +34,17 @@ const report = doctor();
 // { ok: true, checks: [{ name, status: 'ok' | 'warn' | 'error', value, detail }] }
 ```
 
-`doctor()` **never throws**, including when the `pdfnative` peer is missing —
-that is exactly what it is there to tell you. Checks cover the package version,
-Node, React, the engine (via a capability probe rather than a version string, so
-it survives bundling), Web Crypto, the Fetch API and `Blob`.
+`doctor()` **never throws** — it reports rather than raises, which is what makes
+it safe to call first. Checks cover the package version, Node, React, the engine
+(via a capability probe rather than a version string, so it survives bundling),
+Web Crypto, the Fetch API and `Blob`.
+
+One limit worth knowing: `core-bridge` re-exports the engine with a *static*
+`export … from 'pdfnative'`, so if the peer is not installed at all the module
+graph fails to resolve and `doctor()` is never reached — you get
+`ERR_MODULE_NOT_FOUND` at import time instead, which is already an unambiguous
+diagnosis. What `doctor()` catches is the subtler case: an engine that resolves
+but is **older than 1.6.0**.
 
 Branch on `report.ok`. When it is `false`, report the failing checks rather than
 attempting work that cannot succeed.
@@ -147,8 +154,8 @@ so the two can never disagree.
 
 ### Tier 3 — `lintSpec`
 
-Eighteen rules with stable `L_*` codes (10 error, 7 warning, 1 info). Six of
-them pre-empt an exception the engine raises *mid-render*:
+Eighteen rules with stable `L_*` codes (10 error, 7 warning, 1 info). **Eight**
+pre-empt an exception the engine raises *mid-render*:
 
 | Code | Would otherwise |
 |---|---|
@@ -158,9 +165,12 @@ them pre-empt an exception the engine raises *mid-render*:
 | `L_CHART_VALUES` | Throw — non-finite, or negative in a pie/donut |
 | `L_CHART_POINTS` | Throw — 10 000-point ceiling |
 | `L_ATTACHMENTS_NEED_PDFA3` | Throw — attachments require `tagged="pdfa3b"` |
+| `L_TAGGED_ENCRYPTED` | Throw — PDF/A and encryption are mutually exclusive |
+| `L_MAX_BLOCKS_EXCEEDED` | Throw — past `maxBlocks`, default 100 000 |
 
 Two more catch output that renders successfully but is wrong:
-`L_TAGGED_NO_FONTS` (a PDF/A file veraPDF rejects) and `L_MAX_BLOCKS_EXCEEDED`.
+`L_EMPTY_DOCUMENT` (a blank page) and `L_TAGGED_NO_FONTS` (a PDF/A file veraPDF
+rejects).
 
 Gate on `report.ok` (true when no `error`-severity finding). See
 [LINTING.md](LINTING.md).

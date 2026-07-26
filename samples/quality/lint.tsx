@@ -9,10 +9,11 @@
  * for a finding; what you do with the report is your call. Wire it into CI, a
  * dev-mode warning, or an agent's self-check loop.
  *
- * Six rules pre-empt hard failures further down the pipeline: the five
- * `L_CHART_*` errors and `L_ATTACHMENTS_NEED_PDFA3` mirror validation the engine
- * performs by throwing mid-render. Two more — `L_TAGGED_NO_FONTS` and
- * `L_MAX_BLOCKS_EXCEEDED` — catch output that renders but is wrong.
+ * Eight of the eighteen rules pre-empt an exception the engine raises
+ * mid-render: the five `L_CHART_*` errors, `L_ATTACHMENTS_NEED_PDFA3`,
+ * `L_TAGGED_ENCRYPTED` and `L_MAX_BLOCKS_EXCEEDED`. Two more —
+ * `L_EMPTY_DOCUMENT` and `L_TAGGED_NO_FONTS` — catch output that renders but is
+ * wrong.
  */
 
 import React from 'react';

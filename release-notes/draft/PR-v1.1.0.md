@@ -20,7 +20,7 @@ Four themes:
    web-standard `Response`, streaming by default.
 3. **Document-level layout sugar + linting** — `watermark`, `header`, `footer`,
    `attachments`, `tagged` as first-class props; and `lintDocument`/`lintSpec`,
-   whose rules include five that pre-empt engine-level render failures.
+   whose rules include eight that pre-empt engine-level render failures.
 4. **The agent automation contract** — `ErrorCode`, `capabilityManifest()`,
    `doctor()`, `validateSpec()`, multi-subject `schema()`, and the governance
    contract exported as runtime capability. Backed by a new single-source
@@ -42,8 +42,8 @@ Neither is a source-breaking change; both are install-time requirements.
 
 ### New: `src/registry.ts` — the anti-drift mechanism
 
-Three single-source tables (`BLOCK_REGISTRY`, `COMPONENT_REGISTRY`,
-`LINT_RULES`) that `spec/schema.ts`, `spec/validate.ts` and `manifest.ts` all
+Four single-source tables (`BLOCK_REGISTRY`, `COMPONENT_REGISTRY`,
+`CLIENT_COMPONENT_REGISTRY`, `LINT_RULES`) that `spec/schema.ts`, `spec/validate.ts` and `manifest.ts` all
 *derive* from rather than restate. Pure data; imports nothing at runtime, which
 is what keeps schema emission free of the engine.
 
@@ -102,9 +102,9 @@ hook so the generator cleans up on client disconnect); `buffered: true` uses
 `renderToBytes` and sets `Content-Length`. RFC 6266 `Content-Disposition`
 including `filename*` for non-ASCII. `async`, so `options.fonts` is honoured.
 
-Stays on the root barrel rather than a subpath: `sideEffects: false` plus tsup
-already give tree-shaking, and another `exports` condition would be cost without
-benefit. No `'use client'` — this is server code.
+Stays on the root barrel; the client components moved to a **`./client` subpath**
+instead, which is where the `'use client'` directive belongs. No `'use client'`
+here — this is server code, and marking it would break every server usage.
 
 ### New: `src/lint.ts`
 
@@ -112,7 +112,7 @@ benefit. No `'use client'` — this is server code.
 `DocumentParams`, so JSX and `DocSpec` share one implementation for free
 (`lintSpec` is a two-line delegate, and a test asserts they agree).
 
-Eighteen rules (10 error, 7 warning, 1 info). Six pre-empt failures the engine
+Eighteen rules (10 error, 7 warning, 1 info). Eight pre-empt failures the engine
 raises by throwing mid-render; `L_ATTACHMENTS_NEED_PDFA3` exists because writing
 `samples/layout/watermark-header-footer.tsx` hit exactly that throw, and
 `L_CHART_EMPTY` because the architecture review found two more.
@@ -126,8 +126,9 @@ costs a layout pass.
   `E_RUNTIME`), `PdfReactError` with `.code` and `.toJSON()`, and
   `toErrorEnvelope(unknown)` so a caller only ever handles one shape.
 - `capabilityManifest()` — derived wholly from the registries.
-- `doctor()` — every check wrapped; must never throw, since a missing peer is
-  the case it exists to report.
+- `doctor()` — every check wrapped; reports rather than raises. It cannot reach
+  the *completely absent peer* case (a static re-export fails at module
+  resolution first), which the docs now state plainly.
 - `governance.ts` — `aiGovernancePolicy`, `agentRulesText`, `validateIssueDraft`.
   The regex tables are **duplicated** from `scripts/verify-issue.mjs` because
   that script must stay zero-dependency and runnable in an unbuilt checkout;
@@ -155,9 +156,9 @@ costs a layout pass.
   `agent/manifest.ts`, `agent/error-envelope.tsx`. All added to
   `samples/README.md` (with new "Server" and "Quality" sections) and all executed
   end to end, not just type-checked.
-- 7 new test files: `registry`, `chart`, `layout-sugar`, `response`, `lint`,
-  `agent`, `schema`. `governance` and `version` extended.
-- **79 → 219 tests**, 8 → 15 files. Coverage improved on every axis.
+- 8 new test files: `registry`, `chart`, `layout-sugar`, `response`, `lint`,
+  `agent`, `schema`, `compile-snapshot`. `governance` and `version` extended.
+- **79 → 224 tests**, 8 → 16 files, including a golden compile snapshot.
 
 ### Docs & governance
 
@@ -182,10 +183,12 @@ costs a layout pass.
 ```
 npm run typecheck:all   clean (src + tests + samples)
 npm run lint            clean, zero warnings
-npm test                219 passed / 219, 15 files
-npm run test:coverage   95.41 stmts · 86.94 branches · 97.76 funcs · 96.32 lines
+npm test                224 passed / 224, 16 files
+npm run test:coverage   94.77 stmts · 86.04 branches · 97.76 funcs · 95.80 lines
                         (thresholds 85/80/85/85 — unchanged, not lowered)
-npm run build           ESM 84.9kB · CJS 87.2kB · d.ts + d.cts 66.7kB
+npm run build           root ESM/CJS + client ESM/CJS + four .d.ts; postbuild verifies
+                        the node: prefix, the client-only directive, and tree-shaking
+npm audit --omit=dev    0 vulnerabilities (runtime tree)
 npm pack --dry-run      llms.txt present in the tarball
 ```
 
@@ -200,9 +203,39 @@ Additionally verified by hand:
 
 ## Adversarial review
 
-Two independent reviews were run before this draft: one on architecture and
-state of the art, one on documentation accuracy. Both found real defects. Every
-confirmed finding is fixed:
+**Five** independent reviews were run against this branch across two rounds —
+architecture, documentation accuracy, engine-1.6.0 gap analysis, ecosystem
+state-of-the-art, and a final documentation pass. Every confirmed finding is
+fixed. The second round is listed first, because it found the more serious
+defects **and** caught three claims the first round's fixes had asserted but not
+completed.
+
+### Round 2
+
+| Finding | Fix |
+|---|---|
+| **The published bundle emitted `import('fs/promises')` without the `node:` prefix.** Deno and Cloudflare `nodejs_compat` refuse to resolve the bare form, so a wrangler or Vite-browser build failed to compile — against four documents advertising Edge/Deno/Bun/Workers. Root cause is a rollup pass inside tsup that survives `platform`, `target`, `external` and `banner` alike (all four measured) | `scripts/postbuild.mjs` restores the prefix and **fails the build** if the expected shape is absent; a bundler-resolution step in `ci.yml` compiles both artifacts the way a non-Node bundler would |
+| **`import { version }` pulled the entire React reconciler into a consumer's bundle** — 10 137 bytes for a string constant, and `react-reconciler` forced to resolve. A single-file bundle makes `sideEffects: false` inoperative | `/* @__PURE__ */` on `ReactReconciler(hostConfig)`, `HostTransitionContext`, `HOST_CONTEXT`, `LINT_RULE_CODES` and `BY_KIND`. Now **3 216 bytes, no reconciler**; postbuild fails the build if it regresses |
+| **`'use client'` never reached `dist/`**, so RSC users needed a hand-written wrapper — while `README.md` claimed the directive was carried | New **`pdfnative-react/client`** subpath export, built separately with the directive applied and verified by postbuild. The root bundle is asserted *not* to carry it |
+| **`L_MAX_BLOCKS` could not fire on the engine's default ceiling.** It checked only an explicit `layout.maxBlocks`, but the engine applies `DEFAULT_MAX_BLOCKS = 100 000` unconditionally and throws — so a large generated document linted clean and then crashed | `layout?.maxBlocks ?? 100_000`; test at 100 001 blocks |
+| **"Six rules pre-empt an engine throw" was wrong — it is eight.** `L_TAGGED_ENCRYPTED` (`pdf-document.ts:169`) and `L_MAX_BLOCKS_EXCEEDED` (`:146`) both throw; the docs listed them as safe. Repeated in 7 files | Verified against each engine throw site and corrected everywhere |
+| **`schema('manifest')` described 10 of the manifest's 13 properties** — missing `clientComponents`, `errorClasses`, `schemaSubjects`, two of which were added *for* agent honesty. No test covered it | Completed, plus a test comparing `Object.keys(capabilityManifest())` to the schema's properties **and** `required` |
+| **`ChartProps` had no compile-time tie to `ChartBlock`**, while `docs/CHARTS.md` promises Charts-v2 fields "arrive as new `ChartProps`" | `ChartPropsCoversChartBlock` assert; verified destructively |
+| **`toBlock` had no exhaustiveness guard** — a new `HostTag` without a case compiled cleanly and failed at render, while the DocSpec side had a `never` guard since 1.0 | `const exhaustive: never`; verified destructively |
+| **The `doctor()` claim retracted in round 1 was still live in five documents**, including `llms.txt` and `AGENT_CONTRACT.md` — the two an agent loads first | Corrected in all five |
+| `.nvmrc` pinned `lts/iron` (Node 20) against `engines: >=22`; `CONTRIBUTING.md` and `publish.yml` said 20 too — a leftover from this PR's own bump | All set to 22 |
+| `ci.yml`, `codeql.yml` and `scorecard.yml` were a generation behind the three sibling repos: unpinned actions (while `publish.yml` in the same repo is SHA-pinned), `codeql-action@v3` vs v4, no `concurrency`, no `timeout-minutes`, and **`scorecard.yml` job permissions that drop `contents`/`actions` to `none`** — job-level `permissions` replace, not merge, so `checkout` gets a 403 | All three aligned on `pdfnative-cli`, React deltas re-applied |
+| 3 high-severity dev advisories shipping through a green CI | `js-yaml`/`postcss` overrides; **runtime audit is now blocking** (`npm audit --omit=dev` is clean — the prod tree is one dependency), dev audit advisory with the reason stated |
+| Two engine fixes affecting documents **this package authored** were undocumented: pre-1.6.0 encrypted files left outline titles, link URIs and metadata **in clear text**, and AES-256 output was not ISO 32000-2 compliant | New `### Security` section in the CHANGELOG and a callout in `docs/RECIPES.md` |
+| The colour-emoji module grew 221 → 1167 glyphs (~0.25 MB → **4.0 MB**) on an upgrade this package's own peer floor forces — and this is the only package in the ecosystem targeting a browser bundle | Font-weight table in `README.md` with measured sizes and the `--codepoints` escape hatch |
+| `.github/instructions/components.instructions.md` had the same stale-procedure defect its two siblings were rewritten for in round 1; `spec.instructions.md` claimed "the first five steps are compiler-enforced" when the real set is 1, 3, 4, 5, 6, 7 | Both corrected |
+| No golden test on the compiled model — the strongest assertion on output was `byteLength > 100` | `tests/compile-snapshot.test.tsx`: a committed snapshot of a document using every block and every document-level prop |
+| Sample header miscounts and a wrong run command (`.ts` for a `.tsx` file) | Corrected |
+
+One round-2 finding was **rejected after verification**: a reviewer disputed the
+coverage figures. Re-measured — the documented numbers were correct.
+
+### Round 1
 
 | Finding | Fix |
 |---|---|
@@ -220,9 +253,9 @@ confirmed finding is fixed:
 | `Content-Disposition` `filename*` emitted `' ( ) ! *`, which are not RFC 8187 `attr-char`; a raw apostrophe mis-parses the ext-value | Percent-escaped; test |
 | `docs/RECIPES.md` annotation example was wrong on both arguments and could not run | Rewritten against the real API (`createModifier(openPdf(bytes))`, `buildAnnotationBody`, `save()`) and **executed** |
 | `.github/copilot-instructions.md` and `.github/instructions/spec.instructions.md` still described pre-1.1.0 architecture — no `chart`, no `registry.ts` — so an agent following them would fail the repo's own compile-time lock | Both rewritten, including the 10-step block checklist |
-| `doctor()`'s headline claim ("works when the peer is missing") was false — a static re-export means the module graph fails first | Claim corrected in code and docs to what is actually true |
-| `docs/SERVER.md` documented a Server Action, but RSC-layer imports fail at module load (`react-server` has no `createContext`); `'use client'` is stripped from the bundle | New "React Server Components boundary" section stating the real constraint and the wrapper pattern; README and `llms.txt` corrected |
-| Hand-maintained counts wrong in six places ("five rules" over six-row tables, "6 new samples" over a list of seven) | All recounted against the code: 18 rules (10/7/1), 7 samples, 7 test files |
+| `doctor()`'s headline claim ("works when the peer is missing") was false — a static re-export means the module graph fails first | Corrected in `src/doctor.ts`; round 2 found five documents still carrying it and finished the job |
+| `docs/SERVER.md` documented a Server Action, but RSC-layer imports fail at module load (`react-server` has no `createContext`) | Replaced with the real constraint; round 2 replaced the manual wrapper advice with the `./client` subpath |
+| Hand-maintained counts wrong in six places | Recounted; round 2 found five sites still stale, including the user-facing release note |
 
 Findings acknowledged but **not** acted on, with reasons:
 
@@ -231,9 +264,16 @@ Findings acknowledged but **not** acted on, with reasons:
   top of the release notes, and the alternative for the peer (`^1.5.0 || ^1.6.0`
   plus a capability guard on every chart path) trades a build-time error for a
   runtime surprise. Recorded here so a reviewer can overrule it.
-- **Subpath exports (`./client`, `./server`).** The right long-term fix for the
-  RSC boundary, but architectural rather than a patch. Documented accurately for
-  1.1.0; tracked for a future release.
+- **Two defects in sibling repositories.** `pdfnative-cli` declares
+  `engines.node: ">=20"` while depending on `pdfnative@^1.6.0`, which requires 22
+  — and its CI matrix tests Node 20. And `pdfnative/docs/guides/react.md` still
+  describes a pre-1.0 version of this wrapper. Both were verified; both are out
+  of scope for this PR by explicit decision, and neither is being reported from
+  here.
+- **PDF/UA round-trip test, `validateSpec` fuzzing, raised coverage thresholds,
+  `eslint-plugin-react-hooks`, `Cache-Control`/ETag on `renderToResponse`,
+  `cause` on `PdfReactError`.** All reasonable; all tracked for 1.2.0 rather
+  than widening this release further.
 
 ## Backward compatibility
 
@@ -291,7 +331,7 @@ Also dropped, with reasons recorded in `ROADMAP.md`:
 |---|---|
 | `no_new_runtime_dependency_confirmed` | ✅ `dependencies` is still exactly `["react-reconciler"]`, asserted by `tests/version.test.ts` |
 | `reproduction_command` | `npm run typecheck:all && npm run lint && npm run test:coverage && npm run build && npm pack --dry-run` |
-| `reproduction_result` | All green; 205/205 tests; coverage above thresholds on all four axes |
+| `reproduction_result` | All green; 224/224 tests; coverage above thresholds on all four axes; runtime `npm audit` clean |
 | `duplicate_search_performed` | N/A — release PR, not an issue report |
 | `affected_packages` | `pdfnative-react` only. Upstream `pdfnative` docs still reference `pdfnative-react v1.0.0` in `docs/guides/react.md`, `llms.txt`, `AGENTS.md` and `README.md` — a companion PR there would be worthwhile, and is **not** included here. |
 | `identity_reminder_shown` | ✅ This draft must be reviewed and submitted by a human under their own GitHub identity. You share responsibility for its content. |

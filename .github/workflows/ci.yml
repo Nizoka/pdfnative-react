@@ -6,31 +6,48 @@ on:
     paths-ignore:
       - '**.md'
       - 'docs/**'
+      - '.github/ISSUE_TEMPLATE/**'
+      - '.github/*.md'
+      - '.github/FUNDING.yml'
       - 'LICENSE'
+      - '.editorconfig'
+      - '.gitignore'
   pull_request:
     branches: [main, master]
     paths-ignore:
       - '**.md'
       - 'docs/**'
+      - '.github/ISSUE_TEMPLATE/**'
+      - '.github/*.md'
+      - '.github/FUNDING.yml'
       - 'LICENSE'
+      - '.editorconfig'
+      - '.gitignore'
 
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  build:
+  ci:
     name: Lint · Typecheck · Test · Build
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+
     strategy:
       fail-fast: false
       matrix:
         # Node 22 is the floor: the pdfnative engine requires it as of 1.6.0.
         node-version: [22, 24]
+
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Setup Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
           node-version: ${{ matrix.node-version }}
           cache: npm
@@ -38,11 +55,20 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Audit (high severity)
-        run: npm audit --audit-level=high
-        continue-on-error: true
+      # Blocking on what actually ships. The runtime tree is a single dependency
+      # (react-reconciler); anything high-severity in there is a real
+      # supply-chain problem and must stop the build.
+      - name: Audit runtime dependencies (blocking)
+        run: npm audit --omit=dev --audit-level=high
 
-      - name: Typecheck (src + tests + samples)
+      # Advisory on the dev tree. It is dominated by transitive pins we do not
+      # control — eslint still ships minimatch@3 — so a blocking gate here would
+      # sit red on an issue no consumer is exposed to. Reported, not enforced.
+      - name: Audit dev dependencies (advisory)
+        continue-on-error: true
+        run: npm audit --audit-level=high
+
+      - name: Type check
         run: npm run typecheck:all
 
       - name: Lint
@@ -51,15 +77,35 @@ jobs:
       - name: Test with coverage
         run: npm run test:coverage
 
+      # Also runs scripts/postbuild.mjs, which repairs and then verifies the
+      # published artifacts: the `node:` prefix on the dynamic fs import, the
+      # `'use client'` directive on the client entry only, and that importing
+      # pure data does not drag in the React reconciler.
       - name: Build
         run: npm run build
 
-      - name: Verify build artifacts
+      - name: Verify dist output
         run: |
           test -f dist/index.js
           test -f dist/index.cjs
           test -f dist/index.d.ts
           test -f dist/index.d.cts
+          test -f dist/client.js
+          test -f dist/client.cjs
+          test -f dist/client.d.ts
+          test -f dist/client.d.cts
+
+      # `renderToResponse` advertises Deno, Bun, Edge and Cloudflare Workers.
+      # A Node `require` cannot catch a specifier a non-Node bundler refuses to
+      # resolve, so bundle the artifacts the way those runtimes would.
+      - name: Bundler resolution smoke test
+        run: |
+          npx --yes esbuild --bundle --platform=browser --format=esm --outfile=/dev/null \
+            --external:react --external:react-dom --external:react-reconciler \
+            --external:pdfnative --external:node:fs/promises dist/index.js
+          npx --yes esbuild --bundle --platform=browser --format=esm --outfile=/dev/null \
+            --external:react --external:react-dom --external:react-reconciler \
+            --external:pdfnative dist/client.js
 
       # `.github/ai-governance.json` declares `advisory_in_ci: true`. Validate any
       # AI-authored draft staged for human review. Advisory: it reports, never blocks.

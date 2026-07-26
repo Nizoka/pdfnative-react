@@ -510,6 +510,24 @@ export interface ChartProps {
 }
 
 /**
+ * Compile-time lock: {@link ChartProps} must mirror the engine's `ChartBlock`
+ * exactly (minus the `type` discriminator, which the serializer adds).
+ *
+ * The engine's roadmap has "Charts v2" — stacked bars, area, scatter, log/time
+ * axes, per-point data labels — so `ChartBlock` *will* gain optional fields, and
+ * `docs/CHARTS.md` already promises they arrive here as new `ChartProps`. This
+ * turns that promise into a build error on the next engine minor instead of a
+ * silently under-exposed component.
+ */
+type ChartPropsAssert<T extends true> = T;
+type ChartPropsExact =
+    (<T>() => T extends keyof ChartProps ? 1 : 2) extends
+        <T>() => T extends keyof Omit<ChartBlock, 'type'> ? 1 : 2
+        ? true
+        : false;
+export type ChartPropsCoversChartBlock = ChartPropsAssert<ChartPropsExact>;
+
+/**
  * A native vector chart — bar, horizontal bar, line, pie or donut — rendered as
  * pure PDF path operators. No rasterisation, no chart library, and PDF/A-safe.
  *

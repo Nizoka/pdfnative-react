@@ -193,10 +193,28 @@ function toBlock(node: ElementNode): DocumentBlock | DocumentBlock[] {
         case 'page':
             return blocksFrom(node.children);
 
-        default:
+        // `document`, `item`, `row` and `cell` are handled by their parent's
+        // serializer, never on their own — reaching them here means the tree is
+        // malformed, so they share the structural error below.
+        case 'document':
+        case 'item':
+        case 'row':
+        case 'cell':
             throw new PdfStructureError(
                 `<${node.tag}> is not valid here. Expected a block-level component inside <Document> or <Page>.`,
             );
+
+        default: {
+            // Exhaustiveness lock: adding a member to `HostTag` without a case
+            // here is a *compile* error, not a render-time surprise. The DocSpec
+            // side has had this guard since 1.0 (`spec/compile.ts`); the JSX side
+            // only had a runtime `default` throw, so the two enforced different
+            // contracts for the same grammar.
+            const exhaustive: never = node.tag;
+            throw new PdfStructureError(
+                `<${String(exhaustive)}> is not valid here. Expected a block-level component inside <Document> or <Page>.`,
+            );
+        }
     }
 }
 

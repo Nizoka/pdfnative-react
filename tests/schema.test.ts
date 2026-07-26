@@ -135,6 +135,19 @@ describe('report schemas', () => {
         expect(props.kind.const).toBe('capability-manifest');
     });
 
+    it('manifest schema describes EVERY property the manifest emits', () => {
+        // A manifest property the schema does not describe is invisible to an
+        // agent that discovers the API through the schema — which is the
+        // documented path. `clientComponents`, `errorClasses` and
+        // `schemaSubjects` were all missing until this test existed.
+        const emitted = Object.keys(capabilityManifest()).sort();
+        const described = Object.keys(
+            schema('manifest')['properties'] as Record<string, unknown>,
+        ).sort();
+        expect(described).toEqual(emitted);
+        expect(schema('manifest')['required']).toEqual(Object.keys(capabilityManifest()));
+    });
+
     it('spec-validation enumerates the validation codes', () => {
         const doc = schema('spec-validation');
         const defs = doc['$defs'] as { finding: { properties: { code: { enum: string[] } } } };

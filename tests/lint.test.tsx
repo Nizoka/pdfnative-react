@@ -126,6 +126,26 @@ describe('document-level rules', () => {
         expect(report.ok).toBe(true);
     });
 
+    it(
+        'L_MAX_BLOCKS_EXCEEDED — applies the engine default when no maxBlocks is set',
+        // Reconciling 100 001 blocks is genuinely expensive — that is the point
+        // of the rule. The default 5 s budget is not enough under coverage
+        // instrumentation, so this one test gets a bigger one rather than a
+        // smaller document that would not exercise the ceiling.
+        { timeout: 60_000 },
+        () => {
+            // The engine applies DEFAULT_MAX_BLOCKS = 100_000 unconditionally and
+            // throws past it. Checking only an explicit layout.maxBlocks left the
+            // common case — no layout at all — completely unguarded.
+            const report = lintSpec({
+                blocks: Array.from({ length: 100_001 }, () => ['br'] as const),
+            });
+            expect(codes(report)).toContain('L_MAX_BLOCKS_EXCEEDED');
+            expect(report.ok).toBe(false);
+            expect(report.findings[0].message).toContain('engine default');
+        },
+    );
+
     it('L_MAX_BLOCKS_EXCEEDED — past the ceiling is an error, not an "approaching" warning', () => {
         const report = lintSpec({
             layout: { maxBlocks: 10 },

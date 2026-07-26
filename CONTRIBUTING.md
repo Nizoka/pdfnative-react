@@ -5,7 +5,8 @@ high open-source bar: typed, tested, linted, and reproducible.
 
 ## Prerequisites
 
-- Node.js **≥ 20** (use `nvm use` — see `.nvmrc`).
+- Node.js **≥ 22** (use `nvm use` — see `.nvmrc`). The floor is inherited from
+  the `pdfnative` engine, which requires it as of 1.6.0.
 - npm (bundled with Node).
 
 ## Setup

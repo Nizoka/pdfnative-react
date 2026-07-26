@@ -300,7 +300,7 @@ output rather than guessing. Unknown top-level fields are a *warning*, not an
 error, which preserves forward compatibility when a newer spec meets an older
 package.
 
-Tier 3 is where the real leverage is: five of the sixteen lint rules
+Tier 3 is where the real leverage is: eight of the eighteen lint rules
 (`L_CHART_*`, `L_ATTACHMENTS_NEED_PDFA3`) mirror validation the engine performs
 by **throwing mid-render**. `L_ATTACHMENTS_NEED_PDFA3` exists because writing
 `samples/layout/watermark-header-footer.tsx` hit exactly that throw.
@@ -320,11 +320,20 @@ handles one shape.
 
 ### `doctor()` must never throw
 
-Every check is wrapped, because the case it most needs to report — a missing
-`pdfnative` peer — is the case that would otherwise crash the import. The engine
-check is a **capability probe** (`typeof estimateChartHeight === 'function'`)
-rather than a version-string parse: it works after bundling, in the browser, and
-it tests the capability we actually need instead of a number that claims it.
+Every check is wrapped: `doctor()` reports rather than raises, which is what
+makes it safe to call before anything else. The engine check is a **capability
+probe** (`typeof estimateChartHeight === 'function'`) rather than a
+version-string parse: it works after bundling, in the browser, and it tests the
+capability we actually need instead of a number that claims it.
+
+It has one reachability limit, worth stating plainly because an earlier draft of
+these docs claimed the opposite. `core-bridge` re-exports the engine statically,
+so a *completely absent* peer fails at module resolution — `doctor()` is never
+called. That failure is already unambiguous (`ERR_MODULE_NOT_FOUND`), and
+routing it through `doctor()` would mean giving up the static bridge that golden
+rule 1 rests on. What the probe does catch is an engine that resolves but is
+older than 1.6.0, which under a bundler or CJS interop yields an `undefined`
+export rather than a link error.
 
 ### Governance duplication is deliberate
 

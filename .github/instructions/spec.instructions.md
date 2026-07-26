@@ -41,8 +41,9 @@ with far fewer tokens than JSX. It is pure, isomorphic, and side-effect-free.
   `TableOfContents`) needs an explicit generic (`createElement<SpacerProps>`),
   or TS infers `Attributes` and rejects the extra props (TS2769).
 
-When you add a block kind, all ten steps are required — the first five are
-enforced by the compiler, so skipping any of them fails `npm run typecheck`:
+When you add a block kind, all ten steps are required. Steps **1, 3, 4, 5, 6 and
+7** are enforced by the compiler — skipping any of them fails
+`npm run typecheck`; the rest are caught by tests:
 
 1. `src/reconciler/nodes.ts` — the host tag.
 2. `src/components.tsx` — the component and its props.

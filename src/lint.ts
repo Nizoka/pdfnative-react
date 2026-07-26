@@ -9,9 +9,11 @@
  * Findings carry a stable {@link LintRuleCode}. Branch on the code, never on
  * the message: messages may be reworded in any release, codes may not.
  *
- * Several rules pre-empt hard failures inside the engine (the `chart` rules,
- * `L_TAGGED_NO_FONTS`), turning a runtime throw or a rejected PDF/A file into a
- * finding you can act on before rendering.
+ * Eight of the eighteen rules pre-empt an exception the engine raises
+ * mid-render — the five `L_CHART_*` errors, `L_ATTACHMENTS_NEED_PDFA3`,
+ * `L_TAGGED_ENCRYPTED` and `L_MAX_BLOCKS_EXCEEDED` — turning a runtime throw
+ * into a finding you can act on beforehand. Two more (`L_EMPTY_DOCUMENT`,
+ * `L_TAGGED_NO_FONTS`) catch output that renders successfully but is wrong.
  *
  * The function is pure: it never writes to the console and never throws for a
  * lint failure. What you do with the report is your call.
@@ -77,6 +79,16 @@ export interface LintOptions extends RenderOptions {
 }
 
 const MAX_CHART_POINTS = 10_000;
+
+/**
+ * The engine's `DEFAULT_MAX_BLOCKS`, applied when `layout.maxBlocks` is unset.
+ *
+ * It is not a soft limit: `buildDocumentPDF` **throws** past it. Checking only
+ * an explicit `layout.maxBlocks` would leave the common case — no `layout` at
+ * all — unguarded, so a large generated document would lint clean and then blow
+ * up mid-render.
+ */
+const DEFAULT_MAX_BLOCKS = 100_000;
 
 /**
  * Every rule this module can actually emit.
@@ -365,17 +377,18 @@ function lintDocumentParams(params: DocumentParams, out: LintFinding[]): void {
         );
     }
 
-    const maxBlocks = layout?.maxBlocks;
+    const maxBlocks = layout?.maxBlocks ?? DEFAULT_MAX_BLOCKS;
     const blockCount = params.blocks.length;
-    if (maxBlocks !== undefined && blockCount > maxBlocks) {
+    if (blockCount > maxBlocks) {
         out.push(
             finding(
                 'L_MAX_BLOCKS_EXCEEDED',
-                `${String(blockCount)} blocks exceeds the maxBlocks ceiling of ${String(maxBlocks)}.`,
+                `${String(blockCount)} blocks exceeds the maxBlocks ceiling of ${String(maxBlocks)}`
+                    + `${layout?.maxBlocks === undefined ? ' (the engine default)' : ''}.`,
                 { hint: 'Raise layout.maxBlocks, or split the document.' },
             ),
         );
-    } else if (maxBlocks !== undefined && blockCount > maxBlocks * 0.9) {
+    } else if (blockCount > maxBlocks * 0.9) {
         out.push(
             finding(
                 'L_MAX_BLOCKS',

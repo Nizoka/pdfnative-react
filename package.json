@@ -17,6 +17,16 @@
         "default": "./dist/index.cjs"
       }
     },
+    "./client": {
+      "import": {
+        "types": "./dist/client.d.ts",
+        "default": "./dist/client.js"
+      },
+      "require": {
+        "types": "./dist/client.d.cts",
+        "default": "./dist/client.cjs"
+      }
+    },
     "./package.json": "./package.json"
   },
   "files": [
@@ -27,7 +37,7 @@
   ],
   "sideEffects": false,
   "scripts": {
-    "build": "tsup",
+    "build": "tsup && node scripts/postbuild.mjs",
     "dev": "tsup --watch",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -131,6 +141,8 @@
     "vitest": "^4.1.7"
   },
   "overrides": {
-    "esbuild": "^0.28.1"
+    "esbuild": "^0.28.1",
+    "js-yaml": "^4.3.0",
+    "postcss": "^8.5.18"
   }
 }

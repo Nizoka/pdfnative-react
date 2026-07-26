@@ -2,8 +2,8 @@
  * Web-standard `Response` helpers — the server-side entry point.
  *
  * These turn a document straight into an HTTP response, which is what a
- * Next.js Route Handler, a Server Action, a Remix loader, a Hono/Elysia route
- * or any Fetch-API server actually needs:
+ * Next.js **Route Handler**, a Remix loader, a Hono/Elysia route or any
+ * Fetch-API server actually needs:
  *
  * ```ts
  * // app/invoice/route.ts
@@ -20,6 +20,11 @@
  *
  * Nothing here touches the DOM or React client APIs — **do not** add
  * `'use client'` to this module.
+ *
+ * Not a Server Component or a `'use server'` file, though: this package drives a
+ * React reconciler, which needs `createContext`, and React's `react-server`
+ * export condition does not provide it. Route Handlers are not in the RSC layer,
+ * which is why they work. See `docs/SERVER.md`.
  *
  * @packageDocumentation
  */

@@ -1,0 +1,244 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`compileDocument — golden model > produces a stable DocumentParams for a document using every feature 1`] = `
+{
+  "blocks": [
+    {
+      "level": 1,
+      "text": "Everything",
+      "type": "heading",
+    },
+    {
+      "maxLevel": 2,
+      "title": "Contents",
+      "type": "toc",
+    },
+    {
+      "color": "#334155",
+      "level": 2,
+      "text": "Prose",
+      "type": "heading",
+    },
+    {
+      "align": "right",
+      "color": "#111827",
+      "fontSize": 11,
+      "indent": 12,
+      "lineHeight": 1.4,
+      "text": "Body text with every typographic prop set.",
+      "type": "paragraph",
+    },
+    {
+      "height": 8,
+      "type": "spacer",
+    },
+    {
+      "fontSize": 10,
+      "items": [
+        {
+          "items": [
+            "Nested A",
+            "Nested B",
+          ],
+          "text": "First",
+        },
+        "Second",
+      ],
+      "style": "numbered",
+      "type": "list",
+    },
+    {
+      "caption": "Line items",
+      "cellBorders": {
+        "all": true,
+        "color": "#e2e8f0",
+        "width": 0.5,
+      },
+      "cellVAlign": "middle",
+      "headers": [
+        "Item",
+        "Qty",
+        "Total",
+      ],
+      "repeatHeader": true,
+      "rows": [
+        {
+          "cells": [
+            "Pro plan",
+            "1",
+            "€490.00",
+          ],
+          "pointed": false,
+          "type": "default",
+        },
+        {
+          "cells": [
+            "Support",
+            "1",
+            "€99.00",
+          ],
+          "pointed": true,
+          "type": "total",
+        },
+      ],
+      "type": "table",
+      "zebra": "#f8fafc",
+    },
+    {
+      "align": "center",
+      "altText": "Revenue rises each quarter, 2026 above 2025 throughout.",
+      "axis": {
+        "grid": true,
+        "ticks": 5,
+        "yMin": 0,
+      },
+      "categories": [
+        "Q1",
+        "Q2",
+        "Q3",
+        "Q4",
+      ],
+      "chartType": "bar",
+      "colors": [
+        "#4e79a7",
+        "#f28e2b",
+      ],
+      "legend": "bottom",
+      "markers": true,
+      "series": [
+        {
+          "label": "2025",
+          "values": [
+            12,
+            18,
+            24,
+            31,
+          ],
+        },
+        {
+          "label": "2026",
+          "values": [
+            15,
+            21,
+            29,
+            38,
+          ],
+        },
+      ],
+      "title": "Revenue",
+      "type": "chart",
+    },
+    {
+      "align": "right",
+      "alt": "A single pixel",
+      "data": Uint8Array [
+        137,
+        80,
+        78,
+        71,
+        13,
+        10,
+        26,
+        10,
+      ],
+      "height": 64,
+      "type": "image",
+      "width": 64,
+    },
+    {
+      "alt": "A diagonal",
+      "data": "M0 0 L10 10",
+      "height": 40,
+      "type": "svg",
+      "viewBox": [
+        0,
+        0,
+        10,
+        10,
+      ],
+      "width": 40,
+    },
+    {
+      "align": "right",
+      "data": "https://acme.example/pay/2048",
+      "format": "qr",
+      "type": "barcode",
+      "width": 96,
+    },
+    {
+      "color": "#2563eb",
+      "fontSize": 9,
+      "text": "Read the terms",
+      "type": "link",
+      "url": "https://acme.example/terms",
+    },
+    {
+      "type": "pageBreak",
+    },
+    {
+      "level": 2,
+      "text": "Appendix",
+      "type": "heading",
+    },
+    {
+      "fieldType": "text",
+      "label": "Email",
+      "maxLength": 120,
+      "name": "applicant.email",
+      "placeholder": "you@example.com",
+      "required": true,
+      "type": "formField",
+    },
+  ],
+  "footerText": "Acme Inc",
+  "layout": {
+    "attachments": [
+      {
+        "data": Uint8Array [
+          60,
+          105,
+          47,
+          62,
+        ],
+        "filename": "invoice-2048.xml",
+        "mimeType": "application/xml",
+        "relationship": "Data",
+      },
+    ],
+    "footerTemplate": {
+      "center": "{title}",
+      "left": "Confidential",
+      "right": "Page {page} of {pages}",
+    },
+    "headerTemplate": {
+      "left": "Acme Inc",
+      "right": "{date}",
+    },
+    "maxBlocks": 5000,
+    "pageWidth": 595,
+    "tagged": "pdfa3b",
+    "watermark": {
+      "text": {
+        "text": "DRAFT",
+      },
+    },
+  },
+  "metadata": {
+    "author": "Acme Inc",
+    "keywords": "test",
+    "subject": "Snapshot fixture",
+  },
+  "outline": "auto",
+  "pageLabels": [
+    {
+      "startPage": 0,
+      "style": "roman",
+    },
+    {
+      "startPage": 2,
+      "style": "decimal",
+    },
+  ],
+  "title": "Everything",
+}
+`;

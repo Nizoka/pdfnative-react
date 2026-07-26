@@ -1,7 +1,7 @@
 /**
  * The error taxonomy, and how to consume it.
  *
- * Run with: npx tsx samples/agent/error-envelope.ts
+ * Run with: npx tsx samples/agent/error-envelope.tsx
  * Prints envelopes; writes nothing.
  *
  * Every error carries a stable `code`. Branch on the code — messages are

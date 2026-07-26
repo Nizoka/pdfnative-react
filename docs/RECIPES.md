@@ -128,7 +128,16 @@ Authoring-side encryption is a layout option, so it stays in this package:
 ```
 
 Note that PDF/A forbids encryption (ISO 19005-1 §6.3.2) —
-`lintDocument` reports `L_TAGGED_ENCRYPTED` if you combine them.
+`lintDocument` reports `L_TAGGED_ENCRYPTED` if you combine them, and the engine
+throws if you get past the linter.
+
+> **Re-render anything you encrypted on an engine older than 1.6.0.** Two engine
+> fixes land with the `^1.6.0` peer floor and both affect files this package
+> produced. Strings — outline titles, `<Link url>` targets, `metadata` — were
+> previously left *unencrypted* inside an encrypted document, so a
+> `outline="auto"` document disclosed its section headings without the password.
+> And AES-256 (R6) output was not ISO 32000-2 compliant, so strict readers could
+> not open it. See the Security section of the [CHANGELOG](../CHANGELOG.md).
 
 Reading and re-securing an *existing* document is the engine's job:
 

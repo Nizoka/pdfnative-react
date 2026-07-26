@@ -182,14 +182,13 @@ the `items` data prop (`{ text, items }`). Nested lists inherit the parent style
 
 ## Hooks & client components
 
-These run in the browser. The published bundle is a single file with no
-`'use client'` directive — the source modules carry it, but bundling collapses
-them — so in a React Server Components app, declare the directive in the file
-that imports them.
+These run in the browser. In a React Server Components app, import them from the
+**`pdfnative-react/client`** subpath, which ships with `'use client'` already
+applied — no wrapper file needed. The root barrel exports them too, for apps
+without an RSC boundary.
 
 ```tsx
-'use client';
-import { usePdf } from 'pdfnative-react';
+import { usePdf } from 'pdfnative-react/client';
 
 function Preview({ doc }: { doc: React.ReactElement }) {
     const { url, loading } = usePdf(doc);
@@ -288,6 +287,31 @@ The async entry points accept the loader map directly as `options.fonts`.
 `validateFontData(data)` runs an opt-in, read-only structural check on a custom
 font module (`{ valid, errors, warnings }`) before you embed it.
 
+### Font weight — check before shipping to a browser
+
+Font modules are embedded in your bundle when you import them, and some are
+large. Engine 1.6.0 expanded the colour-emoji subset from 221 to 1167 glyphs,
+which took it from ~0.25 MB to **4.0 MB** — worth knowing, since this is the one
+package in the ecosystem that targets a browser bundle.
+
+| Module | Size |
+|---|---|
+| `noto-sans-math-data.js` | 1.5 MB |
+| `noto-sans-data.js` | 2.8 MB |
+| `noto-color-emoji-data.js` | **4.0 MB** |
+| `noto-jp-data.js` | 12.6 MB |
+| `noto-sc-data.js` | 23.4 MB |
+
+The loaders passed to `resolveFonts` are dynamic imports, so a bundler puts each
+in its own chunk and loads it on demand rather than up front. For a smaller
+emoji set, generate one covering only the codepoints you use:
+
+```bash
+npx pdfnative-build-emoji-font --codepoints "1F600,1F44D,2764"
+```
+
+Server-side rendering is unaffected — nothing is bundled there.
+
 ### Image helpers
 
 `fromBase64(base64)` and `fromUrl(url)` produce the `Uint8Array` that `<Image>`
@@ -363,7 +387,7 @@ fonts, layout/PDF-A, the client hooks/components, and the compact agent spec.
 - [Charts](docs/CHARTS.md) — the five chart types, accessibility, PDF/A.
 - [Server rendering](docs/SERVER.md) — `renderToResponse` on Next.js, Remix,
   Hono, Deno, Bun, Workers and Express.
-- [Linting](docs/LINTING.md) — the sixteen rules, and how to gate on them.
+- [Linting](docs/LINTING.md) — the eighteen rules, and how to gate on them.
 - [Recipes](docs/RECIPES.md) — merging, form filling, text extraction,
   decryption: calling the engine on the bytes this library produces.
 - [Agent contract](docs/AGENT_CONTRACT.md) — driving the package autonomously.

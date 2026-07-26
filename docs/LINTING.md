@@ -50,18 +50,24 @@ Eighteen rules, each with a stable code. Branch on the code, not the message.
 |---|---|---|
 | `L_EMPTY_DOCUMENT` | The document has no blocks | Render a blank page |
 | `L_TAGGED_NO_FONTS` | PDF/A requested with no `fontEntries` | Produce a file veraPDF rejects (6.2.11.4.1) |
-| `L_TAGGED_ENCRYPTED` | PDF/A and encryption combined | Violate ISO 19005-1 §6.3.2 |
+| `L_TAGGED_ENCRYPTED` | PDF/A and encryption combined | **Throw** (ISO 19005-1 §6.3.2) |
 | `L_ATTACHMENTS_NEED_PDFA3` | Attachments outside `tagged="pdfa3b"` | **Throw** |
-| `L_MAX_BLOCKS_EXCEEDED` | Block count past the `maxBlocks` ceiling | Be rejected by the engine |
+| `L_MAX_BLOCKS_EXCEEDED` | Block count past the `maxBlocks` ceiling | **Throw** |
 | `L_CHART_EMPTY` | Chart with no series, or a series with no values | **Throw** |
 | `L_CHART_SERIES` | Pie or donut with anything other than one series | **Throw** |
 | `L_CHART_CATEGORIES` | Series length ≠ `categories.length` | **Throw** |
 | `L_CHART_VALUES` | Non-finite value, or a negative in a pie/donut | **Throw** |
 | `L_CHART_POINTS` | Chart past the engine's 10 000-point ceiling | **Throw** |
 
-Six of these — the five chart rules and `L_ATTACHMENTS_NEED_PDFA3` — pre-empt an
-exception the engine raises mid-render. The rest catch output that renders
-successfully but is wrong.
+**Eight of these ten pre-empt an exception the engine raises mid-render** — the
+five chart rules, `L_ATTACHMENTS_NEED_PDFA3`, `L_TAGGED_ENCRYPTED` and
+`L_MAX_BLOCKS_EXCEEDED`. `L_MAX_BLOCKS_EXCEEDED` fires against the engine's
+`DEFAULT_MAX_BLOCKS` of 100 000 even when you set no `maxBlocks` yourself, since
+that is the ceiling the engine actually enforces.
+
+The remaining two catch output that renders successfully but is wrong:
+`L_EMPTY_DOCUMENT` (a blank page) and `L_TAGGED_NO_FONTS` (a PDF/A file veraPDF
+rejects).
 
 ### Warnings
 

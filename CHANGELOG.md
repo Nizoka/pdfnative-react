@@ -17,6 +17,25 @@ in the loop.
 No public API was removed or changed in a backward-incompatible way. Two
 *install-time* floors were raised — see **Changed** first.
 
+### Security
+
+Both of these are engine fixes that arrive with the `^1.6.0` peer floor. They
+are listed here because they affect documents **this package authored**.
+
+- **Encrypted documents no longer leak their outline, link URIs or metadata.**
+  Before engine 1.6.0, only *streams* were encrypted — strings were not. Since
+  `<Document outline="auto">` derives bookmark titles from every `<Heading>`, a
+  password-protected document produced by pdfnative-react disclosed its section
+  headings, its `<Link url>` targets and its `metadata` to anyone opening the
+  file without the password. Re-render anything you shipped with
+  `layout.encryption`.
+- **AES-256 output is now spec-compliant.** The engine's R6 hash substituted
+  SHA-256 for every round instead of the SHA-256/384/512 rotation ISO 32000-2
+  Algorithm 2.B requires, so `algorithm: 'aes256'` files written on engine
+  ≤ 1.5.0 were not readable by strictly compliant readers. Output changes
+  bit-for-bit; the engine's decryptor keeps a legacy fallback so old files still
+  open.
+
 ### Changed
 
 - **`pdfnative` peer floor is now `^1.6.0`** (was `^1.5.0`). `<Chart>` compiles
@@ -87,10 +106,11 @@ No public API was removed or changed in a backward-incompatible way. Two
   Derived entirely from the internal registries, and a test asserts every name
   it advertises resolves to a real export.
 - **`doctor()`** — environment pre-flight returning
-  `{ ok, checks: [{ name, status, value, detail }] }`. Never throws, including
-  when the `pdfnative` peer is missing — which is precisely what it diagnoses.
-  The engine check is a *capability probe* rather than a version-string parse,
-  so it survives bundling into a browser build.
+  `{ ok, checks: [{ name, status, value, detail }] }`. Never throws — it reports
+  rather than raises. The engine check is a *capability probe* rather than a
+  version-string parse, so it survives bundling into a browser build and catches
+  an engine that resolves but is older than 1.6.0. A peer that is absent
+  *entirely* fails earlier, at module resolution, and never reaches `doctor()`.
 - **`validateSpec(spec: unknown)`** — structural validation of an untrusted
   `DocSpec` with no JSON-Schema engine, returning path-anchored `V_*` findings
   (`blocks[3][1]`). Never throws, and bounds page nesting at 64 levels so a deep

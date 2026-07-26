@@ -1,5 +1,5 @@
 /**
- * Next.js App Router — a PDF route handler and a Server Action.
+ * Next.js App Router — PDF route handlers.
  *
  * This is a *module*, not a runnable script: copy it into a Next.js 15+ app at
  * `app/invoice/[id]/route.tsx`. It is type-checked in CI like every other sample.
@@ -10,6 +10,13 @@
  * stays flat and the browser starts receiving bytes immediately.
  *
  * There is no 'use client' here on purpose — this is server-only code.
+ *
+ * Use a Route Handler, NOT a Server Component or a 'use server' file. This
+ * package drives a React reconciler, which needs `createContext`, and React's
+ * `react-server` export condition does not provide it — an RSC-layer import
+ * fails at module load. Route Handlers are not in that layer, which is why every
+ * example here works. For the preview components, import from
+ * `pdfnative-react/client`. See docs/SERVER.md.
  */
 
 import React from 'react';

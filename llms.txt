@@ -84,9 +84,11 @@ usePdfStream); for sync entries do `fontEntries: await resolveFonts({...})`.
 
 ## Hooks & client components (browser only)
 
-The published bundle is one file with no 'use client' directive (source modules
-carry it; bundling collapses them). In a React Server Components app, declare
-the directive in the file that imports these.
+Import these from the `pdfnative-react/client` subpath, which ships with the
+'use client' directive applied. The root barrel exports them too, for apps with
+no RSC boundary.
+
+    import { PDFViewer, usePdf } from 'pdfnative-react/client';
 
 IMPORTANT — the RSC boundary: this package drives a React reconciler and needs
 createContext, which React's 'react-server' condition does not provide. Importing
@@ -181,8 +183,10 @@ warnings: L_IMAGE_ALT, L_TABLE_HEADERS, L_HEADING_HIERARCHY, L_FIELD_LABEL,
           L_LINK_TEXT, L_MAX_BLOCKS, L_OVERFLOW
 info:     L_CHART_ALT
 
-Six of them — the five L_CHART_* errors and L_ATTACHMENTS_NEED_PDFA3 — pre-empt
-an exception the engine raises mid-render. L_OVERFLOW requires { overflow: true }.
+EIGHT of them pre-empt an exception the engine raises mid-render: the five
+L_CHART_* errors, L_ATTACHMENTS_NEED_PDFA3, L_TAGGED_ENCRYPTED and
+L_MAX_BLOCKS_EXCEEDED. The last fires against the engine default of 100 000
+blocks even when layout.maxBlocks is unset. L_OVERFLOW requires { overflow: true }.
 
 ## Notes
 

@@ -1,16 +1,17 @@
 /**
  * The package's single source of truth for its own surface.
  *
- * Three tables live here — {@link BLOCK_REGISTRY} (the `DocSpec` grammar),
- * {@link COMPONENT_REGISTRY} (the JSX components) and {@link LINT_RULES} (the
- * lint contract). They feed four consumers:
+ * Four tables live here — {@link BLOCK_REGISTRY} (the `DocSpec` grammar),
+ * {@link COMPONENT_REGISTRY} (the JSX components), {@link CLIENT_COMPONENT_REGISTRY}
+ * (the preview/download components) and {@link LINT_RULES} (the lint contract).
+ * They feed four consumers:
  *
  * 1. `spec/schema.ts` — assembles `$defs.block.oneOf` and the report schemas.
  * 2. `spec/validate.ts` — derives tuple arity and payload types.
  * 3. `manifest.ts` — emits the machine-readable capability manifest.
  * 4. `tests/registry.test.ts` — locks the exact, ordered contents.
  *
- * Because all three derive from these tables rather than restating them, the
+ * Because all four derive from these tables rather than restating them, the
  * schema, the manifest and the docs cannot drift apart. The compile-time
  * assertions at the bottom of this file make *omission* a build error, not a
  * silent gap: add a member to `BlockSpec` or `HostTag` without registering it
@@ -410,7 +411,9 @@ export const LINT_RULES = {
 export type LintRuleCode = keyof typeof LINT_RULES;
 
 /** Every rule code, in registry order. */
-export const LINT_RULE_CODES = Object.keys(LINT_RULES) as readonly LintRuleCode[];
+export const LINT_RULE_CODES = /* @__PURE__ */ (Object.keys(
+    LINT_RULES,
+) as readonly LintRuleCode[]);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Compile-time exhaustiveness locks

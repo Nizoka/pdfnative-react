@@ -19,7 +19,9 @@ const fontEntries: FontEntry[] = [];
 
 if (fontPath) {
     const fontData = await loadFontData(fontPath);
-    if (fontData) fontEntries.push({ fontData, fontRef: 'noto', lang: 'ar' });
+    // fontRef is a PDF *name* written verbatim into content streams — the
+    // leading slash is mandatory (a bare `noto` would corrupt the file).
+    if (fontData) fontEntries.push({ fontData, fontRef: '/noto', lang: 'ar' });
 }
 
 const doc = (

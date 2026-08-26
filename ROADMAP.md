@@ -48,8 +48,8 @@ and no way for an AI agent to discover or check its own work.
 ### 1.2.0 — Charts v2, print production, conformance channel
 
 Tracks the engine's 1.7.0 release and closes the one capability this package
-had explicitly promised (`docs/CHARTS.md`: "when Charts v2 lands there, it
-reaches this package as new `ChartProps` fields"):
+had explicitly promised (`docs/CHARTS.md`: "when they land there, they reach
+this package as new `ChartProps` fields"):
 
 - Charts v2 — `stackedBar`, `stackedBarH`, `area`, `scatter`; log and time
   scales; a secondary right axis; per-point data labels; x-label stride and

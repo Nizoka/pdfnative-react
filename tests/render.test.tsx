@@ -209,7 +209,9 @@ describe('resolveFonts', () => {
         };
         const entries = await resolveFonts({ fake: () => Promise.resolve(fakeFont) });
         expect(entries).toHaveLength(1);
-        expect(entries[0]).toMatchObject({ fontRef: 'fake', lang: 'fake' });
+        // fontRef must be a slash-prefixed PDF name — a bare `fake` would be
+        // written into content streams as a keyword and corrupt the file.
+        expect(entries[0]).toMatchObject({ fontRef: '/fake', lang: 'fake' });
     });
 });
 

@@ -146,6 +146,14 @@ a spec version without changing the spec is drift in the other direction.
 
 ## Docs & governance
 
+- **`src/fonts.ts` — correctness fix found by the panel** (see round 2):
+  `resolveFonts` emitted `fontRef` without the leading slash; the engine
+  writes it verbatim into content streams as a PDF *name*, so every document
+  produced through the documented font path (`resolveFonts` /
+  `options.fonts`) was malformed (`BT latin 10 Tf`). Now normalized
+  (`/`-prefix), with the sample and test expectations updated and the PDF/UA
+  round-trip upgraded to the embedded-fonts configuration it originally
+  could not pass.
 - Updated: `README.md` (component table, page-furniture section, "Upgrading
   to 1.2"), `llms.txt` (full 1.2.0 surface, 25-rule table, streaming
   restriction, setDeflateImpl), `docs/CHARTS.md` ("Charts v2 — a promise
@@ -156,10 +164,11 @@ a spec version without changing the spec is drift in the other direction.
   LTV pointer), `ROADMAP.md` (1.2.0 shipped; fixed the stale "five" count),
   `CLAUDE.md`, `.github/copilot-instructions.md`.
 - `release-notes/v1.2.0.md` + this draft.
-- **Upstream issue draft** (found by the new PDF/UA test):
-  `.github/drafts/issue-validatepdfua-embedded-fonts.md` — the engine's
-  `validatePdfUA` fails to parse the engine's own output when `fontEntries`
-  are embedded. `npm run verify:issue` passes on it. Human decision to submit.
+- An upstream issue draft blaming the engine's `validatePdfUA` was prepared
+  during test-writing and **withdrawn in round 2**: the panel's factuality
+  validator could not reproduce it, and the arbiter proved by bisection that
+  the failure was this package's own `fontRef` bug (above). There is no
+  engine bug to report.
 
 ## Validation
 
@@ -167,12 +176,11 @@ a spec version without changing the spec is drift in the other direction.
 npm run typecheck:all   ✔ (src + tests + samples)
 npm run lint            ✔ (now includes eslint-plugin-react-hooks)
 npm test                ✔ 18 files, 292/292
-npm run test:coverage   ✔ 95.03 / 89.95 / 97.83 / 95.90 (thresholds 90/84/92/90)
+npm run test:coverage   ✔ 95.04 / 89.80 / 97.83 / 95.92 (thresholds 90/84/92/90)
 npm run build           ✔ 8 dist artifacts, tree-shake probe ok (version-only
-                          bundle 3302 bytes, no reconciler), 'use client'
+                          bundle 3354 bytes, no reconciler), 'use client'
                           restored on client bundles, absent from root
 npm audit --omit=dev --audit-level=high   ✔ 0 vulnerabilities
-verify:issue on the new draft             ✔
 New samples executed manually             ✔ 3/3 produce valid PDFs
 ```
 
@@ -203,10 +211,33 @@ Rejected findings, with reasons:
 | Surface `buildDocumentPDF` (string twin), `buildDocumentPDFStreamPageByPage`, `wrapText`, `PAGE_SIZES`, font-registry introspection helpers (A: "not-findings") | String output is a legacy shape; the page-by-page stream is superseded by the true stream; page sizes are reachable numerically; registry helpers are dev/test utilities. Concur with the auditor's own disposition. |
 | Schema over-constrains `ticks` to `integer >= 2` (B, cosmetic) | Deliberate: the engine treats fewer than 2 ticks as meaningless; a tighter authoring schema that only excludes nonsense inputs is a feature, and `validateSpec` does not enforce it (opts objects stay open). |
 
-### Round 2 — post-implementation conformity / factuality / standards panel
+### Round 2 — post-implementation panel: conformity/standards, factuality, and an arbiter
 
-_Recorded below when the panel completes; every legitimate finding becomes a
-commit on this branch._
+Two independent validators (one on conformity and OSS/industry standards, one
+on factuality — every claim executed, not read), then a third agent arbitrated
+the legitimacy of every finding, resolving the one head-on contradiction **by
+execution and bisection**.
+
+The headline: the factuality validator could not reproduce the upstream
+`validatePdfUA` bug the test-writing pass had reported (and drafted an issue
+for), while the original observation demonstrably happened. The arbiter ran
+both sides' reproductions and proved a third explanation: **the engine has no
+bug — this package's `resolveFonts` emitted `fontRef` without the leading
+slash**, so every document rendered through the documented font path was
+genuinely malformed (`BT latin 10 Tf` — a keyword where ISO 32000 requires a
+name). The validator was the messenger. One bisection table settled it:
+`fontRef: '/F3'` valid, `'latin'` invalid, `'/latin'` valid, `'F3'` invalid.
+
+| Finding (validator) | Ruling | Resolution |
+|---|---|---|
+| Issue draft's central claim does not reproduce (factuality) + pdfua test docblock repeats it | Legitimate symptom, wrong diagnosis (arbiter, by execution) | **Fixed**: `resolveFonts` normalizes `fontRef`; issue draft withdrawn (no engine bug); pdfua test upgraded to the embedded-fonts + `pdfa2b` configuration and its docblock rewritten; sample + test expectations updated; CHANGELOG entry with re-render guidance |
+| Release work uncommitted at review start (conformity) | Legitimate | **Fixed**: committed to `release/v1.2.0` before round 2 closed (this table lands as its own commit) |
+| `package-lock.json` root version still 1.1.0 (conformity) | Legitimate | **Fixed**: lockfile regenerated (both version fields 1.2.0) |
+| Coverage/bundle figures drifted by a hair (both validators) | Legitimate | **Fixed**: re-measured after the round-2 fixes and pasted verbatim (95.04/89.80/97.83/95.92; 3354 bytes) |
+| AGENTS.md rule 1 contradicts the sanctioned test-side engine import (conformity) | Legitimate | **Fixed**: rule 1 now scopes the bridge requirement to `src/` and names the tests exception |
+| ROADMAP presented a paraphrase as a quotation (factuality) | Legitimate | **Fixed**: quotation restored verbatim |
+| CHANGELOG headings carry no ISO date (conformity) | **Rejected** (arbiter) | House style since 0.1.0 is `## [x.y.z] — tagline`; dating only 1.2.0 would be inconsistent *and* break the GitHub anchors the release notes link to. If dates are ever wanted: all headings + both anchors in one housekeeping change, not mid-release. |
+| `strongEtag` is FNV-1a, not cryptographic (conformity) | **Rejected — no action** (validator's own disposition, arbiter concurs) | Already documented as change-detection; HTTP strong validators need byte-identity semantics, not a cryptographic hash. |
 
 ## Backward compatibility
 
@@ -230,8 +261,10 @@ commit on this branch._
 - Upstream repo updates that belong to `Nizoka/pdfnative`:
   `docs/assets/ecosystem.json` (`packages.pdfnative-react.version`/`pin`) and
   `docs/data/surfaces.json` React cells must move to 1.2.0 / `^1.7.0` as part
-  of the engine repo's release train, or its `verify:docs` will fail. Also the
-  `validatePdfUA` bug (issue draft in `.github/drafts/`).
+  of the engine repo's release train, or its `verify:docs` will fail.
+  Optionally, an ergonomics suggestion for the engine: validate or normalize
+  `fontRef` format at the API boundary, so a missing slash fails loudly
+  instead of corrupting output.
 - ~21 open dependabot branches — separate housekeeping.
 
 ## Self-review checklist
@@ -252,6 +285,6 @@ commit on this branch._
 | `no_new_runtime_dependency_confirmed` | Yes — `dependencies` is still exactly `["react-reconciler"]` (test-pinned). `eslint-plugin-react-hooks` is a devDependency. |
 | `reproduction_command` | `npm run typecheck:all && npm run lint && npm test && npm run build` |
 | `reproduction_result` | All green: 292/292 tests, coverage 95.0/90.0/97.8/95.9, 8 dist artifacts verified. |
-| `duplicate_search_performed` | Yes — CHANGELOG, ROADMAP, release notes and open drafts checked; no existing 1.2.0 work, no duplicate of the upstream issue in the engine's CHANGELOG/known issues. |
-| `affected_packages` | `pdfnative-react` (this repo). Follow-ups noted for `pdfnative` (ecosystem manifest, surfaces.json, `validatePdfUA` bug). |
-| `identity_reminder_shown` | This draft and the issue draft must be reviewed and submitted by a human under their own GitHub identity. No agent will open the PR or the issue. |
+| `duplicate_search_performed` | Yes — CHANGELOG, ROADMAP, release notes and open drafts checked; no existing 1.2.0 work. A drafted upstream issue was withdrawn after the panel disproved its central claim (round 2). |
+| `affected_packages` | `pdfnative-react` (this repo). Follow-ups noted for `pdfnative` (ecosystem manifest, surfaces.json — doc alignment only; no engine bug). |
+| `identity_reminder_shown` | This draft must be reviewed and submitted by a human under their own GitHub identity. No agent will open the PR; no issue remains to submit. |

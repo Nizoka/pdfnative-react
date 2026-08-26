@@ -123,6 +123,19 @@ No public API was removed or changed in a backward-incompatible way. One
 
 ### Fixed
 
+- **`resolveFonts` produced malformed PDFs.** It emitted `fontRef` without
+  the leading slash (`latin` instead of `/latin`), and the engine writes
+  `fontRef` verbatim into content streams as a PDF *name* — so every document
+  rendered through the documented font path (`resolveFonts`, or the
+  `options.fonts` map consumed by `renderToFile`/`renderToFileStream`/
+  `renderToResponse`/`usePdf`/`usePdfStream`) contained `BT latin 10 Tf`
+  where ISO 32000 requires `BT /latin 10 Tf`, malformed for conforming
+  readers. `resolveFonts` now normalizes the ref (`/`-prefixing bare
+  language keys). Found by the new PDF/UA round-trip test — the engine's
+  `validatePdfUA` was rejecting this package's own font-embedded output.
+  Hand-built `fontEntries` with a correct `/`-prefixed `fontRef` were never
+  affected. Re-render anything you produced through the font map or
+  `resolveFonts`.
 - **Unstreamable documents now fail before the response starts.** The engine's
   streaming path rejects `<TableOfContents>` and `{pages}` header/footer
   templates (the final page count is unknown when page 1 is emitted), but ran

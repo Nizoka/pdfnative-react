@@ -164,6 +164,17 @@ const signed = signPdfBytes(bytes, { /* certificate, key, … */ });
 const report = validatePdfUA(bytes);   // accessibility conformance
 ```
 
+Engine 1.7.0 extends signing to the full PAdES LTV ladder (B-B → B-LTA):
+`signPdfBytesWithTimestamp` embeds an RFC 3161 timestamp,
+`addValidationInfo` writes the `/DSS` revocation material, and
+`addDocumentTimestamp` appends `/DocTimeStamp` revisions — all on the bytes
+this package produces, with network transport injected via
+`setTimestampProvider`/`setRevocationProvider` (the engine never opens a
+socket). Multiple signatures are supported through
+`addSignaturePlaceholder({ allowMultiple })` and enumerated with
+`listSignatures`. See the engine's
+[LTV guide](https://github.com/Nizoka/pdfnative/blob/main/docs/guides/ltv.md).
+
 Annotations take three steps, because the modifier works on a *parsed* document
 and `addAnnotation` takes a serialized dictionary, not an object:
 

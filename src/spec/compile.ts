@@ -148,6 +148,7 @@ export function specToElement(spec: DocSpec): ReactElement {
             footer: spec.footer,
             attachments: spec.attachments,
             tagged: spec.tagged,
+            print: spec.print,
         },
         children,
     );

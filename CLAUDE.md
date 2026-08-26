@@ -15,7 +15,7 @@ PDF engine:
 
 It is a declarative **block flow**, not a CSS/flexbox engine. There is no `<View>`.
 
-Peer: `pdfnative` ^1.6.0 · React 19 · Node ≥ 22.
+Peer: `pdfnative` ^1.7.0 · React 19 · Node ≥ 22.
 
 ## Golden rules
 

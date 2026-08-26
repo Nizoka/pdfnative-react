@@ -349,6 +349,14 @@ const ENTRYPOINTS: readonly ManifestEntrypoint[] = [
         kind: 'sync',
     },
     {
+        name: 'setDeflateImpl',
+        signature: '(deflate) => void',
+        summary:
+            'Inject a DEFLATE implementation so layout.compress produces real '
+            + 'compression outside Node (browsers, workers).',
+        kind: 'sync',
+    },
+    {
         name: 'downloadBlob',
         signature: '(blob, fileName) => void',
         summary: 'Trigger a browser download. Browser only.',
@@ -406,7 +414,7 @@ export function capabilityManifest(): CapabilityManifest {
             authoringOnly: true,
             layoutModel: 'block-flow',
             react: '^19.0.0',
-            engine: '^1.6.0',
+            engine: '^1.7.0',
             node: '>=22',
             sideEffects: 'none',
             network: 'none',

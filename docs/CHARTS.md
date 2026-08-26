@@ -4,10 +4,12 @@ Native vector charts, drawn with PDF path operators. No rasterisation, no chart
 library, no new runtime dependency — and the output is real vector art that
 stays sharp at any zoom and passes PDF/A.
 
-Requires the `pdfnative` engine ≥ 1.6.0, which is the peer floor as of
-pdfnative-react 1.1.0.
+Requires the `pdfnative` engine ≥ 1.7.0, which is the peer floor as of
+pdfnative-react 1.2.0.
 
-Runnable: [`samples/charts/charts.tsx`](../samples/charts/charts.tsx).
+Runnable: [`samples/charts/charts.tsx`](../samples/charts/charts.tsx) (the
+basics) and [`samples/charts/charts-v2.tsx`](../samples/charts/charts-v2.tsx)
+(stacked/area/scatter, dual axes, log/time scales, data labels).
 
 ## Quick start
 
@@ -43,29 +45,61 @@ The `DocSpec` twin:
 |---|---|---|---|
 | `'bar'` | Vertical bars | Many | Yes |
 | `'barH'` | Horizontal bars | Many | Yes |
+| `'stackedBar'` | Vertical bars, series stacked | Many | No log scale |
+| `'stackedBarH'` | Horizontal bars, series stacked | Many | No log scale |
 | `'line'` | Lines, optional markers | Many | Yes |
+| `'area'` | Filled lines | Many | Yes |
+| `'scatter'` | Points positioned by `xValues` | Many | Yes |
 | `'pie'` | Filled circle | **Exactly one** | No |
 | `'donut'` | Ring | **Exactly one** | No |
 
 `barH` is the right choice when category labels are long — under a vertical axis
-they get cramped or clipped.
+they get cramped or clipped. Scatter charts position every point by its series'
+`xValues` and default to a linear x-axis.
 
 ## Props
 
 | Prop | Type | Default | Notes |
 |---|---|---|---|
 | `chartType` | `ChartType` | — | Required |
-| `series` | `ChartSeries[]` | — | Required. `{ label, values, color? }` |
-| `categories` | `string[]` | 1-based indices | Every series must supply one value per category |
+| `series` | `ChartSeries[]` | — | Required. `{ label, values, color?, xValues?, yAxis? }` |
+| `categories` | `string[]` | 1-based indices | Category axes: every series supplies one value per category |
 | `title` | `string` | — | Drawn above the plot |
 | `width` | `number` | `460` | Points; clamped to the content width |
 | `height` | `number` | `240` | Points; the title and legend add measured height on top |
 | `legend` | `'bottom' \| 'none'` | `'bottom'` for multi-series and pie/donut, else `'none'` | |
-| `axis` | `{ yMin?, yMax?, ticks?, grid? }` | — | Bar and line only |
+| `axis` | `{ yMin?, yMax?, ticks?, grid?, scale? }` | `scale: 'linear'` | Primary (left) value axis. `'log'` needs strictly positive values |
+| `axis2` | `{ yMin?, yMax?, ticks?, scale? }` | — | Secondary right axis; rendered when a series binds with `yAxis: 'right'` |
+| `xAxis` | `{ type?, min?, max?, ticks?, grid? }` | `'category'` (`'linear'` for scatter) | `'linear'`/`'time'` position points by `xValues`; `'time'` parses ISO-8601 / epoch ms, UTC ticks |
+| `dataLabels` | `boolean \| { decimals?, prefix?, suffix? }` | off | Per-point value labels |
+| `labelStride` | `number` | automatic | Draw every Nth x-label; `1` forces all. Category axes only |
+| `labelRotation` | `number` | `0` | Rotate x-labels 0–90° CCW (typically `45`). Category axes only |
 | `markers` | `boolean` | `false` | Point markers on line series |
 | `colors` | `PdfColor[]` | Built-in 8-colour palette | Per series (bar/line) or per slice (pie/donut) |
 | `align` | `'left' \| 'center' \| 'right'` | `'left'` | |
 | `altText` | `string` | Auto-generated | See below — write your own |
+
+### Dual axes, time series, data labels
+
+```tsx
+<Chart
+    chartType="line"
+    xAxis={{ type: 'time' }}
+    series={[
+        { label: 'Revenue (k€)', values: [210, 245, 262], xValues: ['2026-01-01', '2026-02-01', '2026-03-01'] },
+        { label: 'Margin (%)', values: [12.1, 13.4, 15.2], xValues: ['2026-01-01', '2026-02-01', '2026-03-01'], yAxis: 'right' },
+    ]}
+    axis2={{ yMin: 0, yMax: 20 }}
+    dataLabels={{ decimals: 1 }}
+    altText="Revenue and margin both rise across Q1 2026."
+/>
+```
+
+On a positional axis (`'linear'` or `'time'`, and every scatter chart), each
+series must carry `xValues` with the same length as `values`; date strings
+require `xAxis.type: 'time'`. Crowded category labels are strided automatically
+since engine 1.7.0 — `labelStride={1}` restores draw-everything, and
+`labelRotation={45}` is the usual fix for long labels.
 
 ## Accessibility
 
@@ -91,9 +125,12 @@ turns each of them into a finding you can read first:
 |---|---|
 | `L_CHART_EMPTY` | At least one series, and every series needs at least one value |
 | `L_CHART_SERIES` | Pie and donut take exactly one series |
-| `L_CHART_CATEGORIES` | Every series length must equal `categories.length` |
+| `L_CHART_CATEGORIES` | On a category axis, every series length must equal `categories.length` |
 | `L_CHART_VALUES` | All values finite; no negatives in a pie/donut |
 | `L_CHART_POINTS` | 10 000 data points per chart, hard ceiling |
+| `L_CHART_LOG_SCALE` | No log scale on stacked kinds; log bounds and log-bound series values strictly positive |
+| `L_CHART_X_AXIS` | Positional axes only on line/area/scatter; scatter is never `'category'`; `xValues` present and matching on positional axes; date strings need `'time'`; no `yAxis: 'right'` on pie/donut |
+| `L_CHART_LABELS` | `labelStride` an integer ≥ 1, `labelRotation` within 0–90, neither on scatter |
 
 ```ts
 const report = lintDocument(doc);
@@ -146,9 +183,12 @@ const fontEntries = await resolveFonts({
 </Document>
 ```
 
-## What is not here
+## Charts v2 — a promise kept
 
-pdfnative 1.6.0 ships bar, barH, line, pie and donut on a linear axis. Stacked
-bars, area, scatter, secondary/log/time axes and per-point data labels are
-tracked as "Charts v2" on the [engine's roadmap](https://github.com/Nizoka/pdfnative/blob/main/ROADMAP.md)
-— when they land there, they reach this package as new `ChartProps` fields.
+Until 1.1.0 this page tracked stacked bars, area, scatter, secondary/log/time
+axes and per-point data labels as "Charts v2" on the engine's roadmap, and
+promised that "when they land there, they reach this package as new
+`ChartProps` fields". Engine 1.7.0 shipped them; pdfnative-react 1.2.0 exposes
+every one of them, with full `DocSpec` and schema parity — and the
+compile-time `ChartPropsCoversChartBlock` lock is what enforced it: the peer
+bump was a build error until the surfaces matched.

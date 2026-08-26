@@ -113,6 +113,74 @@ describe('renderToResponse', () => {
     });
 });
 
+describe('cache validators — cacheControl and etag', () => {
+    const OTHER_DOC = (
+        <Document title="Receipt">
+            <Heading level={1}>Receipt #7</Heading>
+            <Paragraph>Different bytes on purpose.</Paragraph>
+        </Document>
+    );
+
+    it('sets neither cache-control nor etag unless asked — defaults unchanged', async () => {
+        const response = await renderToResponse(DOC);
+        expect(response.headers.get('cache-control')).toBeNull();
+        expect(response.headers.get('etag')).toBeNull();
+    });
+
+    it('sets cache-control from the cacheControl option', async () => {
+        const response = await renderToResponse(DOC, { cacheControl: 'private, max-age=60' });
+        expect(response.headers.get('cache-control')).toBe('private, max-age=60');
+    });
+
+    it('sends a string etag verbatim and keeps streaming', async () => {
+        // A caller-supplied validator needs nothing from the bytes, so the
+        // constant-memory streaming path must survive it.
+        const response = await renderToResponse(DOC, { etag: '"invoice-1024-r3"' });
+        expect(response.headers.get('etag')).toBe('"invoice-1024-r3"');
+        expect(response.headers.get('content-length')).toBeNull();
+
+        const pdf = await body(response);
+        expect(pdf.startsWith('%PDF-')).toBe(true);
+    });
+
+    it('etag: true derives a quoted, deterministic validator and implies buffering', async () => {
+        const [first, second] = await Promise.all([
+            renderToResponse(DOC, { etag: true }),
+            renderToResponse(DOC, { etag: true }),
+        ]);
+
+        const etag = first.headers.get('etag') ?? '';
+        expect(etag.startsWith('"')).toBe(true);
+        expect(etag.endsWith('"')).toBe(true);
+        // Deterministic: the same document always yields the same validator —
+        // otherwise every response would bust the cache it claims to feed.
+        expect(second.headers.get('etag')).toBe(etag);
+
+        // Hashing needs the whole PDF up front, so buffering is implied.
+        const length = Number(first.headers.get('content-length'));
+        expect(length).toBeGreaterThan(0);
+        const pdf = await body(first);
+        expect(pdf.length).toBe(length);
+        expect(pdf.startsWith('%PDF-')).toBe(true);
+    });
+
+    it('etag: true distinguishes different documents', async () => {
+        const [a, b] = await Promise.all([
+            renderToResponse(DOC, { etag: true }),
+            renderToResponse(OTHER_DOC, { etag: true }),
+        ]);
+        expect(a.headers.get('etag')).not.toBe(b.headers.get('etag'));
+    });
+
+    it('lets the headers option override cache-control (merge-last)', async () => {
+        const response = await renderToResponse(DOC, {
+            cacheControl: 'public, max-age=600',
+            headers: { 'cache-control': 'no-store' },
+        });
+        expect(response.headers.get('cache-control')).toBe('no-store');
+    });
+});
+
 describe('renderSpecToResponse', () => {
     it('is the DocSpec twin of renderToResponse', async () => {
         const response = await renderSpecToResponse(

@@ -99,6 +99,7 @@ const KNOWN_FIELDS = [
     'footer',
     'attachments',
     'tagged',
+    'print',
     'blocks',
 ] as const satisfies readonly (keyof DocSpec)[];
 

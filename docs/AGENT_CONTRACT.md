@@ -44,7 +44,8 @@ One limit worth knowing: `core-bridge` re-exports the engine with a *static*
 graph fails to resolve and `doctor()` is never reached — you get
 `ERR_MODULE_NOT_FOUND` at import time instead, which is already an unambiguous
 diagnosis. What `doctor()` catches is the subtler case: an engine that resolves
-but is **older than 1.6.0**.
+but is **older than 1.7.0** — a 1.6.x engine gets its own actionable message,
+anything older a generic one.
 
 Branch on `report.ok`. When it is `false`, report the failing checks rather than
 attempting work that cannot succeed.
@@ -63,7 +64,7 @@ One object describing:
 
 | Field | Contents |
 |---|---|
-| `contract` | The invariants: authoring-only, block-flow layout, React 19, engine `^1.6.0`, Node `>=22`, no side effects, no network |
+| `contract` | The invariants: authoring-only, block-flow layout, React 19, engine `^1.7.0`, Node `>=22`, no side effects, no network |
 | `components` | Every JSX component, its host tag, and its aliases |
 | `specBlocks` | The whole `DocSpec` grammar: tuple form, summary, equivalent component |
 | `entrypoints` | Every callable, with signature, sync/async/stream, and Node-only flag |
@@ -154,16 +155,21 @@ so the two can never disagree.
 
 ### Tier 3 — `lintSpec`
 
-Eighteen rules with stable `L_*` codes (10 error, 7 warning, 1 info). **Eight**
-pre-empt an exception the engine raises *mid-render*:
+Twenty-five rules with stable `L_*` codes (15 error, 9 warning, 1 info).
+**Thirteen** pre-empt an exception the engine raises *mid-render*:
 
 | Code | Would otherwise |
 |---|---|
 | `L_CHART_EMPTY` | Throw — no series, or a series with no values |
 | `L_CHART_SERIES` | Throw — pie/donut need exactly one series |
-| `L_CHART_CATEGORIES` | Throw — series length must match categories |
+| `L_CHART_CATEGORIES` | Throw — series length must match categories (category axes) |
 | `L_CHART_VALUES` | Throw — non-finite, or negative in a pie/donut |
 | `L_CHART_POINTS` | Throw — 10 000-point ceiling |
+| `L_CHART_LOG_SCALE` | Throw — log scale on stacked kinds, or non-positive log data/bounds |
+| `L_CHART_X_AXIS` | Throw — positional-axis misuse, missing/mismatched `xValues` |
+| `L_CHART_LABELS` | Throw — invalid `labelStride`/`labelRotation` |
+| `L_PRINT_BOXES` | Throw — invalid `layout.print` geometry (checked by the engine's own validator) |
+| `L_VIEWER_PRINT_RANGE` | Throw — malformed `printPageRange`/`numCopies` |
 | `L_ATTACHMENTS_NEED_PDFA3` | Throw — attachments require `tagged="pdfa3b"` |
 | `L_TAGGED_ENCRYPTED` | Throw — PDF/A and encryption are mutually exclusive |
 | `L_MAX_BLOCKS_EXCEEDED` | Throw — past `maxBlocks`, default 100 000 |

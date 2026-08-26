@@ -7,7 +7,9 @@ It runs on the **compiled document model**, so JSX and `DocSpec` share one
 implementation and always agree. It is pure: it never writes to the console and
 never throws for a finding. What you do with the report is your call.
 
-Runnable: [`samples/quality/lint.tsx`](../samples/quality/lint.tsx).
+Runnable: [`samples/quality/lint.tsx`](../samples/quality/lint.tsx) and, for
+the engine's render-time diagnostics channel that complements it,
+[`samples/quality/diagnostics.tsx`](../samples/quality/diagnostics.tsx).
 
 ## Quick start
 
@@ -42,7 +44,7 @@ hint, before you spend the work.
 
 ## Rules
 
-Eighteen rules, each with a stable code. Branch on the code, not the message.
+Twenty-five rules, each with a stable code. Branch on the code, not the message.
 
 ### Errors — these clear `ok`
 
@@ -55,15 +57,23 @@ Eighteen rules, each with a stable code. Branch on the code, not the message.
 | `L_MAX_BLOCKS_EXCEEDED` | Block count past the `maxBlocks` ceiling | **Throw** |
 | `L_CHART_EMPTY` | Chart with no series, or a series with no values | **Throw** |
 | `L_CHART_SERIES` | Pie or donut with anything other than one series | **Throw** |
-| `L_CHART_CATEGORIES` | Series length ≠ `categories.length` | **Throw** |
+| `L_CHART_CATEGORIES` | On a category axis, series length ≠ `categories.length` | **Throw** |
 | `L_CHART_VALUES` | Non-finite value, or a negative in a pie/donut | **Throw** |
 | `L_CHART_POINTS` | Chart past the engine's 10 000-point ceiling | **Throw** |
+| `L_CHART_LOG_SCALE` | Log scale on a stacked kind, log bounds ≤ 0, or non-positive values on a log-bound axis | **Throw** |
+| `L_CHART_X_AXIS` | Positional axis misuse: wrong chart kind, scatter on `'category'`, missing/mismatched `xValues`, date strings without `'time'`, `yAxis: 'right'` on pie/donut | **Throw** |
+| `L_CHART_LABELS` | `labelStride`/`labelRotation` on scatter, non-integer stride < 1, rotation outside 0–90 | **Throw** |
+| `L_PRINT_BOXES` | Invalid `layout.print` geometry (bleed/box constraints, marks without a TrimBox, `userUnit` limits) | **Throw** |
+| `L_VIEWER_PRINT_RANGE` | Malformed `viewerPreferences.printPageRange` pair or `numCopies` | **Throw** |
 
-**Eight of these ten pre-empt an exception the engine raises mid-render** — the
-five chart rules, `L_ATTACHMENTS_NEED_PDFA3`, `L_TAGGED_ENCRYPTED` and
-`L_MAX_BLOCKS_EXCEEDED`. `L_MAX_BLOCKS_EXCEEDED` fires against the engine's
-`DEFAULT_MAX_BLOCKS` of 100 000 even when you set no `maxBlocks` yourself, since
-that is the ceiling the engine actually enforces.
+**Thirteen of these fifteen pre-empt an exception the engine raises
+mid-render** — the eight chart rules, `L_PRINT_BOXES`, `L_VIEWER_PRINT_RANGE`,
+`L_ATTACHMENTS_NEED_PDFA3`, `L_TAGGED_ENCRYPTED` and `L_MAX_BLOCKS_EXCEEDED`.
+`L_MAX_BLOCKS_EXCEEDED` fires against the engine's `DEFAULT_MAX_BLOCKS` of
+100 000 even when you set no `maxBlocks` yourself, since that is the ceiling
+the engine actually enforces. `L_PRINT_BOXES` does not re-state the engine's
+geometry rules — it *calls* the engine's own `validatePrintOptions` and
+reports its message verbatim, so the two can never drift.
 
 The remaining two catch output that renders successfully but is wrong:
 `L_EMPTY_DOCUMENT` (a blank page) and `L_TAGGED_NO_FONTS` (a PDF/A file veraPDF
@@ -79,6 +89,8 @@ rejects).
 | `L_FIELD_LABEL` | Form field with no label |
 | `L_LINK_TEXT` | Link with no text, or whose text is the bare URL |
 | `L_MAX_BLOCKS` | Block count within 10% of the `maxBlocks` ceiling |
+| `L_OUTPUT_INTENT_IGNORED` | `layout.outputIntent` set without `tagged` — the engine silently ignores it |
+| `L_TAGGED_FORM_FONTS` | PDF/A target with form fields — the engine reports `PDFA_UNEMBEDDED_FORM_FONT` (and throws under `layout.strict`) |
 | `L_OVERFLOW` | Block taller than the content box, or past the bottom margin |
 
 ### Info
@@ -173,6 +185,22 @@ and make the function impure — which would rule out calling it inside a test
 assertion, its single most useful application.
 
 Call it explicitly. It is one line.
+
+## The engine's diagnostics channel (tier 4½)
+
+Since engine 1.7.0, some PDF/A conformance problems are also reported *at
+render time* through a diagnostics channel: `PDFA_NO_FONT_ENTRIES`,
+`PDFA_UNEMBEDDED_FORM_FONT` and `PDFA_DEVICE_CMYK_IMAGE`. By default the
+engine `console.warn`s once per code; `layout.onDiagnostic` receives them
+programmatically, and `layout.strict: true` escalates them to thrown errors.
+
+The two tiers complement each other: `lintDocument` is pure, pre-render and
+covers the document model (`L_TAGGED_NO_FONTS` and `L_TAGGED_FORM_FONTS`
+overlap the first two codes); the diagnostics channel sees what only the
+render can see — such as a CMYK JPEG under a PDF/A claim, which linting the
+model cannot detect without parsing image bytes. Gate CI on the linter, and
+set `strict: true` when a silently-invalid PDF/A claim would be worse than a
+failed render. See [`samples/quality/diagnostics.tsx`](../samples/quality/diagnostics.tsx).
 
 ## What it does not do
 

@@ -192,8 +192,9 @@ export const BLOCK_REGISTRY = [
         kinds: ['chart'],
         tuple: "['chart', body]",
         summary:
-            'Native vector chart (bar, barH, line, pie, donut) drawn with PDF path '
-            + 'operators. Requires the pdfnative engine >= 1.6.0.',
+            'Native vector chart (bar, barH, line, pie, donut, stackedBar, stackedBarH, '
+            + 'area, scatter) drawn with PDF path operators. Requires the pdfnative '
+            + 'engine >= 1.7.0.',
         component: 'Chart',
     },
     {
@@ -274,7 +275,9 @@ export const COMPONENT_REGISTRY = [
     {
         name: 'Chart',
         tag: 'chart',
-        summary: 'Native vector chart (bar, barH, line, pie, donut).',
+        summary:
+            'Native vector chart (bar, barH, line, pie, donut, stackedBar, stackedBarH, '
+            + 'area, scatter).',
     },
     { name: 'FormField', tag: 'formField', summary: 'Interactive AcroForm widget.' },
 ] as const satisfies readonly ComponentDescriptorShape[];
@@ -398,6 +401,52 @@ export const LINT_RULES = {
     L_CHART_POINTS: {
         severity: 'error',
         description: 'A chart exceeds the engine ceiling of 10 000 data points.',
+    },
+    L_CHART_LOG_SCALE: {
+        severity: 'error',
+        description:
+            'A log-scaled axis is combined with a stacked chart, has a bound <= 0, '
+            + 'or a series bound to it contains a value <= 0.',
+    },
+    L_CHART_X_AXIS: {
+        severity: 'error',
+        description:
+            'Invalid x-axis configuration: a positional axis type on an unsupported '
+            + 'chart kind, a scatter chart with a category axis, missing or '
+            + 'mismatched xValues, date strings without a time axis, or yAxis '
+            + '"right" on a pie/donut.',
+    },
+    L_CHART_LABELS: {
+        severity: 'error',
+        description:
+            'Invalid x-label options: labelStride/labelRotation on a scatter chart, '
+            + 'a non-integer or < 1 labelStride, or a labelRotation outside 0-90.',
+    },
+    L_PRINT_BOXES: {
+        severity: 'error',
+        description:
+            'The print-production options are invalid (bleed/box geometry, marks '
+            + 'without a TrimBox, or userUnit constraints) — the engine would '
+            + 'reject them mid-render.',
+    },
+    L_VIEWER_PRINT_RANGE: {
+        severity: 'error',
+        description:
+            'Invalid print-dialog viewer preferences: a malformed printPageRange '
+            + 'pair (1-based, first <= last) or a non-positive-integer numCopies.',
+    },
+    L_OUTPUT_INTENT_IGNORED: {
+        severity: 'warning',
+        description:
+            'layout.outputIntent is set but the document is not tagged — the '
+            + 'engine silently ignores it.',
+    },
+    L_TAGGED_FORM_FONTS: {
+        severity: 'warning',
+        description:
+            'A PDF/A document contains form fields; the AcroForm font is not '
+            + 'embedded, so the engine will report PDFA_UNEMBEDDED_FORM_FONT '
+            + '(and throw under layout.strict).',
     },
     L_OVERFLOW: {
         severity: 'warning',

@@ -56,6 +56,10 @@ export function usePdf(element: ReactNode, options?: RenderOptions): UsePdfResul
     const [nonce, setNonce] = useState(0);
 
     const optionsRef = useRef(options);
+    // Latest-value ref: `options` is often an inline object literal, so making
+    // it an effect dependency would re-render the PDF on every commit. The ref
+    // is read only inside the effect's microtask, never during render.
+    // eslint-disable-next-line react-hooks/refs
     optionsRef.current = options;
 
     const update = useCallback(() => {
@@ -66,6 +70,11 @@ export function usePdf(element: ReactNode, options?: RenderOptions): UsePdfResul
         let cancelled = false;
         let url: string | null = null;
 
+        // The loading flag must flip in the same commit that schedules the
+        // render microtask, or consumers observe a stale `loading: false`
+        // window. The updater bails out (`prev`) when already loading, so no
+        // cascading re-render occurs.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setState((prev) => (prev.loading ? prev : { ...prev, loading: true }));
 
         // Defer the render out of the commit phase. `renderToBytes` drives a
@@ -121,9 +130,14 @@ export function usePdfStream(
     element: ReactNode,
     options?: RenderOptions,
 ): UsePdfStreamResult {
+    // Latest-value refs: `getStream` must stay referentially stable (it is the
+    // whole point of the hook) while always streaming the *current* element and
+    // options. Both refs are read only inside the callback, never during render.
     const elementRef = useRef(element);
+    // eslint-disable-next-line react-hooks/refs
     elementRef.current = element;
     const optionsRef = useRef(options);
+    // eslint-disable-next-line react-hooks/refs
     optionsRef.current = options;
 
     const getStream = useCallback(() => {

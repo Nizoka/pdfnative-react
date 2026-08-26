@@ -15,14 +15,15 @@
  * `ERR_MODULE_NOT_FOUND` at import time instead. That is already an unambiguous
  * diagnosis, so we do not contort the architecture to route it through here.
  * What `doctor()` does catch is the subtler case: an engine that resolves but is
- * **older than 1.6.0**, which under a bundler or CJS interop yields an
- * `undefined` export rather than a link error.
+ * **older than 1.7.0**, which under a bundler or CJS interop yields an
+ * `undefined` export rather than a link error — graded down to 1.6.x and
+ * "older still" via two capability probes.
  *
  * @packageDocumentation
  */
 
 import { version as reactVersion } from 'react';
-import { estimateChartHeight } from './core-bridge/index.js';
+import { estimateChartHeight, validatePrintOptions } from './core-bridge/index.js';
 import { version } from './version.js';
 
 /** Outcome of a single {@link doctor} check. */
@@ -49,7 +50,7 @@ export interface DoctorReport {
 }
 
 /** Minimum engine major.minor this release is built against. */
-const REQUIRED_ENGINE = '1.6.0';
+const REQUIRED_ENGINE = '1.7.0';
 /** Minimum Node version, inherited from the engine. */
 const REQUIRED_NODE_MAJOR = 22;
 
@@ -102,14 +103,22 @@ function reactCheck(): DoctorCheck {
 function engineCheck(): DoctorCheck {
     return check(
         'pdfnative',
-        `The pdfnative peer dependency must be at ${REQUIRED_ENGINE} or later (probed via a `
-            + 'capability that first ships in 1.6.0). A peer that is absent entirely fails '
-            + 'earlier, at module resolution.',
+        `The pdfnative peer dependency must be at ${REQUIRED_ENGINE} or later (probed via `
+            + 'capabilities that first ship in 1.7.0 and 1.6.0, newest first). A peer that '
+            + 'is absent entirely fails earlier, at module resolution.',
         () => {
-            const present = typeof estimateChartHeight === 'function';
-            return present
-                ? { status: 'ok', value: `>= ${REQUIRED_ENGINE}` }
-                : { status: 'error', value: 'missing or older than 1.6.0' };
+            // Probe newest-first: `validatePrintOptions` first ships in 1.7.0
+            // (print production), `estimateChartHeight` in 1.6.0 (charts).
+            if (typeof validatePrintOptions === 'function') {
+                return { status: 'ok', value: `>= ${REQUIRED_ENGINE}` };
+            }
+            if (typeof estimateChartHeight === 'function') {
+                return {
+                    status: 'error',
+                    value: `1.6.x — this release needs >= ${REQUIRED_ENGINE}; upgrade the pdfnative peer`,
+                };
+            }
+            return { status: 'error', value: 'missing or older than 1.6.0' };
         },
     );
 }

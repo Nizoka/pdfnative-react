@@ -4,6 +4,7 @@ import {
     Heading,
     PageBreak,
     Paragraph,
+    TableOfContents,
     fromBase64,
     fromUrl,
     inspectDocument,
@@ -69,6 +70,30 @@ describe('renderToStream', () => {
         const text = decode(merged);
         expect(text.startsWith('%PDF-')).toBe(true);
         expect(text.trimEnd().endsWith('%%EOF')).toBe(true);
+    });
+
+    it('rejects an unstreamable document at call time, not at first pull', () => {
+        // The engine cannot know the final page count when page 1 is emitted,
+        // so a <TableOfContents> is unstreamable. The engine's own check runs
+        // inside the generator — too late for renderToResponse, which has
+        // already handed the Response to the framework by then. renderToStream
+        // must therefore throw synchronously, before the generator exists.
+        const unstreamable = (
+            <Document title="Unstreamable">
+                <TableOfContents />
+                <Heading>Title</Heading>
+            </Document>
+        );
+        expect(() => renderToStream(unstreamable)).toThrowError(/toc|table of contents/i);
+    });
+
+    it('rejects a {pages} footer template at call time', () => {
+        const unstreamable = (
+            <Document title="Unstreamable" footer={{ right: 'Page {page} of {pages}' }}>
+                <Paragraph>Body</Paragraph>
+            </Document>
+        );
+        expect(() => renderToStream(unstreamable)).toThrowError(/\{pages\}|pages/i);
     });
 });
 

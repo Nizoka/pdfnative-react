@@ -14,6 +14,7 @@ import {
     buildDocumentPDFStreamTrue,
     inspectDocumentLayout,
     streamToFile,
+    validateDocumentStreamable,
 } from './core-bridge/index.js';
 import { optionsWithFonts } from './fonts.js';
 import { compile } from './reconciler/render.js';
@@ -67,12 +68,23 @@ export function renderToBlob(node: ReactNode, options?: RenderOptions): Blob {
 /**
  * Render to a true, page-by-page async byte stream — constant-memory output for
  * very large documents.
+ *
+ * The engine's streaming path does not support `<TableOfContents>` blocks or
+ * `{pages}` in header/footer templates (both need the final page count before
+ * the first page is emitted). That check is run **eagerly here**, so an
+ * unstreamable document throws at call time — before a single byte is
+ * produced, and in particular before `renderToResponse` has handed a
+ * `Response` to the framework. Use the buffered entry points for those
+ * documents.
  */
 export function renderToStream(
     node: ReactNode,
     options?: RenderOptions,
 ): AsyncGenerator<Uint8Array> {
     const { params, layout } = prepare(node, options);
+    // The engine runs this inside the generator, i.e. at first pull — too late
+    // for a streaming HTTP response. Fail fast instead.
+    validateDocumentStreamable(params, layout);
     return buildDocumentPDFStreamTrue(params, layout);
 }
 
@@ -112,9 +124,11 @@ export async function renderToFile(
  * Stream the PDF to a file with constant memory. Node.js only.
  *
  * Pages are generated and flushed incrementally with back-pressure, so peak
- * memory stays flat regardless of document size. Document-level features
- * (outline/bookmarks, page labels) are preserved — the streamed output is
- * feature-equivalent to {@link renderToFile}.
+ * memory stays flat regardless of document size. Outline/bookmarks and page
+ * labels are preserved; the two features the engine's streaming path cannot
+ * provide — `<TableOfContents>` and `{pages}` in header/footer templates —
+ * are rejected eagerly (see {@link renderToStream}). For those documents use
+ * {@link renderToFile}.
  *
  * @param node - A React element whose root is `<Document>`.
  * @param path - Destination file path.

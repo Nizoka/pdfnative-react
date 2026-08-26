@@ -166,6 +166,13 @@ describe('LINT_RULES', () => {
             'L_CHART_CATEGORIES',
             'L_CHART_VALUES',
             'L_CHART_POINTS',
+            'L_CHART_LOG_SCALE',
+            'L_CHART_X_AXIS',
+            'L_CHART_LABELS',
+            'L_PRINT_BOXES',
+            'L_VIEWER_PRINT_RANGE',
+            'L_OUTPUT_INTENT_IGNORED',
+            'L_TAGGED_FORM_FONTS',
             'L_OVERFLOW',
         ]);
     });

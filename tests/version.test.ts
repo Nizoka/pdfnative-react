@@ -28,7 +28,7 @@ describe('version', () => {
 });
 
 describe('engine contract', () => {
-    it('declares pdfnative as a peer at ^1.6.0, never a dependency', async () => {
+    it('declares pdfnative as a peer at ^1.7.0, never a dependency', async () => {
         const pkg = JSON.parse(
             await readFile(join(process.cwd(), 'package.json'), 'utf8'),
         ) as {
@@ -37,7 +37,7 @@ describe('engine contract', () => {
             engines: { node: string };
         };
 
-        expect(pkg.peerDependencies['pdfnative']).toBe('^1.6.0');
+        expect(pkg.peerDependencies['pdfnative']).toBe('^1.7.0');
         expect(pkg.dependencies).not.toHaveProperty('pdfnative');
         // The single runtime dependency, per golden rule 1.
         expect(Object.keys(pkg.dependencies)).toEqual(['react-reconciler']);

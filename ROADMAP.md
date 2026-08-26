@@ -39,11 +39,33 @@ and no way for an AI agent to discover or check its own work.
 - Document-level layout sugar: `watermark`, `header`, `footer`, `attachments`,
   `tagged` — previously an undocumented `layout` pass-through.
 - `lintDocument` / `lintSpec` — accessibility and layout rules with stable
-  codes, five of which pre-empt engine-level render failures.
+  codes, eight of which pre-empt engine-level render failures.
 - The agent surface: `ErrorCode` taxonomy, `capabilityManifest()`, `doctor()`,
   `validateSpec()`, multi-subject `schema()`, and the governance contract
   exported as runtime capability.
 - Peer floor `^1.6.0`; Node floor `>=22` (inherited from the engine).
+
+### 1.2.0 — Charts v2, print production, conformance channel
+
+Tracks the engine's 1.7.0 release and closes the one capability this package
+had explicitly promised (`docs/CHARTS.md`: "when Charts v2 lands there, it
+reaches this package as new `ChartProps` fields"):
+
+- Charts v2 — `stackedBar`, `stackedBarH`, `area`, `scatter`; log and time
+  scales; a secondary right axis; per-point data labels; x-label stride and
+  rotation. Full `DocSpec` and schema parity.
+- Print production — `<Document print>` (bleed/trim/art/crop boxes, printer's
+  marks, `userUnit`), `metadata.trapped`, print-dialog viewer preferences,
+  `layout.outputIntent`.
+- The PDF/A conformance diagnostics channel (`layout.strict` /
+  `layout.onDiagnostic`).
+- Lint 18 → 25 rules (13 pre-empt engine throws), `L_PRINT_BOXES` delegating
+  to the engine's own validator.
+- Quality backlog from the 1.1.0 review: `renderToResponse`
+  `cacheControl`/`etag`, `ErrorOptions`/`cause` on the error taxonomy,
+  `eslint-plugin-react-hooks`, `validateSpec` fuzzing, the PDF/UA round-trip
+  test.
+- Peer floor `^1.7.0`.
 
 ## Later
 

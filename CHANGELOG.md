@@ -7,6 +7,148 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] — Charts v2, print production, and the conformance channel
+
+Tracks the `pdfnative` engine's 1.7.0 release and delivers the "Charts v2"
+capability that `docs/CHARTS.md` promised since 1.1.0 — stacked bars, area and
+scatter charts, log and time scales, a secondary axis and per-point data
+labels — plus print-production page geometry, the PDF/A conformance
+diagnostics channel, and the quality backlog deferred from the 1.1.0 review.
+
+No public API was removed or changed in a backward-incompatible way. One
+*install-time* floor was raised — see **Compatibility** first.
+
+### Compatibility
+
+- **Peer floor raised: `pdfnative` `^1.6.0` → `^1.7.0`.** The new chart kinds,
+  `layout.print` and the diagnostics channel do not exist before 1.7.0, so an
+  older engine would throw mid-render on the new authoring surface. `doctor()`
+  now distinguishes a 1.6.x engine (a dedicated error message) from a missing
+  or older one, via a second capability probe (`validatePrintOptions`,
+  first shipped in 1.7.0).
+- Rendering behaviour inherited from engine 1.7.0, without any code change
+  here: RTL digit runs keep logical order and paired delimiters mirror
+  (UAX #9), Arabic/Persian letterforms join correctly, colour-emoji flag and
+  ZWJ sequences resolve, form documents gain a complete `/ToUnicode` map
+  (their bytes change; text becomes searchable), and crowded chart x-labels
+  are strided automatically (`labelStride: 1` restores the old
+  draw-everything behaviour).
+
+### Added
+
+#### Charts v2 (`<Chart>` / `['chart', body]`)
+
+- Four new `chartType` values: `'stackedBar'`, `'stackedBarH'`, `'area'` and
+  `'scatter'` (nine total).
+- `axis.scale: 'linear' | 'log'`, and a secondary right axis via `axis2` +
+  `ChartSeries.yAxis: 'left' | 'right'`.
+- `xAxis` — `'category'`, `'linear'` or `'time'` (ISO-8601 / epoch ms,
+  UTC-deterministic ticks), with `ChartSeries.xValues` carrying per-point
+  positions.
+- Per-point `dataLabels` (`true` or `{ decimals, prefix, suffix }`), and
+  x-label collision control: `labelStride`, `labelRotation`.
+- The `ChartPropsCoversChartBlock` compile-time lock did its job: the peer
+  bump was a build error until every new `ChartBlock` field reached
+  `ChartProps`, `DocSpec` and the schema.
+
+#### Print production
+
+- `<Document print={…}>` / `DocSpec.print` — bleed/trim/art/crop page boxes
+  (or the one-line `bleed` shorthand), vector printer's marks, and
+  large-format `userUnit`. Sugar over `layout.print`; an explicit `layout`
+  wins, like every other sugar prop.
+- `metadata.trapped` (`'True' | 'False' | 'Unknown'`) flows through the
+  existing `metadata` prop.
+- Print-dialog viewer preferences via `layout.viewerPreferences`: `duplex`,
+  `pickTrayByPDFSize`, `printPageRange` (1-based pairs), `numCopies`.
+- `layout.outputIntent` — a caller-supplied RGB ICC profile for tagged
+  output (engine passthrough; see the new lint rule below for the one
+  silent trap).
+
+#### PDF/A conformance diagnostics
+
+- `layout.strict` escalates the engine's conformance diagnostics
+  (`PDFA_NO_FONT_ENTRIES`, `PDFA_UNEMBEDDED_FORM_FONT`,
+  `PDFA_DEVICE_CMYK_IMAGE`) to thrown errors; `layout.onDiagnostic` receives
+  them programmatically. Both are engine options reachable through every
+  existing `layout` door — `onDiagnostic` is function-valued and therefore
+  JSON-unrepresentable; `strict: true` is the JSON-safe switch.
+- New types exported: `PrintOptions`, `PrinterMarksOptions`, `PageBox`,
+  `CustomOutputIntent`, `PdfDiagnostic`, `PdfDiagnosticCode`,
+  `PdfDiagnosticHandler`.
+
+#### Linting (18 → 25 rules; 13 now pre-empt engine throws)
+
+- `L_CHART_LOG_SCALE`, `L_CHART_X_AXIS`, `L_CHART_LABELS` — every Charts v2
+  constraint the engine enforces mid-render, reported before it.
+- `L_PRINT_BOXES` — print geometry, validated by delegating to the engine's
+  own `validatePrintOptions`, so the finding carries the engine's message
+  verbatim and can never drift from it.
+- `L_VIEWER_PRINT_RANGE` — malformed `printPageRange` pairs / `numCopies`.
+- `L_OUTPUT_INTENT_IGNORED` (warning) — `outputIntent` without `tagged` is a
+  silent engine no-op.
+- `L_TAGGED_FORM_FONTS` (warning) — a PDF/A target with form fields will
+  surface the engine's `PDFA_UNEMBEDDED_FORM_FONT` diagnostic.
+- `L_CHART_CATEGORIES` now skips positional-axis charts, mirroring engine
+  1.7.0 exactly.
+
+#### Server rendering
+
+- `renderToResponse` / `renderSpecToResponse` options: `cacheControl` sets
+  the `Cache-Control` header; `etag` sends a validator (a string verbatim, or
+  `true` to derive a strong validator from the rendered bytes — which implies
+  buffering). Defaults unchanged: no caching headers unless you opt in.
+
+#### Environment helpers
+
+- `setDeflateImpl` is re-exported alongside `initNodeCompression`, closing an
+  asymmetry: `layout.compress` in a browser or worker silently produced
+  *larger* output (stored-block fallback) with no documented way to inject a
+  real DEFLATE implementation.
+- `PdfColors` is re-exported type-only, so a `layout.colors` palette can be
+  typed without importing the peer directly.
+
+#### Errors
+
+- `PdfReactError` and `PdfStructureError` accept the standard ES2022
+  `ErrorOptions`, so a wrapped failure keeps its original error reachable via
+  `error.cause`. The JSON envelope is unchanged (the cause may hold
+  non-serializable state, so it deliberately stays out).
+
+### Changed
+
+- `doctor()` requires engine ≥ 1.7.0 and reports a 1.6.x engine with an
+  actionable upgrade message instead of a generic failure.
+- `capabilityManifest().contract.engine` is `'^1.7.0'`.
+
+### Fixed
+
+- **Unstreamable documents now fail before the response starts.** The engine's
+  streaming path rejects `<TableOfContents>` and `{pages}` header/footer
+  templates (the final page count is unknown when page 1 is emitted), but ran
+  that check *inside* the generator — so `renderToResponse`, which streams by
+  default, surfaced the failure mid-response, after the status and headers
+  were sent. `renderToStream` now runs the engine's
+  `validateDocumentStreamable` eagerly, so every streaming entry point throws
+  a catchable error at call time instead. Documented in `docs/SERVER.md`.
+- `ROADMAP.md` claimed five lint rules pre-empt engine failures where every
+  other document said eight — the count the 1.1.0 drift sweep missed.
+- **CI (already on `main`, first released here):** the publish workflow
+  restores npm Trusted Publishing by installing an OIDC-capable npm before
+  publishing — Node 22 bundles npm 10.9.x, which cannot do the OIDC exchange
+  and made the v1.1.0 publish fail with an anonymous `E404`.
+
+### Documentation
+
+- Every guide, `llms.txt`, the JSON schemas and the capability manifest now
+  describe the 1.2.0 surface; `docs/CHARTS.md` closes its "Charts v2 is on
+  the engine roadmap" promise with the shipped API.
+- New samples: `samples/charts/charts-v2.tsx`,
+  `samples/layout/print-production.tsx`, `samples/quality/diagnostics.tsx`.
+- New tests: deterministic structural fuzzing of `validateSpec`, and the
+  PDF/UA round-trip (render tagged output, validate it with the engine's
+  `validatePdfUA`) deferred from the 1.1.0 review.
+
 ## [1.1.0] — Charts, server rendering, and an autonomous agent surface
 
 Tracks the `pdfnative` engine's 1.6.0 release, opens three adoption paths
@@ -286,7 +428,8 @@ through 1.5.0 and ships the previously-planned 0.4.0 authoring conveniences.
 
 - Placeholder release reserving the `pdfnative-react` package name on npm.
 
-[Unreleased]: https://github.com/Nizoka/pdfnative-react/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/Nizoka/pdfnative-react/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/Nizoka/pdfnative-react/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/Nizoka/pdfnative-react/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/Nizoka/pdfnative-react/compare/v0.2.0...v1.0.0
 [0.2.0]: https://github.com/Nizoka/pdfnative-react/releases/tag/v0.2.0

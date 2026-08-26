@@ -235,6 +235,8 @@ export interface DocSpec {
     readonly attachments?: DocumentProps['attachments'];
     /** Emit a tagged (accessible) PDF, optionally at a PDF/A conformance level. */
     readonly tagged?: DocumentProps['tagged'];
+    /** Print-production page geometry (bleed/trim boxes, printer's marks, `/UserUnit`). */
+    readonly print?: DocumentProps['print'];
     /** Ordered document blocks. */
     readonly blocks: readonly BlockSpec[];
 }

@@ -146,7 +146,7 @@
   },
   "peerDependencies": {
     "pdfnative": "^1.7.0",
-    "react": "^19.0.0"
+    "react": "^19.2.8"
   },
   "dependencies": {
     "react-reconciler": "^0.31.0"
@@ -155,18 +155,18 @@
     "@eslint/js": "^9.0.0",
     "@testing-library/react": "^16.1.0",
     "@types/node": "^22.0.0",
-    "@types/react": "^19.0.0",
+    "@types/react": "^19.2.18",
     "@types/react-reconciler": "^0.32.0",
-    "@vitest/coverage-v8": "^4.1.7",
+    "@vitest/coverage-v8": "^4.1.11",
     "eslint": "^9.0.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "jsdom": "^25.0.0",
     "pdfnative": "^1.7.0",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
     "tsup": "^8.0.0",
     "typescript": "^5.4.0",
-    "typescript-eslint": "^8.59.2",
+    "typescript-eslint": "^8.68.0",
     "vitest": "^4.1.7"
   },
   "overrides": {

@@ -154,7 +154,7 @@
   "devDependencies": {
     "@eslint/js": "^9.0.0",
     "@testing-library/react": "^16.1.0",
-    "@types/node": "^22.0.0",
+    "@types/node": "^26.0.0",
     "@types/react": "^19.0.0",
     "@types/react-reconciler": "^0.32.0",
     "@vitest/coverage-v8": "^4.1.7",

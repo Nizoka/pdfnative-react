@@ -200,8 +200,10 @@ Notes learned the hard way:
   must flag every seeded-invalid input.
 - `tests/pdfua.test.tsx` — the PDF/UA round-trip: render tagged output, then
   validate the bytes with the engine's `validatePdfUA` (the one place a test
-  may import `pdfnative` directly — it exercises the finished bytes, which the
-  authoring surface deliberately does not re-export).
+  may import the engine's *API* directly — it exercises the finished bytes,
+  which the authoring surface deliberately does not re-export; the
+  `pdfnative/fonts/*` data subpaths are a documented consumer pattern and
+  fair game anywhere).
 - jsdom lacks `URL.createObjectURL`; `tests/setup.ts` stubs it.
 
 Beyond vitest sits the **external conformance tier**:

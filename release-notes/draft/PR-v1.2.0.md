@@ -150,13 +150,14 @@ a spec version without changing the spec is drift in the other direction.
 
 ## Samples & tests
 
-- New samples (each run end-to-end, valid PDF verified):
+- New samples (each run end-to-end, valid PDF verified — four in total):
   `samples/charts/charts-v2.tsx` (8 charts: stacked, area, scatter, time axis,
   dual axis, log scale, data labels, label rotation),
   `samples/layout/print-production.tsx` (bleed + marks, `trapped`, duplex /
   printPageRange / numCopies), `samples/quality/diagnostics.tsx`
-  (onDiagnostic collector, `strict` throw, and the lint tier side by side).
-  `samples/README.md` rows added.
+  (onDiagnostic collector, `strict` throw, and the lint tier side by side),
+  and `samples/agent/visual-verify.tsx` (the tier-5 visual loop, described
+  below). `samples/README.md` rows added.
 - Tests: 226 → **292** (18 files). Charts v2 round-trips (serialization,
   DocSpec parity, real renders for all four new kinds + time/log/dual-axis),
   print sugar folding + `layout === undefined` re-pinned, one assertion per
@@ -169,7 +170,7 @@ a spec version without changing the spec is drift in the other direction.
   tagged → engine `validatePdfUA` → no violations; the 1.1.0-deferred
   round-trip).
 - Coverage thresholds raised 85/80/85/85 → **90/84/92/90** (measured:
-  95.0/90.0/97.8/95.9).
+  95.0/89.8/97.8/95.9).
 
 ## Docs & governance
 
@@ -272,6 +273,32 @@ name). The validator was the messenger. One bisection table settled it:
 | CHANGELOG headings carry no ISO date (conformity) | **Rejected** (arbiter) | House style since 0.1.0 is `## [x.y.z] — tagline`; dating only 1.2.0 would be inconsistent *and* break the GitHub anchors the release notes link to. If dates are ever wanted: all headings + both anchors in one housekeeping change, not mid-release. |
 | `strongEtag` is FNV-1a, not cryptographic (conformity) | **Rejected — no action** (validator's own disposition, arbiter concurs) | Already documented as change-detection; HTTP strong validators need byte-identity semantics, not a cryptographic hash. |
 
+### Round 3 — full-release control panel (post-veraPDF/vision work)
+
+Two fresh validators re-controlled the entire release (all three commits):
+validator A on conformity, project philosophy and breaking changes; validator
+B on factuality (every claim executed, both ports diffed against their
+pdfnative-cli source) and 2026 OSS standards. A third agent arbitrated.
+
+**Verdicts:** A — *zero breaking changes* (the two judged cases: the
+`resolveFonts` byte change corrects spec-violating output and is disclosed
+with a re-render note; new lint rules add at most a *warning* on pre-existing
+documents, `report.ok` preserved) and *philosophy conformant* on all 8 golden
+rules. B — *factual*: both ports are logic-identical to the CLI originals
+(prose-only deltas), the SHA-256 pin matches byte-for-byte, fail-closed
+behaviour was executed and confirmed (exit 3 under `VERAPDF_REQUIRED=1`
+without veraPDF), and the corpus/canaries behave exactly as documented.
+
+| Finding (validator) | Ruling (arbiter) | Resolution |
+|---|---|---|
+| CONTRIBUTING's local Linux recipe executed the installer without the SHA-256 check CI performs (A) | Legitimate | **Fixed**: `sha256sum -c` line added — local and CI now verify the same pinned artefact |
+| PR draft mis-rounded branch coverage to 90.0 in two lines while its own validation block said 89.80 (B) | Legitimate | **Fixed**: 89.8 everywhere |
+| "4/4 samples" vs three named in the Samples bullet (B) | Legitimate | **Fixed**: `visual-verify.tsx` named in the bullet |
+| KB's "one place a test may import pdfnative directly" overstated — font-data subpaths are a documented consumer pattern (A) | Legitimate | **Fixed**: reworded to "the engine's *API* directly" |
+| `failedRules` regex in the validator is attribute-order-dependent (A) | Legitimate — keep verbatim | The verdict parse is independent and an emptied listing prints an explicit marker; fixing only here would diverge the ecosystem port. Noted as an upstream follow-up (fix in `pdfnative-cli` first, re-port everywhere). |
+| `2> >(tee …)` flush race in the workflow (A) | **Rejected** | Exit code travels via `PIPESTATUS`; per-file stderr is independently written and uploaded; identical construct runs in production upstream CI. |
+| `L_PRINT_BOXES` could surface a raw TypeError on a 1.6.x peer (A) | **Rejected — premise wrong** | The call already sits in the rule's try/catch, and a 1.6.x ESM peer fails at module load before lint runs; out-of-contract regardless (`doctor()` reports it). |
+
 ## Backward compatibility
 
 | Change | Impact |
@@ -298,6 +325,10 @@ name). The validator was the messenger. One bisection table settled it:
   Optionally, an ergonomics suggestion for the engine: validate or normalize
   `fontRef` format at the API boundary, so a missing slash fails loudly
   instead of corrupting output.
+- Ecosystem-wide follow-up: the veraPDF runners' `failedRules` regex (here,
+  `pdfnative-cli` and `pdfnative-mcp` — all verbatim ports of the same
+  original) assumes veraPDF's `<rule>` attribute order; harden it upstream in
+  `pdfnative-cli` first, then re-port, so the three repos stay identical.
 - ~21 open dependabot branches — separate housekeeping.
 
 ## Self-review checklist
@@ -317,7 +348,7 @@ name). The validator was the messenger. One bisection table settled it:
 |---|---|
 | `no_new_runtime_dependency_confirmed` | Yes — `dependencies` is still exactly `["react-reconciler"]` (test-pinned). `eslint-plugin-react-hooks` is a devDependency. |
 | `reproduction_command` | `npm run typecheck:all && npm run lint && npm test && npm run build` |
-| `reproduction_result` | All green: 292/292 tests, coverage 95.0/90.0/97.8/95.9, 8 dist artifacts verified. |
+| `reproduction_result` | All green: 292/292 tests, coverage 95.0/89.8/97.8/95.9, 8 dist artifacts verified. |
 | `duplicate_search_performed` | Yes — CHANGELOG, ROADMAP, release notes and open drafts checked; no existing 1.2.0 work. A drafted upstream issue was withdrawn after the panel disproved its central claim (round 2). |
 | `affected_packages` | `pdfnative-react` (this repo). Follow-ups noted for `pdfnative` (ecosystem manifest, surfaces.json — doc alignment only; no engine bug). |
 | `identity_reminder_shown` | This draft must be reviewed and submitted by a human under their own GitHub identity. No agent will open the PR; no issue remains to submit. |

@@ -55,6 +55,7 @@ Install locally:
 - **Linux** (headless):
   ```bash
   curl -fsSL -o installer.zip https://software.verapdf.org/rel/1.30/verapdf-greenfield-1.30.2-installer.zip
+  echo "6cc6341cb1af644044054b81f00a6590a7918abb18f762243de115258bcad838  installer.zip" | sha256sum -c
   unzip -q installer.zip
   cat > auto-install.xml <<'XML'
   <?xml version="1.0" encoding="UTF-8" standalone="no"?>

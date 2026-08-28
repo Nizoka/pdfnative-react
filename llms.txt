@@ -187,6 +187,19 @@ Four dry-run tiers, cheapest first:
   3. lintSpec(spec)         accessibility + engine constraints (L_* codes)
   4. inspectSpec(spec)      pagination and geometry (costs ~a render)
 
+Tier 5 — verify the RENDERED output (post-render):
+  - extractText (engine, on the bytes): did text really render, or .notdef?
+  - validatePdfUA (engine) / veraPDF: is the conformance claim true?
+    The repo itself gates on veraPDF: `npm run validate:pdfa` renders a
+    PDF/A corpus (both authoring doors, 2 negative canaries) and validates
+    it with the pinned reference validator; blocking in CI.
+  - VISION AGENTS: rasterize with a standard external tool and LOOK at it —
+    `pdftoppm -png -r 144 out.pdf page` (poppler) or
+    `mutool draw -o page-%d.png -r 144 out.pdf` (mupdf). Judge the PNG
+    against your intent (layout, chart shape, clipping). No rasterizer is
+    bundled (no new dependency, ever). Runnable with graceful degradation:
+    samples/agent/visual-verify.tsx · recipe: docs/RECIPES.md.
+
 ## Errors
 
 Every error carries a stable code. Branch on the code, never the message.

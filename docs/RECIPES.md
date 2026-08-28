@@ -202,6 +202,41 @@ squiggly, square, circle, line, free text.
 Note that `addRawObject` throws on encrypted documents (a verbatim body cannot
 be transparently encrypted); `addAnnotation` handles encryption correctly.
 
+## Validate — and *see* — the output
+
+`lintDocument` checks the model; these two recipes check the finished bytes.
+
+**Conformance (veraPDF).** The repo validates its own PDF/A-claiming corpus
+against the [veraPDF](https://verapdf.org) reference validator — locally and
+as a blocking CI gate:
+
+```bash
+npm run validate:pdfa   # build → render the corpus → veraPDF each claiming file
+```
+
+Without veraPDF installed the runner skips with exit 0 (a skip, not a pass —
+CI sets `VERAPDF_REQUIRED=1` to fail closed). Install hints and the pinned
+validator version live in [CONTRIBUTING.md](../CONTRIBUTING.md). To validate
+*your own* output the same way, render to a file and run
+`verapdf --format xml --flavour 2b yourfile.pdf`, or use the engine's
+`validatePdfUA(bytes)` in-process for the PDF/UA structural checks (see the
+signing recipe above and `tests/pdfua.test.tsx`).
+
+**Appearance (vision-capable agents).** Nothing in the model tells you whether
+the page *looks* right. Rasterize with a standard external tool and look:
+
+```bash
+pdftoppm -png -r 144 out.pdf page          # poppler-utils
+mutool draw -o page-%d.png -r 144 out.pdf  # mupdf-tools alternative
+```
+
+An agent with vision reads the PNG and judges it against its intent — layout,
+chart shape, nothing clipped. pdfnative-react deliberately bundles no
+rasterizer (a runtime dependency for a verification concern would violate
+golden rule 1). Runnable, with graceful degradation to the geometry report
+when no rasterizer is installed:
+[`samples/agent/visual-verify.tsx`](../samples/agent/visual-verify.tsx).
+
 ## Compile a font at runtime
 
 Useful in serverless or sandboxed runtimes where you cannot spawn the

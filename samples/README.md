@@ -80,6 +80,7 @@ the loop. See [docs/AGENT_CONTRACT.md](../docs/AGENT_CONTRACT.md).
 | [agent/manifest.ts](agent/manifest.ts) | `capabilityManifest()` — every component, block, entry point, error code and lint rule. Pass `--json` to pipe it. |
 | [agent/error-envelope.tsx](agent/error-envelope.tsx) | The `E_*` taxonomy, `toErrorEnvelope`, and branching on codes rather than messages. |
 | [agent/schema.ts](agent/schema.ts) | Print the versioned JSON Schema agents validate against. |
+| [agent/visual-verify.tsx](agent/visual-verify.tsx) | Tier 5 for vision agents: render → rasterize (pdftoppm/mutool) → look at the PNG; degrades to the geometry report without a rasterizer. |
 
 ## Client samples (React components)
 

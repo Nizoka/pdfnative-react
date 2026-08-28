@@ -99,6 +99,34 @@ No public API was removed or changed in a backward-incompatible way. One
   `true` to derive a strong validator from the rendered bytes — which implies
   buffering). Defaults unchanged: no caching headers unless you opt in.
 
+#### PDF/A conformance gate (veraPDF)
+
+- `npm run validate:pdfa` renders a 10-file PDF/A corpus through the **built**
+  package — both authoring doors (JSX and `DocSpec`), all four conformance
+  targets (1b/2b/2u/3b), and this release's chart/print features — and
+  validates every file with the pinned
+  [veraPDF](https://verapdf.org) reference validator (greenfield 1.30.2,
+  installer SHA-256-verified in CI). Two **negative canaries** the validator
+  must reject guard against a validator that accepts everything; `XPASS` is
+  fatal. Blocking in CI (`.github/workflows/verapdf.yml`) and in the
+  pre-publish gate; without veraPDF the local runner skips with exit 0 — a
+  skip, not a pass (`VERAPDF_REQUIRED=1` fails closed).
+- Same runner design as `pdfnative-cli`/`pdfnative-mcp`: manifest-driven
+  discovery, strict single-`<validationReport>` parsing, `.bat` launcher
+  spawned through a shell with every argument quoted (CVE-2024-27980), raw
+  XML reports uploaded as CI artifacts.
+
+#### Visual verification for vision agents (dry-run tier 5)
+
+- The agent contract gains a post-render tier: `extractText` (text truth),
+  `validatePdfUA`/veraPDF (conformance truth), and — for vision-capable
+  agents — **rasterize and look**: render, rasterize with a standard external
+  tool (`pdftoppm`/`mutool`; nothing is bundled, no new dependency), read the
+  PNG, judge against intent. Documented in `docs/AGENT_CONTRACT.md`,
+  `docs/RECIPES.md` (which also fixes `docs/LINTING.md`'s dangling veraPDF
+  cross-reference) and `llms.txt`; runnable with graceful degradation in
+  `samples/agent/visual-verify.tsx`.
+
 #### Environment helpers
 
 - `setDeflateImpl` is re-exported alongside `initNodeCompression`, closing an
@@ -144,6 +172,11 @@ No public API was removed or changed in a backward-incompatible way. One
   were sent. `renderToStream` now runs the engine's
   `validateDocumentStreamable` eagerly, so every streaming entry point throws
   a catchable error at call time instead. Documented in `docs/SERVER.md`.
+- `samples/layout/page-setup.tsx` claimed PDF/A-2b without embedding fonts —
+  a genuinely non-conformant output, invisible to `L_TAGGED_NO_FONTS` because
+  the claim rides on `RenderOptions.layout` rather than the `tagged` prop. It
+  now embeds Noto Sans and documents the lint blind spot; the veraPDF corpus
+  is what proves such files conformant for real.
 - `ROADMAP.md` claimed five lint rules pre-empt engine failures where every
   other document said eight — the count the 1.1.0 drift sweep missed.
 - **CI (already on `main`, first released here):** the publish workflow

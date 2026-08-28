@@ -115,6 +115,33 @@ thresholds). No public API was removed or changed.
   `eslint-disable-next-line` with the reason, keeping the rules armed for
   future code instead of a rule-wide opt-out.
 
+### `scripts/generate-pdfa-corpus.mjs` + `scripts/validate-pdfa.mjs` + `.github/workflows/verapdf.yml` (new)
+- The veraPDF conformance gate, ported from the ecosystem's most mature
+  implementation (`pdfnative-cli`): a 10-file manifest-driven corpus rendered
+  through the **built** package (4 JSX-door + 4 DocSpec-door positives across
+  pdfa1b/2b/2u/3b incl. Charts v2 dual axis and print production; 2 negative
+  canaries — no-fonts, and the known engine `/Helv` form gap, self-expiring
+  via fatal XPASS). Runner: strict single-`<validationReport>` parsing,
+  6-outcome taxonomy, fail-closed `VERAPDF_REQUIRED=1`, `.bat`-through-shell
+  quoting (CVE-2024-27980), raw-report artifacts. CI **blocking** (user
+  decision; engine/CLI precedent), pinned veraPDF greenfield 1.30.2 with
+  installer SHA-256 verified before `java -jar`; the same gate runs
+  pre-publish in `publish.yml` before the SBOM.
+- `samples/layout/page-setup.tsx` fixed: it claimed PDF/A-2b without fonts —
+  non-conformant, and invisible to `L_TAGGED_NO_FONTS` (claim via
+  `RenderOptions.layout`). Now embeds Noto Sans and documents the blind spot.
+- `.gitignore`: root-anchored `/*.pdf` for stray sample outputs.
+
+### Tier 5 — visual verification for vision agents (new)
+- `docs/AGENT_CONTRACT.md` gains the post-render tier (`extractText` →
+  `validatePdfUA`/veraPDF → rasterize + look); `docs/RECIPES.md` gains the
+  matching recipe (also repairing `docs/LINTING.md`'s dangling veraPDF
+  cross-reference); `llms.txt` documents it for agents;
+  `samples/agent/visual-verify.tsx` runs it end to end with graceful
+  degradation to the tier-4 geometry report when no rasterizer
+  (`pdftoppm`/`mutool`) is installed. No dependency added — the rasterizer is
+  deliberately external.
+
 ### Version plumbing
 `src/version.ts` → 1.2.0; `package.json`; `CITATION.cff` (+ `date-released:
 2026-08-26`). Governance spec (`.github/ai-governance.json` / `governance.ts`)
@@ -181,7 +208,13 @@ npm run build           ✔ 8 dist artifacts, tree-shake probe ok (version-only
                           bundle 3354 bytes, no reconciler), 'use client'
                           restored on client bundles, absent from root
 npm audit --omit=dev --audit-level=high   ✔ 0 vulnerabilities
-New samples executed manually             ✔ 3/3 produce valid PDFs
+New samples executed manually             ✔ 4/4 produce valid PDFs (incl. visual-verify
+                                            with graceful no-rasterizer degradation)
+npm run corpus:pdfa                       ✔ 10 files + manifest (2 negative canaries;
+                                            engine diagnostics observed on both, as designed)
+node scripts/validate-pdfa.mjs            ✔ canaries green; SKIPPED locally (no veraPDF/Java
+                                            on the dev machine — exit 0 is a skip, not a pass;
+                                            CI runs the same corpus blocking + fail-closed)
 ```
 
 ## Adversarial review

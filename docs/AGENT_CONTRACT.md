@@ -181,6 +181,35 @@ rejects).
 Gate on `report.ok` (true when no `error`-severity finding). See
 [LINTING.md](LINTING.md).
 
+### Tier 5 — verifying the rendered output (post-render)
+
+Tiers 1–4 check the document *model* before spending a render. Tier 5 checks
+the *output* — the finished bytes — and is where an autonomous agent proves
+its work rather than trusting it. Four ascending checks, each answering a
+different question:
+
+| Check | Question it answers | How |
+|---|---|---|
+| `inspectSpec` / `inspectDocument` | Where did every block land? | Structured geometry, no bytes needed (tier 4, listed for contrast) |
+| `extractText` (engine) | Did the text really render, or fall back to `.notdef`? | `import { extractText } from 'pdfnative'` on the rendered bytes — see [RECIPES.md](RECIPES.md) |
+| `validatePdfUA` (engine) / **veraPDF** | Is the conformance claim true? | `npm run validate:pdfa` runs the veraPDF reference validator over the repo's PDF/A corpus; agents can validate their own output the same way — see [RECIPES.md](RECIPES.md) |
+| **Rasterize + look** (vision agents) | Does the page *look* right? | Rasterize with a standard external tool and read the PNG |
+
+The last row is for agents with vision capability. pdfnative-react bundles no
+rasterizer (no new dependency, ever — golden rule 1); use a standard tool:
+
+```bash
+pdftoppm -png -r 144 out.pdf page        # poppler-utils → page-1.png, page-2.png…
+mutool draw -o page-%d.png -r 144 out.pdf  # mupdf-tools alternative
+```
+
+Render → rasterize → **read the image** → judge against your intent: is the
+layout what you meant, are the chart bars in the right order, is anything
+clipped or overlapping? Geometry (`inspectSpec`) tells you where blocks are;
+only looking tells you whether the page communicates. Runnable, with graceful
+degradation to tier 4 when no rasterizer is installed:
+[`samples/agent/visual-verify.tsx`](../samples/agent/visual-verify.tsx).
+
 ## 6. Errors
 
 Every error carries a stable `code`. **Branch on the code, never on the

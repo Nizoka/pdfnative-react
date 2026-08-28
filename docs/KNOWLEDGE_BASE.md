@@ -204,6 +204,19 @@ Notes learned the hard way:
   authoring surface deliberately does not re-export).
 - jsdom lacks `URL.createObjectURL`; `tests/setup.ts` stubs it.
 
+Beyond vitest sits the **external conformance tier**:
+`scripts/generate-pdfa-corpus.mjs` renders a 10-file PDF/A corpus through the
+*built* package (both authoring doors, all four conformance targets, this
+release's chart/print features) into `test-output/pdfa/`, and
+`scripts/validate-pdfa.mjs` validates every claiming file with the pinned
+veraPDF reference validator (six outcomes: PASS/FAIL/XFAIL/XPASS/INFRA/SKIP).
+Two design points matter: the corpus carries **two negative canaries** veraPDF
+must reject (their absence — or an XPASS — fails the run, so a validator that
+accepts everything can never turn the gate green), and without veraPDF the
+runner **skips with exit 0** — a skip, not a pass; CI (`verapdf.yml` + the
+pre-publish gate) sets `VERAPDF_REQUIRED=1` to fail closed. veraPDF is an
+external tool, never a dependency.
+
 ## 7. Agent authoring contract (`src/spec/`)
 
 pdfnative-react is a *library*, so the token cost LLM agents pay is **authoring**

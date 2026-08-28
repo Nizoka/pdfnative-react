@@ -49,6 +49,8 @@
     "typecheck:samples": "tsc --project samples/tsconfig.json --noEmit",
     "typecheck:all": "npm run typecheck && npm run typecheck:tests && npm run typecheck:samples",
     "verify:issue": "node scripts/verify-issue.mjs",
+    "corpus:pdfa": "node scripts/generate-pdfa-corpus.mjs",
+    "validate:pdfa": "npm run build && npm run corpus:pdfa && node scripts/validate-pdfa.mjs",
     "prepublishOnly": "npm run build"
   },
   "keywords": [

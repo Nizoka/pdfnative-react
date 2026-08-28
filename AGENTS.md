@@ -146,6 +146,9 @@ npm run typecheck:all
 npm run lint
 npm test
 npm run build
+npm run validate:pdfa   # PDF/A conformance (veraPDF) — skips cleanly when
+                        # veraPDF is not installed; CI runs it blocking with
+                        # VERAPDF_REQUIRED=1. See CONTRIBUTING.md.
 ```
 
 Add or update tests under `tests/` for any behavioural change, and update

@@ -52,6 +52,11 @@ const bytes = renderToBytes(
 - **Checks its own work.** `lintDocument` reports accessibility problems and
   pre-empts the engine constraints that would otherwise throw mid-render — see
   [Linting](docs/LINTING.md).
+- **Validated against veraPDF.** A PDF/A corpus covering both authoring doors
+  and all four conformance targets is validated with the pinned veraPDF
+  reference validator — locally (`npm run validate:pdfa`) and as a blocking CI
+  and pre-publish gate, with negative canaries the validator must reject. See
+  [CONTRIBUTING.md](CONTRIBUTING.md#pdfa-validation-verapdf).
 - **Typed, tested, tree-shakeable.** Strict TypeScript, dual ESM + CJS, source
   maps, provenance-signed publishes.
 

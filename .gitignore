@@ -10,9 +10,12 @@ coverage/
 # Test output
 test-output/
 
-# Sample output (generated PDFs — not committed)
+# Sample output (generated PDFs — not committed). Samples write to the
+# current directory, so running them from the repo root leaves stray PDFs;
+# the anchored rule catches those without touching fixtures elsewhere.
 samples/output/
 output.pdf
+/*.pdf
 
 # Environment files — never commit secrets
 .env

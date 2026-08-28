@@ -32,7 +32,7 @@ npm install
 
 ## PDF/A validation (veraPDF)
 
-`npm run validate:pdfa` renders a 10-file corpus through the **built** package
+`npm run validate:pdfa` renders an 11-file corpus through the **built** package
 (both authoring doors — JSX and `DocSpec` — across all four conformance
 targets 1b/2b/2u/3b) and validates every file with the
 [veraPDF](https://verapdf.org) reference validator against the profile it

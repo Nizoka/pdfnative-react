@@ -207,7 +207,7 @@ Notes learned the hard way:
 - jsdom lacks `URL.createObjectURL`; `tests/setup.ts` stubs it.
 
 Beyond vitest sits the **external conformance tier**:
-`scripts/generate-pdfa-corpus.mjs` renders a 10-file PDF/A corpus through the
+`scripts/generate-pdfa-corpus.mjs` renders an 11-file PDF/A corpus through the
 *built* package (both authoring doors, all four conformance targets, this
 release's chart/print features) into `test-output/pdfa/`, and
 `scripts/validate-pdfa.mjs` validates every claiming file with the pinned

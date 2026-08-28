@@ -117,11 +117,12 @@ thresholds). No public API was removed or changed.
 
 ### `scripts/generate-pdfa-corpus.mjs` + `scripts/validate-pdfa.mjs` + `.github/workflows/verapdf.yml` (new)
 - The veraPDF conformance gate, ported from the ecosystem's most mature
-  implementation (`pdfnative-cli`): a 10-file manifest-driven corpus rendered
-  through the **built** package (4 JSX-door + 4 DocSpec-door positives across
-  pdfa1b/2b/2u/3b incl. Charts v2 dual axis and print production; 2 negative
-  canaries — no-fonts, and the known engine `/Helv` form gap, self-expiring
-  via fatal XPASS). Runner: strict single-`<validationReport>` parsing,
+  implementation (`pdfnative-cli`): an 11-file manifest-driven corpus rendered
+  through the **built** package (9 positives across pdfa1b/2b/2u/3b through
+  both authoring doors, incl. Charts v2 dual axis, print production, and a
+  form with embedded fonts; 2 negative canaries — plain text and the AcroForm
+  content path, both without embedded fonts, ISO 19005-2 §6.2.11.4.1).
+  Runner: strict single-`<validationReport>` parsing,
   6-outcome taxonomy, fail-closed `VERAPDF_REQUIRED=1`, `.bat`-through-shell
   quoting (CVE-2024-27980), raw-report artifacts. CI **blocking** (user
   decision; engine/CLI precedent), pinned veraPDF greenfield 1.30.2 with
@@ -222,8 +223,10 @@ npm run build           ✔ 8 dist artifacts, tree-shake probe ok (version-only
 npm audit --omit=dev --audit-level=high   ✔ 0 vulnerabilities
 New samples executed manually             ✔ 4/4 produce valid PDFs (incl. visual-verify
                                             with graceful no-rasterizer degradation)
-npm run corpus:pdfa                       ✔ 10 files + manifest (2 negative canaries;
-                                            engine diagnostics observed on both, as designed)
+npm run corpus:pdfa                       ✔ 11 files + manifest (2 negative canaries;
+                                            engine diagnostics observed as designed)
+First blocking CI veraPDF run             ✔ after round 4: 9 PASS + 2 XFAIL expected
+                                            (round-4 XPASS event resolved below)
 node scripts/validate-pdfa.mjs            ✔ canaries green; SKIPPED locally (no veraPDF/Java
                                             on the dev machine — exit 0 is a skip, not a pass;
                                             CI runs the same corpus blocking + fail-closed)
@@ -309,6 +312,32 @@ without veraPDF), and the corpus/canaries behave exactly as documented.
 | `failedRules` regex in the validator is attribute-order-dependent (A) | Legitimate — keep verbatim | The verdict parse is independent and an emptied listing prints an explicit marker; fixing only here would diverge the ecosystem port. Noted as an upstream follow-up (fix in `pdfnative-cli` first, re-port everywhere). |
 | `2> >(tee …)` flush race in the workflow (A) | **Rejected** | Exit code travels via `PIPESTATUS`; per-file stderr is independently written and uploaded; identical construct runs in production upstream CI. |
 | `L_PRINT_BOXES` could surface a raw TypeError on a 1.6.x peer (A) | **Rejected — premise wrong** | The call already sits in the rule's try/catch, and a 1.6.x ESM peer fails at module load before lint runs; out-of-contract regardless (`doctor()` reports it). |
+
+### Round 4 — first blocking CI veraPDF run: the XPASS guard fired, and was right
+
+The very first CI run of the new gate failed with
+`XPASS form-pdfa2b.pdf (negative canary ACCEPTED)` — exactly the fatal guard
+working as designed, against **us**: the manifest's expectation was wrong,
+not the validator. Analysis: the engine's `PDFA_UNEMBEDDED_FORM_FONT`
+diagnostic is *conservative* — it fires because the AcroForm `/DA` references
+`/Helv` — but in this corpus entry (embedded `fontEntries`, no field values)
+no text actually renders through `/Helv`, so veraPDF 1.30.2 correctly accepts
+the file. ISO 19005 requires embedding for fonts *used for rendering*.
+
+Resolution: `form-pdfa2b.pdf` became a **positive** (empirically CI-proven,
+and now valuable coverage: forms + embedded fonts pass under PDF/A), and a
+genuine negative replaced it — `form-nofonts-pdfa2b.pdf` (form + text with no
+embedded fonts, the AcroForm content path of §6.2.11.4.1, same
+proven-rejection class as `nofonts-pdfa2b`). Corpus 10 → 11 files, still 2
+negative canaries; all counts swept.
+
+**Upstream observation for `pdfnative-mcp`**: its corpus carries the same
+`form-pdfa2b` / `expectCompliant: false` expectation ("veraPDF reports
+6.2.11.4.1") that this CI run disproved for the no-values case — and its
+veraPDF workflow is *advisory* (`continue-on-error`), so an XPASS there would
+currently pass unnoticed. Worth re-checking when mcp's gate goes blocking;
+note their entry fills field *values* through `/DA /Helv`, which may genuinely
+render through the unembedded font — the verdict may legitimately differ.
 
 ## Backward compatibility
 

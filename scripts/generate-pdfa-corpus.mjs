@@ -1,7 +1,7 @@
 /**
  * pdfnative-react — PDF/A validation corpus generator
  * ===================================================
- * Renders 10 documents through the BUILT package (`dist/index.js` — the same
+ * Renders 11 documents through the BUILT package (`dist/index.js` — the same
  * artefact npm ships, matching the ecosystem's "validate what ships"
  * principle) into `test-output/pdfa/`, and writes `manifest.json` describing
  * each file's expectations for `scripts/validate-pdfa.mjs`.
@@ -9,21 +9,27 @@
  * Usage:  npm run corpus:pdfa   (runs after `npm run build` via validate:pdfa)
  *
  * Corpus design:
- *   - 8 positive entries covering all four engine conformance targets
+ *   - 9 positive entries covering all four engine conformance targets
  *     (pdfa1b / pdfa2b / pdfa2u / pdfa3b) through BOTH authoring doors —
  *     JSX (createElement, no transform needed) and DocSpec (renderSpecToFile)
  *     — including this release's headline features (Charts v2 dual axis,
- *     print production) under a PDF/A claim.
- *   - 2 NEGATIVE canaries, files veraPDF must REJECT:
- *       nofonts-pdfa2b.pdf — a PDF/A claim with no embedded fonts
- *         (ISO 19005-2 §6.2.11.4.1); mirrors lint rule L_TAGGED_NO_FONTS and
- *         the engine diagnostic PDFA_NO_FONT_ENTRIES.
- *       form-pdfa2b.pdf — a form field under PDF/A: the engine still writes a
- *         non-embedded /Helv for widget appearances even when fontEntries are
- *         supplied (the documented engine gap behind L_TAGGED_FORM_FONTS /
- *         PDFA_UNEMBEDDED_FORM_FONT). expectCompliant: false is self-expiring:
- *         the day the engine embeds /DR fonts, this flips to XPASS — which the
- *         validator treats as fatal — and the manifest gets updated on purpose.
+ *     print production) under a PDF/A claim. form-pdfa2b.pdf (form fields
+ *     WITH embedded fontEntries, no field values) is a deliberate positive:
+ *     the engine's PDFA_UNEMBEDDED_FORM_FONT diagnostic fires conservatively
+ *     because the AcroForm /DA references /Helv, but veraPDF 1.30.2 accepts
+ *     the file — no widget text is actually rendered through /Helv here.
+ *     Empirically established by this repo's first blocking CI run, where the
+ *     original expectCompliant:false tripped the fatal XPASS guard exactly as
+ *     designed. (If a future engine or veraPDF flips this verdict, the gate
+ *     will say so loudly.)
+ *   - 2 NEGATIVE canaries, files veraPDF must REJECT (both ISO 19005-2
+ *     §6.2.11.4.1 — text rendered through unembedded fonts — via two distinct
+ *     content paths):
+ *       nofonts-pdfa2b.pdf — plain text under a PDF/A claim with no embedded
+ *         fonts; mirrors lint rule L_TAGGED_NO_FONTS and the engine
+ *         diagnostic PDFA_NO_FONT_ENTRIES.
+ *       form-nofonts-pdfa2b.pdf — form fields AND page text with no embedded
+ *         fonts (the AcroForm path of the same violation).
  *   - Positive entries render with `layout.strict: true`, so any conformance
  *     diagnostic aborts generation instead of shipping a doomed corpus entry.
  *     Negative entries must NOT set strict (it would throw before bytes);
@@ -216,15 +222,32 @@ const specDocs = {
         ],
     },
     'form-pdfa2b.pdf': {
-        title: 'Corpus negative: form field',
+        title: 'Corpus form (embedded fonts)',
         tagged: 'pdfa2b',
         fontEntries,
-        // NEGATIVE canary — no strict: the engine renders the widget through
-        // a non-embedded /Helv (its documented gap) and warns via the
-        // diagnostics channel; veraPDF must reject the file.
+        // POSITIVE, deliberately not strict: the engine's conservative
+        // PDFA_UNEMBEDDED_FORM_FONT diagnostic fires (the AcroForm /DA
+        // references /Helv) and strict would abort — but with embedded
+        // fontEntries and no field values, no text renders through /Helv and
+        // veraPDF 1.30.2 accepts the file (CI-proven). The diagnostic is
+        // collected and printed as an informational note.
         layout: { onDiagnostic: noteDiagnostic },
         blocks: [
             ['h1', 'Form under PDF/A'],
+            ['field', { fieldType: 'text', name: 'fullName', label: 'Full name' }],
+            ['field', { fieldType: 'checkbox', name: 'consent', label: 'I agree', checked: false }],
+        ],
+    },
+    'form-nofonts-pdfa2b.pdf': {
+        title: 'Corpus negative: form without fonts',
+        tagged: 'pdfa2b',
+        // NEGATIVE canary — no fontEntries and no strict: heading and field
+        // labels render through unembedded base-14 fonts under a PDF/A claim
+        // (ISO 19005-2 6.2.11.4.1, the AcroForm content path). veraPDF must
+        // reject the file.
+        layout: { onDiagnostic: noteDiagnostic },
+        blocks: [
+            ['h1', 'Form under PDF/A, no embedded fonts'],
             ['field', { fieldType: 'text', name: 'fullName', label: 'Full name' }],
             ['field', { fieldType: 'checkbox', name: 'consent', label: 'I agree', checked: false }],
         ],
@@ -247,7 +270,8 @@ const EXPECTATIONS = {
     'spec-pdfa2b-blocks.pdf': { entry: 'renderSpecToFile — toc/outline/list/table under pdfa2b, strict', expectCompliant: true },
     'spec-pdfa2u-unicode.pdf': { entry: 'renderSpecToFile — pdfa2u Unicode mapping, strict', expectCompliant: true },
     'spec-pdfa2b-barcode.pdf': { entry: 'renderSpecToFile — qr + code128 under pdfa2b, strict', expectCompliant: true },
-    'form-pdfa2b.pdf': { entry: "renderSpecToFile — ['field'] under pdfa2b (KNOWN engine /Helv gap, negative canary)", expectCompliant: false },
+    'form-pdfa2b.pdf': { entry: "renderSpecToFile — ['field'] under pdfa2b with embedded fonts (engine diagnostic is conservative; veraPDF accepts — CI-proven)", expectCompliant: true },
+    'form-nofonts-pdfa2b.pdf': { entry: "renderSpecToFile — NEGATIVE: ['field'] + text under pdfa2b, no embedded fonts (ISO 19005-2 6.2.11.4.1, AcroForm path)", expectCompliant: false },
 };
 
 // ── Generate ─────────────────────────────────────────────────────────
@@ -286,7 +310,7 @@ for (const name of allNames) {
         process.exit(1);
     }
     if (diagnostics.length > 0) {
-        log(`  note ${name}: engine diagnostics ${[...new Set(diagnostics)].join(', ')} (expected on negative canaries)`);
+        log(`  note ${name}: engine diagnostics ${[...new Set(diagnostics)].join(', ')} (informational — expected on the negative canaries and on form-pdfa2b's conservative /DA warning)`);
     }
     const exp = EXPECTATIONS[name];
     files.push({ file: name, entry: exp.entry, bytes: bytes.byteLength, expectPdfAClaim: true, expectCompliant: exp.expectCompliant });

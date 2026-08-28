@@ -101,7 +101,7 @@ No public API was removed or changed in a backward-incompatible way. One
 
 #### PDF/A conformance gate (veraPDF)
 
-- `npm run validate:pdfa` renders a 10-file PDF/A corpus through the **built**
+- `npm run validate:pdfa` renders an 11-file PDF/A corpus through the **built**
   package — both authoring doors (JSX and `DocSpec`), all four conformance
   targets (1b/2b/2u/3b), and this release's chart/print features — and
   validates every file with the pinned

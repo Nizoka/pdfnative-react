@@ -134,6 +134,58 @@ jobs:
             console.log('rendered', bytes.length, 'bytes');
           "
 
+      # PDF/A conformance is a release-blocking property: the corpus (both
+      # authoring doors, all four conformance targets, two negative canaries)
+      # is validated with the pinned veraPDF reference validator before
+      # anything is published. Fail-closed: a broken veraPDF install is an
+      # INFRA failure, never a silent skip. Mirrors .github/workflows/verapdf.yml.
+      - name: Setup Java (Temurin 17 LTS)
+        uses: actions/setup-java@d7793b545071e98d581d3bf084a51c3213318a07 # v4.9.0
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install veraPDF CLI
+        env:
+          # Same pinned release + installer SHA-256 as verapdf.yml — the
+          # archive is executed with `java -jar`, so it is integrity-checked.
+          VERAPDF_INSTALL_URL: 'https://software.verapdf.org/rel/1.30/verapdf-greenfield-1.30.2-installer.zip'
+          VERAPDF_INSTALL_SHA256: '6cc6341cb1af644044054b81f00a6590a7918abb18f762243de115258bcad838'
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/verapdf-installer"
+          curl -fsSL -o "$HOME/verapdf-installer/installer.zip" "${VERAPDF_INSTALL_URL}"
+          echo "${VERAPDF_INSTALL_SHA256}  $HOME/verapdf-installer/installer.zip" | sha256sum --check --strict
+          unzip -q "$HOME/verapdf-installer/installer.zip" -d "$HOME/verapdf-installer"
+          INSTALLER_JAR=$(find "$HOME/verapdf-installer" -name 'verapdf-izpack-installer-*.jar' | head -n1)
+          if [ -z "${INSTALLER_JAR}" ]; then
+            echo "veraPDF installer jar not found"; exit 1
+          fi
+          mkdir -p "$HOME/verapdf"
+          cat > "$HOME/verapdf/auto-install.xml" <<XML
+          <?xml version="1.0" encoding="UTF-8" standalone="no"?>
+          <AutomatedInstallation langpack="eng">
+            <com.izforge.izpack.panels.htmlhello.HTMLHelloPanel id="welcome"/>
+            <com.izforge.izpack.panels.target.TargetPanel id="install_dir"><installpath>$HOME/verapdf</installpath></com.izforge.izpack.panels.target.TargetPanel>
+            <com.izforge.izpack.panels.packs.PacksPanel id="sdk_pack_select"><pack index="0" name="veraPDF GUI" selected="true"/><pack index="1" name="veraPDF Mac and *nix Scripts" selected="true"/><pack index="2" name="veraPDF Documentation" selected="false"/><pack index="3" name="veraPDF Sample Plugins" selected="false"/></com.izforge.izpack.panels.packs.PacksPanel>
+            <com.izforge.izpack.panels.install.InstallPanel id="install"/>
+            <com.izforge.izpack.panels.finish.FinishPanel id="finish"/>
+          </AutomatedInstallation>
+          XML
+          java -jar "${INSTALLER_JAR}" "$HOME/verapdf/auto-install.xml"
+          echo "VERAPDF_HOME=$HOME/verapdf" >> "$GITHUB_ENV"
+          echo "$HOME/verapdf" >> "$GITHUB_PATH"
+
+      - name: Generate PDF/A corpus
+        # dist/ is already built by the Build step above.
+        run: npm run corpus:pdfa
+
+      - name: Validate PDF/A corpus (blocking, fail-closed)
+        env:
+          VERAPDF_REQUIRED: '1'
+          VERAPDF_REPORT_DIR: test-output/pdfa/reports
+        run: node scripts/validate-pdfa.mjs
+
       - name: Generate SBOM (CycloneDX)
         # Software Bill of Materials for supply-chain transparency. Uses the
         # CycloneDX generator via npx (build-time only — adds ZERO runtime

@@ -39,7 +39,15 @@ export async function resolveFonts(fonts: FontsMap): Promise<FontEntry[]> {
     const entries: FontEntry[] = [];
     for (const lang of Object.keys(fonts)) {
         const fontData = await loadFontData(lang);
-        if (fontData) entries.push({ fontData, fontRef: lang, lang });
+        // `fontRef` is written verbatim into content streams as a PDF *name*
+        // (`BT /latin 10 Tf`), so it must carry the leading slash — a bare
+        // `latin` emits a keyword where ISO 32000 requires a name, and the
+        // whole file is malformed for conforming readers. Map keys stay
+        // slash-free (they are language identifiers); normalize here.
+        if (fontData) {
+            const fontRef = lang.startsWith('/') ? lang : `/${lang}`;
+            entries.push({ fontData, fontRef, lang });
+        }
     }
     return entries;
 }

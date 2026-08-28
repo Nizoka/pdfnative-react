@@ -38,6 +38,8 @@ interface PdfResponseOptions extends RenderOptions {
     disposition?: 'inline' | 'attachment'; // default 'inline'
     buffered?: boolean;                    // default false (stream)
     status?: number;                       // default 200
+    cacheControl?: string;                 // Cache-Control header; unset by default
+    etag?: string | true;                  // string verbatim | true = derive from bytes
     headers?: HeadersInit;                 // merged last — can override defaults
 }
 ```
@@ -46,6 +48,17 @@ interface PdfResponseOptions extends RenderOptions {
 you can pass to `renderToBytes` works here. Because `renderToResponse` is async,
 the `fonts` loader-map shortcut **is** honoured — unlike the synchronous entry
 points.
+
+## What cannot stream
+
+The engine's streaming path emits page 1 before it knows the final page count,
+so two features are fundamentally incompatible with it: `<TableOfContents>`
+blocks and `{pages}` in header/footer templates. Since 1.2.0
+`renderToResponse` (and every other streaming entry) checks this **eagerly**
+and throws before a `Response` is constructed — previously the engine's own
+check ran at the first stream pull, i.e. mid-response, after the status and
+headers were already sent. Render those documents with `buffered: true`, which
+has no such restriction.
 
 ## Streaming versus buffered
 
@@ -185,12 +198,18 @@ derived resource:
 
 ```ts
 return renderToResponse(doc, {
-    headers: {
-        'cache-control': 'public, max-age=3600, immutable',
-        etag: `"invoice-${id}-${String(invoice.updatedAt)}"`,
-    },
+    cacheControl: 'public, max-age=3600, immutable',
+    etag: `"invoice-${id}-${String(invoice.updatedAt)}"`,   // your own validator…
 });
+
+return renderToResponse(doc, { cacheControl: 'private, max-age=60', etag: true });
+// …or let the package derive a strong validator from the rendered bytes.
+// etag: true needs the whole PDF to hash, so it implies buffered: true.
 ```
 
-`headers` is merged last, so it overrides the defaults — including
-`content-type` if you really mean to.
+A validator derived from *your data* (the first form) is cheaper — it skips the
+render entirely when you answer `If-None-Match` with a `304` in your handler,
+which is where the `Request` lives; only the header is set here. `etag: true`
+is for when no natural data version exists. Raw `headers` still work and are
+merged last, so they override the defaults — including `content-type` if you
+really mean to.

@@ -5,7 +5,7 @@
 > object and renders real PDF bytes — no DOM, no headless browser, no native
 > modules. It is a declarative block flow, not a CSS/flexbox layout engine.
 
-Version: 1.1.0 · pairs with pdfnative 1.6.0.
+Version: 1.2.0 · pairs with pdfnative 1.7.0.
 
 This file is an LLM-facing capability summary. For the machine-readable JSON
 version, call `capabilityManifest()`; for schemas, call `schema(subject)`.
@@ -16,7 +16,7 @@ version, call `capabilityManifest()`; for schemas, call `schema(subject)`.
 npm install pdfnative-react pdfnative react
 ```
 
-Requires React 19, pdfnative >= 1.6, Node.js >= 22.
+Requires React 19, pdfnative >= 1.7, Node.js >= 22.
 
 ## Core idea
 
@@ -26,7 +26,7 @@ to a `Uint8Array` PDF.
 
 ## Components
 
-- Document (root: title, footerText, metadata, fontEntries, layout, outline, pageLabels, watermark, header, footer, attachments, tagged)
+- Document (root: title, footerText, metadata, fontEntries, layout, outline, pageLabels, watermark, header, footer, attachments, tagged, print)
 - Page (explicit page boundary; auto-pagination otherwise)
 - Section (sugar: title + grouped content; level?, color?, break?)
 - Heading (level 1-3)
@@ -40,7 +40,10 @@ to a `Uint8Array` PDF.
 - TableOfContents / Toc (alias)
 - Barcode (format, data) — qr, code128, ean13, pdf417, datamatrix
 - Svg (data: path or markup; <text>/<tspan> render as selectable PDF text)
-- Chart (chartType, series) — bar, barH, line, pie, donut; native vector, PDF/A-safe
+- Chart (chartType, series) — bar, barH, line, pie, donut, stackedBar, stackedBarH,
+  area, scatter; log/time scales (axis.scale, xAxis), secondary right axis (axis2 +
+  series yAxis:'right'), per-point dataLabels, labelStride/labelRotation; series
+  xValues required for scatter/positional axes. Native vector, PDF/A-safe.
 - FormField (fieldType, name) — interactive AcroForm widgets
 
 ## Document-level page furniture (props on <Document>, not components)
@@ -52,16 +55,33 @@ to a `Uint8Array` PDF.
   Requires tagged: 'pdfa3b' — the engine throws otherwise.
 - tagged: boolean | 'pdfa1b' | 'pdfa2b' | 'pdfa2u' | 'pdfa3b'
   PDF/A requires embedded fonts: pair with fontEntries.
+- print: PrintOptions { bleed? | trimBox?/bleedBox?/artBox?/cropBox? ([llx,lly,urx,ury]),
+  marks?: boolean | { crop?, registration?, length?, offset?, weight? }, userUnit? (1-75000) }
+  Print production (engine >= 1.7). bleed and trimBox are mutually exclusive; marks
+  need a TrimBox source; userUnit is rejected under 'pdfa1b'.
 
-All five fold into `layout` under the engine's keys (watermark, headerTemplate,
-footerTemplate, attachments, tagged). An explicit `layout` prop wins.
+All six fold into `layout` under the engine's keys (watermark, headerTemplate,
+footerTemplate, attachments, tagged, print). An explicit `layout` prop wins.
 Document.outline: OutlineItem[] | 'auto'. Document.pageLabels: PageLabelRange[].
+metadata.trapped: 'True' | 'False' | 'Unknown' (prepress /Trapped + XMP).
+layout.viewerPreferences also takes duplex, pickTrayByPDFSize,
+printPageRange ([[first,last], ...] 1-based) and numCopies.
+layout.strict (boolean, JSON-safe) escalates the engine's PDF/A conformance
+diagnostics (PDFA_NO_FONT_ENTRIES, PDFA_UNEMBEDDED_FORM_FONT,
+PDFA_DEVICE_CMYK_IMAGE) to thrown errors; layout.onDiagnostic (function — not
+representable in JSON specs) receives them instead of the default console.warn.
+layout.outputIntent ({ iccProfile: Uint8Array (RGB), outputConditionIdentifier, ... })
+applies to tagged output only — it is silently ignored otherwise (lint warns).
 
 ## Rendering
 
 - renderToBytes(node, options?) -> Uint8Array
 - renderToBlob(node, options?) -> Blob (application/pdf)
 - renderToStream(node, options?) -> AsyncGenerator<Uint8Array> (constant memory)
+  Streaming cannot include ['toc'] blocks or {pages} in header/footer templates
+  (the final page count is unknown when page 1 is emitted). renderToStream
+  validates this EAGERLY and throws at call time; use the buffered entries
+  (renderToBytes / renderToResponse with buffered: true) for those documents.
 - renderToResponse(node, options?) -> Promise<Response>  (web standard; streams by default)
 - renderToFile(node, path, options?) -> Promise<void> (Node only)
 - renderToFileStream(node, path, options?) -> Promise<StreamToFileResult> (Node, constant memory)
@@ -71,7 +91,8 @@ Document.outline: OutlineItem[] | 'auto'. Document.pageLabels: PageLabelRange[].
 
 `options`: { layout?: Partial<PdfLayoutOptions>, fontEntries?: FontEntry[], fonts?: FontsMap }.
 `renderToResponse` also takes { fileName?, disposition?: 'inline'|'attachment',
-buffered?, status?, headers? }. fonts (loader map) is honored only by async
+buffered?, status?, cacheControl?, etag? (string verbatim | true = derive from
+bytes, implies buffering), headers? }. fonts (loader map) is honored only by async
 entries (renderToFile, renderToFileStream, renderToResponse, usePdf,
 usePdfStream); for sync entries do `fontEntries: await resolveFonts({...})`.
 
@@ -104,7 +125,10 @@ Route Handler (app/**/route.ts) instead — that is what renderToResponse is for
 
 ## Font / environment helpers (re-exported from pdfnative)
 
-registerFonts, registerFont, loadFontData, downloadBlob, initNodeCompression.
+registerFonts, registerFont, loadFontData, downloadBlob, initNodeCompression,
+setDeflateImpl (inject a DEFLATE implementation so layout.compress produces
+real compression in browsers/workers; without it the engine falls back to
+stored blocks, which are slightly LARGER).
 
 ## Compact agent authoring (token-frugal DocSpec)
 
@@ -121,7 +145,7 @@ Prefer it when generating documents programmatically.
 - validateSpec(spec: unknown) -> { ok, errors, warnings }   (no JSON-Schema engine needed)
 
 DocSpec = { title?, footerText?, metadata?, fontEntries?, layout?, outline?,
-pageLabels?, watermark?, header?, footer?, attachments?, tagged?, blocks }.
+pageLabels?, watermark?, header?, footer?, attachments?, tagged?, print?, blocks }.
 Block tuples (kind, ...payload, opts?):
 - ['h1'|'h2'|'h3', text, opts?]
 - ['p', text, opts?]
@@ -135,7 +159,7 @@ Block tuples (kind, ...payload, opts?):
 - ['toc', opts?]
 - ['qr'|'code128'|'ean13'|'pdf417'|'datamatrix', data, opts?]
 - ['svg', data, opts?]
-- ['chart', { chartType, series, categories?, title?, width?, height?, legend?, axis?, markers?, colors?, align?, altText? }]
+- ['chart', { chartType, series, categories?, title?, width?, height?, legend?, axis?, axis2?, xAxis?, dataLabels?, labelStride?, labelRotation?, markers?, colors?, align?, altText? }]
 - ['field', { fieldType, name, ... }]
 
 ## Agent surface
@@ -163,30 +187,50 @@ Four dry-run tiers, cheapest first:
   3. lintSpec(spec)         accessibility + engine constraints (L_* codes)
   4. inspectSpec(spec)      pagination and geometry (costs ~a render)
 
+Tier 5 — verify the RENDERED output (post-render):
+  - extractText (engine, on the bytes): did text really render, or .notdef?
+  - validatePdfUA (engine) / veraPDF: is the conformance claim true?
+    The repo itself gates on veraPDF: `npm run validate:pdfa` renders a
+    PDF/A corpus (both authoring doors, 2 negative canaries) and validates
+    it with the pinned reference validator; blocking in CI.
+  - VISION AGENTS: rasterize with a standard external tool and LOOK at it —
+    `pdftoppm -png -r 144 out.pdf page` (poppler) or
+    `mutool draw -o page-%d.png -r 144 out.pdf` (mupdf). Judge the PNG
+    against your intent (layout, chart shape, clipping). No rasterizer is
+    bundled (no new dependency, ever). Runnable with graceful degradation:
+    samples/agent/visual-verify.tsx · recipe: docs/RECIPES.md.
+
 ## Errors
 
 Every error carries a stable code. Branch on the code, never the message.
 
 - PdfReactError (base) — .code, .toJSON() -> { ok: false, error: { code, message } }
+  Accepts ES2022 ErrorOptions: new PdfReactError(msg, code, { cause }); the
+  envelope deliberately omits the cause.
 - PdfStructureError extends PdfReactError — code 'E_STRUCTURE'
 - toErrorEnvelope(unknown) -> the same envelope for any thrown value
 - ErrorCode: E_STRUCTURE, E_INPUT, E_UNSUPPORTED, E_ENV, E_POLICY, E_RUNTIME
 
 ## Lint rules (stable L_* codes)
 
-18 rules — 10 error, 7 warning, 1 info.
+25 rules — 15 error, 9 warning, 1 info.
 
 errors:   L_EMPTY_DOCUMENT, L_TAGGED_NO_FONTS, L_TAGGED_ENCRYPTED,
           L_ATTACHMENTS_NEED_PDFA3, L_MAX_BLOCKS_EXCEEDED, L_CHART_EMPTY,
-          L_CHART_SERIES, L_CHART_CATEGORIES, L_CHART_VALUES, L_CHART_POINTS
+          L_CHART_SERIES, L_CHART_CATEGORIES, L_CHART_VALUES, L_CHART_POINTS,
+          L_CHART_LOG_SCALE, L_CHART_X_AXIS, L_CHART_LABELS, L_PRINT_BOXES,
+          L_VIEWER_PRINT_RANGE
 warnings: L_IMAGE_ALT, L_TABLE_HEADERS, L_HEADING_HIERARCHY, L_FIELD_LABEL,
-          L_LINK_TEXT, L_MAX_BLOCKS, L_OVERFLOW
+          L_LINK_TEXT, L_MAX_BLOCKS, L_OUTPUT_INTENT_IGNORED,
+          L_TAGGED_FORM_FONTS, L_OVERFLOW
 info:     L_CHART_ALT
 
-EIGHT of them pre-empt an exception the engine raises mid-render: the five
-L_CHART_* errors, L_ATTACHMENTS_NEED_PDFA3, L_TAGGED_ENCRYPTED and
-L_MAX_BLOCKS_EXCEEDED. The last fires against the engine default of 100 000
-blocks even when layout.maxBlocks is unset. L_OVERFLOW requires { overflow: true }.
+THIRTEEN of them pre-empt an exception the engine raises mid-render: the eight
+L_CHART_* errors, L_PRINT_BOXES (delegates to the engine's own
+validatePrintOptions, so its message is the engine's), L_VIEWER_PRINT_RANGE,
+L_ATTACHMENTS_NEED_PDFA3, L_TAGGED_ENCRYPTED and L_MAX_BLOCKS_EXCEEDED. The
+last fires against the engine default of 100 000 blocks even when
+layout.maxBlocks is unset. L_OVERFLOW requires { overflow: true }.
 
 ## Notes
 

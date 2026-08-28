@@ -33,6 +33,7 @@ import type {
     PdfColor,
     PdfLayoutOptions,
     PdfRow,
+    PrintOptions,
     QRErrorLevel,
     SvgRenderOptions,
     WatermarkOptions,
@@ -102,6 +103,15 @@ export interface DocumentProps {
     readonly footer?: PageTemplate;
     /** Embedded file attachments (PDF/A-3). Sugar over `layout.attachments`. */
     readonly attachments?: readonly PdfAttachment[];
+    /**
+     * Print-production page geometry: bleed/trim/art/crop boxes (or the
+     * one-line `bleed` shorthand), vector printer's marks, and large-format
+     * `/UserUnit`. Sugar over `layout.print`; an explicit `layout` wins.
+     *
+     * Requires the `pdfnative` engine ≥ 1.7.0. See `lintDocument`
+     * (rule `L_PRINT_BOXES`) for pre-render geometry validation.
+     */
+    readonly print?: PrintOptions;
     /**
      * Emit a tagged (accessible) PDF, optionally targeting a PDF/A conformance
      * level. `true` tags the document; `'pdfa2b'` &c. additionally enforce the
@@ -299,8 +309,10 @@ export interface TableProps {
     /** Cell border styling (sides, color, width, dash pattern). */
     readonly cellBorders?: CellBorders;
     /**
-     * Vertical alignment of cell content. Default: `'top'`.
-     * Override per column with `ColumnDef.vAlign`.
+     * Vertical alignment of cell content. When omitted, the engine keeps its
+     * historic baseline placement (which is not exactly `'top'`) so existing
+     * documents stay byte-identical. Override per column with
+     * `ColumnDef.vAlign`.
      */
     readonly cellVAlign?: 'top' | 'middle' | 'bottom';
     readonly children?: ReactNode;
@@ -479,9 +491,16 @@ export function Svg(props: SvgProps): ReactElement {
 
 /** Props for {@link Chart}. Mirrors the engine's `ChartBlock` one-for-one. */
 export interface ChartProps {
-    /** Chart kind: `'bar'`, `'barH'`, `'line'`, `'pie'` or `'donut'`. */
+    /**
+     * Chart kind: `'bar'`, `'barH'`, `'line'`, `'pie'`, `'donut'`,
+     * `'stackedBar'`, `'stackedBarH'`, `'area'` or `'scatter'`.
+     */
     readonly chartType: ChartType;
-    /** Data series. Pie/donut take exactly one series. */
+    /**
+     * Data series. Pie/donut take exactly one series. Series may bind to the
+     * secondary axis (`yAxis: 'right'`) and carry per-point x positions
+     * (`xValues`, required for `'scatter'` and positional `xAxis` types).
+     */
     readonly series: readonly ChartSeries[];
     /** Category / slice labels. Defaults to 1-based indices. */
     readonly categories?: readonly string[];
@@ -493,8 +512,35 @@ export interface ChartProps {
     readonly title?: string;
     /** Legend placement. Default: `'bottom'` for multi-series/pie, else `'none'`. */
     readonly legend?: ChartBlock['legend'];
-    /** Value-axis options (bar/line only). */
+    /**
+     * Value-axis options. `scale: 'log'` requires strictly positive values and
+     * is incompatible with stacked kinds (see `lintDocument`,
+     * rule `L_CHART_LOG_SCALE`).
+     */
     readonly axis?: ChartBlock['axis'];
+    /**
+     * Secondary right value axis. Rendered only when at least one series binds
+     * to it with `yAxis: 'right'`.
+     */
+    readonly axis2?: ChartBlock['axis2'];
+    /**
+     * X-axis options. Default type is `'category'`; `'linear'` and `'time'`
+     * position points by `ChartSeries.xValues` (`'time'` parses ISO-8601 or
+     * epoch ms and formats ticks in UTC). Scatter charts default to `'linear'`.
+     */
+    readonly xAxis?: ChartBlock['xAxis'];
+    /**
+     * Per-point value labels: `true` for engine defaults, or
+     * `{ decimals, prefix, suffix }` for formatting.
+     */
+    readonly dataLabels?: ChartBlock['dataLabels'];
+    /**
+     * Draw every Nth x-label. Defaults to the smallest stride that avoids
+     * collisions; `1` forces every label (the pre-1.7 behaviour).
+     */
+    readonly labelStride?: ChartBlock['labelStride'];
+    /** Rotate x-labels counter-clockwise, 0–90 degrees (typically `45`). */
+    readonly labelRotation?: ChartBlock['labelRotation'];
     /** Draw point markers on line series. Default: `false`. */
     readonly markers?: boolean;
     /** Palette override, per series (bar/line) or per slice (pie/donut). */
@@ -513,11 +559,11 @@ export interface ChartProps {
  * Compile-time lock: {@link ChartProps} must mirror the engine's `ChartBlock`
  * exactly (minus the `type` discriminator, which the serializer adds).
  *
- * The engine's roadmap has "Charts v2" — stacked bars, area, scatter, log/time
- * axes, per-point data labels — so `ChartBlock` *will* gain optional fields, and
- * `docs/CHARTS.md` already promises they arrive here as new `ChartProps`. This
- * turns that promise into a build error on the next engine minor instead of a
- * silently under-exposed component.
+ * It has already paid for itself once: when the engine shipped "Charts v2" in
+ * 1.7.0 (stacked bars, area, scatter, log/time axes, a secondary axis,
+ * per-point data labels), this assert turned the peer bump into a build error
+ * until every new `ChartBlock` field reached `ChartProps` — exactly as
+ * `docs/CHARTS.md` had promised. It stays armed for the next engine minor.
  */
 type ChartPropsAssert<T extends true> = T;
 type ChartPropsExact =
@@ -528,10 +574,13 @@ type ChartPropsExact =
 export type ChartPropsCoversChartBlock = ChartPropsAssert<ChartPropsExact>;
 
 /**
- * A native vector chart — bar, horizontal bar, line, pie or donut — rendered as
- * pure PDF path operators. No rasterisation, no chart library, and PDF/A-safe.
+ * A native vector chart — bar, horizontal bar, stacked bar, line, area,
+ * scatter, pie or donut — rendered as pure PDF path operators. No
+ * rasterisation, no chart library, and PDF/A-safe. Supports log and
+ * UTC-deterministic time scales, a secondary right axis and per-point data
+ * labels.
  *
- * Requires the `pdfnative` engine ≥ 1.6.0.
+ * Requires the `pdfnative` engine ≥ 1.7.0.
  */
 export function Chart(props: ChartProps): ReactElement {
     return h('chart', { ...props });

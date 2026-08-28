@@ -46,7 +46,9 @@ npx tsx samples/agent/compact-spec.ts # writes compact-spec.pdf
 | [layout/viewer-preferences.tsx](layout/viewer-preferences.tsx) | `layout.viewerPreferences` — control how a reader opens the PDF. |
 | [layout/debug-inspect.tsx](layout/debug-inspect.tsx) | `layout.debug` overlay + `inspectDocument` layout report. |
 | [layout/watermark-header-footer.tsx](layout/watermark-header-footer.tsx) | `watermark` / `header` / `footer` / `attachments` / `tagged` props, and a real PDF/A-3 document. |
+| [layout/print-production.tsx](layout/print-production.tsx) | `print` — bleed + printer's marks, `trapped` metadata, and duplex/copies Print-dialog defaults. |
 | [charts/charts.tsx](charts/charts.tsx) | All five chart types: bar, horizontal bar, line, pie, donut — with axes, legends, palettes and negative values. |
+| [charts/charts-v2.tsx](charts/charts-v2.tsx) | The 1.7.0 chart engine: stacked bars, area, scatter, time and dual axes, log scale, data labels, label rotation. |
 
 ## Server samples — HTTP responses
 
@@ -62,6 +64,7 @@ covers Next.js, Remix, Hono, Deno, Bun and Cloudflare Workers.
 | Sample | Shows |
 |---|---|
 | [quality/lint.tsx](quality/lint.tsx) | `lintDocument` — accessibility findings, rule filtering, the opt-in overflow check, and a CI gate. |
+| [quality/diagnostics.tsx](quality/diagnostics.tsx) | PDF/A conformance diagnostics: `layout.onDiagnostic` sink and `layout.strict` escalation to thrown errors. |
 
 ## Agent samples — autonomous usage
 
@@ -77,6 +80,7 @@ the loop. See [docs/AGENT_CONTRACT.md](../docs/AGENT_CONTRACT.md).
 | [agent/manifest.ts](agent/manifest.ts) | `capabilityManifest()` — every component, block, entry point, error code and lint rule. Pass `--json` to pipe it. |
 | [agent/error-envelope.tsx](agent/error-envelope.tsx) | The `E_*` taxonomy, `toErrorEnvelope`, and branching on codes rather than messages. |
 | [agent/schema.ts](agent/schema.ts) | Print the versioned JSON Schema agents validate against. |
+| [agent/visual-verify.tsx](agent/visual-verify.tsx) | Tier 5 for vision agents: render → rasterize (pdftoppm/mutool) → look at the PNG; degrades to the geometry report without a rasterizer. |
 
 ## Client samples (React components)
 

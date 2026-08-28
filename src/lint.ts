@@ -9,11 +9,12 @@
  * Findings carry a stable {@link LintRuleCode}. Branch on the code, never on
  * the message: messages may be reworded in any release, codes may not.
  *
- * Eight of the eighteen rules pre-empt an exception the engine raises
- * mid-render — the five `L_CHART_*` errors, `L_ATTACHMENTS_NEED_PDFA3`,
- * `L_TAGGED_ENCRYPTED` and `L_MAX_BLOCKS_EXCEEDED` — turning a runtime throw
- * into a finding you can act on beforehand. Two more (`L_EMPTY_DOCUMENT`,
- * `L_TAGGED_NO_FONTS`) catch output that renders successfully but is wrong.
+ * Thirteen of the twenty-five rules pre-empt an exception the engine raises
+ * mid-render — the eight `L_CHART_*` errors, `L_PRINT_BOXES`,
+ * `L_VIEWER_PRINT_RANGE`, `L_ATTACHMENTS_NEED_PDFA3`, `L_TAGGED_ENCRYPTED`
+ * and `L_MAX_BLOCKS_EXCEEDED` — turning a runtime throw into a finding you
+ * can act on beforehand. Two more (`L_EMPTY_DOCUMENT`, `L_TAGGED_NO_FONTS`)
+ * catch output that renders successfully but is wrong.
  *
  * The function is pure: it never writes to the console and never throws for a
  * lint failure. What you do with the report is your call.
@@ -22,6 +23,7 @@
  */
 
 import type { ReactNode } from 'react';
+import { PG_H, PG_W, validatePrintOptions } from './core-bridge/index.js';
 import { compileDocument, inspectDocument } from './render.js';
 import {
     LINT_RULES,
@@ -119,6 +121,13 @@ export const EMITTED_LINT_RULES: readonly LintRuleCode[] = [
     'L_CHART_CATEGORIES',
     'L_CHART_VALUES',
     'L_CHART_POINTS',
+    'L_CHART_LOG_SCALE',
+    'L_CHART_X_AXIS',
+    'L_CHART_LABELS',
+    'L_PRINT_BOXES',
+    'L_VIEWER_PRINT_RANGE',
+    'L_OUTPUT_INTENT_IGNORED',
+    'L_TAGGED_FORM_FONTS',
     'L_OVERFLOW',
 ];
 
@@ -182,11 +191,149 @@ function lintChart(block: ChartBlock, index: number, out: LintFinding[]): void {
         );
     }
 
+    // Mirror the engine's x-axis resolution: scatter defaults to a linear
+    // (positional) axis, everything else to categories.
+    const isScatter = chartType === 'scatter';
+    const xType = block.xAxis?.type ?? (isScatter ? 'linear' : 'category');
+    const positional = xType !== 'category';
+
+    if (positional && !(isScatter || chartType === 'line' || chartType === 'area')) {
+        out.push(
+            finding(
+                'L_CHART_X_AXIS',
+                `Chart #${index}: xAxis.type '${xType}' applies only to line/area/scatter charts.`,
+                { blockIndex: index, hint: "Drop xAxis.type, or switch to a line/area/scatter chart." },
+            ),
+        );
+    }
+    if (isScatter && !positional) {
+        out.push(
+            finding(
+                'L_CHART_X_AXIS',
+                `Chart #${index}: scatter charts need a positional x-axis — xAxis.type 'category' is not supported.`,
+                { blockIndex: index, hint: "Use xAxis.type 'linear' or 'time' (or omit xAxis)." },
+            ),
+        );
+    }
+    if (isRadial && series.some((s) => s.yAxis === 'right')) {
+        out.push(
+            finding(
+                'L_CHART_X_AXIS',
+                `Chart #${index}: yAxis binding applies to cartesian charts only, not ${chartType}.`,
+                { blockIndex: index, hint: 'Remove yAxis from the series.' },
+            ),
+        );
+    }
+
+    if (isScatter && (block.labelStride !== undefined || block.labelRotation !== undefined)) {
+        out.push(
+            finding(
+                'L_CHART_LABELS',
+                `Chart #${index}: labelStride/labelRotation apply to category axes only, not scatter.`,
+                { blockIndex: index, hint: 'Remove labelStride/labelRotation.' },
+            ),
+        );
+    }
+    if (
+        block.labelStride !== undefined
+        && (!Number.isInteger(block.labelStride) || block.labelStride < 1)
+    ) {
+        out.push(
+            finding(
+                'L_CHART_LABELS',
+                `Chart #${index}: labelStride must be an integer >= 1, got ${String(block.labelStride)}.`,
+                { blockIndex: index, hint: 'Use a whole number, or omit it for the automatic stride.' },
+            ),
+        );
+    }
+    if (
+        block.labelRotation !== undefined
+        && (!Number.isFinite(block.labelRotation)
+            || block.labelRotation < 0
+            || block.labelRotation > 90)
+    ) {
+        out.push(
+            finding(
+                'L_CHART_LABELS',
+                `Chart #${index}: labelRotation must be between 0 and 90 degrees, got ${String(block.labelRotation)}.`,
+                { blockIndex: index, hint: '45 is the typical choice for long labels.' },
+            ),
+        );
+    }
+
+    const stacked = chartType === 'stackedBar' || chartType === 'stackedBarH';
+    if (stacked && (block.axis?.scale === 'log' || block.axis2?.scale === 'log')) {
+        out.push(
+            finding(
+                'L_CHART_LOG_SCALE',
+                `Chart #${index}: log scale cannot be combined with stacked charts.`,
+                { blockIndex: index, hint: 'Use a linear scale, or an unstacked bar chart.' },
+            ),
+        );
+    }
+    for (const side of ['left', 'right'] as const) {
+        const axis = side === 'left' ? block.axis : block.axis2;
+        if (axis?.scale !== 'log') continue;
+        if (
+            (axis.yMin !== undefined && axis.yMin <= 0)
+            || (axis.yMax !== undefined && axis.yMax <= 0)
+        ) {
+            out.push(
+                finding(
+                    'L_CHART_LOG_SCALE',
+                    `Chart #${index}: log-scale axis bounds must be > 0.`,
+                    { blockIndex: index, hint: 'Set yMin/yMax to positive values.' },
+                ),
+            );
+        }
+        for (const s of series) {
+            if ((s.yAxis ?? 'left') !== side) continue;
+            if (s.values.some((v) => v <= 0)) {
+                out.push(
+                    finding(
+                        'L_CHART_LOG_SCALE',
+                        `Chart #${index} series "${s.label}" has non-positive values on a log axis.`,
+                        { blockIndex: index, hint: 'Log scales need strictly positive data.' },
+                    ),
+                );
+            }
+        }
+    }
+
     let points = 0;
     for (const s of series) {
         points += s.values.length;
 
-        if (categories !== undefined && s.values.length !== categories.length) {
+        if (positional) {
+            if (s.xValues === undefined) {
+                out.push(
+                    finding(
+                        'L_CHART_X_AXIS',
+                        `Chart #${index} series "${s.label}" needs xValues for xAxis.type '${xType}'.`,
+                        { blockIndex: index, hint: 'Give every series one x position per value.' },
+                    ),
+                );
+            } else if (s.xValues.length !== s.values.length) {
+                out.push(
+                    finding(
+                        'L_CHART_X_AXIS',
+                        `Chart #${index} series "${s.label}" has ${String(s.xValues.length)} xValues `
+                            + `but ${String(s.values.length)} values.`,
+                        { blockIndex: index, hint: 'xValues and values must be the same length.' },
+                    ),
+                );
+            } else if (xType !== 'time' && s.xValues.some((x) => typeof x === 'string')) {
+                out.push(
+                    finding(
+                        'L_CHART_X_AXIS',
+                        `Chart #${index} series "${s.label}" uses date strings — set xAxis.type to 'time'.`,
+                        { blockIndex: index, hint: "Only a 'time' axis parses ISO-8601 strings." },
+                    ),
+                );
+            }
+        }
+
+        if (categories !== undefined && !positional && s.values.length !== categories.length) {
             out.push(
                 finding(
                     'L_CHART_CATEGORIES',
@@ -373,6 +520,78 @@ function lintDocumentParams(params: DocumentParams, out: LintFinding[]): void {
                 {
                     hint: 'Set tagged="pdfa3b" on <Document> — only PDF/A-3 permits embedded files.',
                 },
+            ),
+        );
+    }
+
+    if (wantsPdfA && params.blocks.some((b) => b.type === 'formField')) {
+        out.push(
+            finding(
+                'L_TAGGED_FORM_FONTS',
+                `tagged="${tagged}" with form fields: the AcroForm font is not embedded, `
+                    + 'so the engine reports PDFA_UNEMBEDDED_FORM_FONT (and throws under '
+                    + 'layout.strict).',
+                {
+                    hint: 'Drop the form fields, relax the PDF/A target, or handle the '
+                        + 'diagnostic via layout.onDiagnostic.',
+                },
+            ),
+        );
+    }
+
+    // Delegate print geometry to the engine's own validator: a throw here is
+    // exactly the throw `buildDocumentPDF` would raise mid-render, so the
+    // finding carries the engine's message verbatim — zero duplicated rules.
+    const print = layout?.print;
+    if (print !== undefined) {
+        try {
+            validatePrintOptions(print, layout?.pageWidth ?? PG_W, layout?.pageHeight ?? PG_H, tagged);
+        } catch (error) {
+            out.push(
+                finding('L_PRINT_BOXES', error instanceof Error ? error.message : String(error), {
+                    hint: 'Fix layout.print / the <Document print> prop before rendering.',
+                }),
+            );
+        }
+    }
+
+    const prefs = layout?.viewerPreferences;
+    if (prefs?.printPageRange !== undefined) {
+        for (const [first, last] of prefs.printPageRange) {
+            if (!Number.isInteger(first) || !Number.isInteger(last) || first < 1 || last < first) {
+                out.push(
+                    finding(
+                        'L_VIEWER_PRINT_RANGE',
+                        `viewerPreferences.printPageRange entry [${String(first)}, ${String(last)}] is invalid.`,
+                        { hint: 'Entries are 1-based [first, last] pairs with last >= first.' },
+                    ),
+                );
+            }
+        }
+    }
+    if (
+        prefs?.numCopies !== undefined
+        && (!Number.isInteger(prefs.numCopies) || prefs.numCopies < 1)
+    ) {
+        out.push(
+            finding(
+                'L_VIEWER_PRINT_RANGE',
+                `viewerPreferences.numCopies must be a positive integer, got ${String(prefs.numCopies)}.`,
+                { hint: 'Use a whole number >= 1, or omit it.' },
+            ),
+        );
+    }
+
+    if (
+        layout?.outputIntent !== undefined
+        && (tagged === undefined || tagged === false)
+    ) {
+        out.push(
+            finding(
+                'L_OUTPUT_INTENT_IGNORED',
+                'layout.outputIntent is set but the document is not tagged — the engine '
+                    + 'silently ignores it.',
+                { hint: "Set tagged (e.g. 'pdfa2b'), or drop the outputIntent." },
             ),
         );
     }

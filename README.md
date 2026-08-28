@@ -52,6 +52,11 @@ const bytes = renderToBytes(
 - **Checks its own work.** `lintDocument` reports accessibility problems and
   pre-empts the engine constraints that would otherwise throw mid-render — see
   [Linting](docs/LINTING.md).
+- **Validated against veraPDF.** A PDF/A corpus covering both authoring doors
+  and all four conformance targets is validated with the pinned veraPDF
+  reference validator — locally (`npm run validate:pdfa`) and as a blocking CI
+  and pre-publish gate, with negative canaries the validator must reject. See
+  [CONTRIBUTING.md](CONTRIBUTING.md#pdfa-validation-verapdf).
 - **Typed, tested, tree-shakeable.** Strict TypeScript, dual ESM + CJS, source
   maps, provenance-signed publishes.
 
@@ -61,7 +66,7 @@ const bytes = renderToBytes(
 npm install pdfnative-react pdfnative react
 ```
 
-Requires **React 19**, **`pdfnative` ≥ 1.6**, and **Node.js ≥ 22** (the engine's
+Requires **React 19**, **`pdfnative` ≥ 1.7**, and **Node.js ≥ 22** (the engine's
 own floor since 1.6.0).
 
 ## Components
@@ -70,7 +75,7 @@ Every component maps 1:1 onto a pdfnative block.
 
 | Component | Renders |
 |---|---|
-| `Document` | The required root (`title`, `footerText`, `metadata`, `fontEntries`, `layout`, `outline`, `pageLabels`, `watermark`, `header`, `footer`, `attachments`, `tagged`). |
+| `Document` | The required root (`title`, `footerText`, `metadata`, `fontEntries`, `layout`, `outline`, `pageLabels`, `watermark`, `header`, `footer`, `attachments`, `tagged`, `print`). |
 | `Page` | An explicit page boundary (content auto-paginates otherwise). |
 | `Section` | Sugar: a heading grouped with its content (`title`, `level`, `color`, `break`). |
 | `Heading` | A section heading (`level` 1–3); feeds the auto `TableOfContents`. |
@@ -84,14 +89,14 @@ Every component maps 1:1 onto a pdfnative block.
 | `TableOfContents` / `Toc` | An auto-generated TOC built from headings. |
 | `Barcode` | QR, Code 128, EAN-13, PDF417, Data Matrix (`format`, `data`). |
 | `Svg` | Inline vector graphics (path data or markup; `<text>` renders as selectable PDF text). |
-| `Chart` | Native vector charts — bar, barH, line, pie, donut ([guide](docs/CHARTS.md)). |
+| `Chart` | Native vector charts — bar, barH, line, pie, donut, stackedBar, stackedBarH, area, scatter; log/time scales, dual axes, data labels ([guide](docs/CHARTS.md)). |
 | `FormField` | Interactive AcroForm widgets (`fieldType`, `name`). |
 
 ### Document-level page furniture
 
-`watermark`, `header`, `footer`, `attachments` and `tagged` are props on
-`<Document>` rather than components, because they are page furniture, not blocks
-in the flow. They fold into `layout` under the engine's own keys, and an
+`watermark`, `header`, `footer`, `attachments`, `tagged` and `print` are props
+on `<Document>` rather than components, because they are page furniture, not
+blocks in the flow. They fold into `layout` under the engine's own keys, and an
 explicit `layout` prop always wins.
 
 ```tsx
@@ -101,11 +106,16 @@ explicit `layout` prop always wins.
     footer={{ center: '{title}', right: 'Page {page} of {pages}' }}
     tagged="pdfa3b"
     attachments={[{ filename: 'data.xml', data, mimeType: 'application/xml' }]}
+    print={{ bleed: 9, marks: true }}                  // print production (engine ≥ 1.7)
 />
 ```
 
 Header and footer templates resolve `{page}`, `{pages}`, `{date}` and `{title}`
-at render time.
+at render time. `print` adds bleed/trim/art/crop boxes, vector printer's marks
+and large-format `userUnit`; `metadata.trapped` and the print-dialog viewer
+preferences (`duplex`, `printPageRange`, `numCopies`, `pickTrayByPDFSize` under
+`layout.viewerPreferences`) complete the prepress surface — see
+[samples/layout/print-production.tsx](samples/layout/print-production.tsx).
 
 ## Rendering
 
@@ -245,8 +255,8 @@ Block tuples: `['h1'|'h2'|'h3', text, opts?]`, `['p', text, opts?]`,
 `['toc', opts?]`, `['qr'|'code128'|'ean13'|'pdf417'|'datamatrix', data, opts?]`,
 `['svg', data, opts?]`, `['chart', { chartType, series, … }]`,
 `['field', { fieldType, name, … }]`. A spec also accepts top-level `outline`,
-`pageLabels`, `watermark`, `header`, `footer`, `attachments` and `tagged`,
-mirroring `<Document>`.
+`pageLabels`, `watermark`, `header`, `footer`, `attachments`, `tagged` and
+`print`, mirroring `<Document>`.
 
 ### Running autonomously
 
@@ -327,6 +337,31 @@ bytes this library produces.
 
 [docs/RECIPES.md](docs/RECIPES.md) shows each of those, with working code.
 
+## Upgrading to 1.2
+
+Everything in 1.2.0 is additive. One install-time floor moved:
+
+```bash
+npm install pdfnative-react@^1.2.0 pdfnative@^1.7.0 react@^19
+```
+
+- **`pdfnative` ≥ 1.7** is now required. The four new chart kinds,
+  `layout.print` and the diagnostics channel do not exist before 1.7.0, so an
+  older engine would throw mid-render. `doctor()` tells a 1.6.x engine apart
+  from a missing one and says exactly what to upgrade.
+- Rendering behaviour inherited from the engine, with no code change here:
+  RTL digit order, glyph mirroring and Arabic/Persian letterforms are now
+  UAX #9-conformant (Arabic-script documents render differently — and
+  correctly), form documents gain a complete `/ToUnicode` map (their bytes
+  change; text becomes searchable), and crowded chart x-labels are strided
+  automatically (`labelStride: 1` restores the old behaviour).
+
+No API was removed or changed. New: the Charts v2 props (`axis2`, `xAxis`,
+`dataLabels`, `labelStride`, `labelRotation`, series `xValues`/`yAxis`), the
+`print` document prop, `metadata.trapped`, `layout.strict`/`onDiagnostic`,
+seven lint rules (25 total), `cacheControl`/`etag` on `renderToResponse`, and
+`ErrorOptions`/`cause` on the error taxonomy.
+
 ## Upgrading to 1.1
 
 Everything in 1.1.0 is additive. Two install-time floors moved:
@@ -384,10 +419,11 @@ fonts, layout/PDF-A, the client hooks/components, and the compact agent spec.
 
 **Guides**
 
-- [Charts](docs/CHARTS.md) — the five chart types, accessibility, PDF/A.
+- [Charts](docs/CHARTS.md) — the nine chart types, dual axes, log/time scales,
+  accessibility, PDF/A.
 - [Server rendering](docs/SERVER.md) — `renderToResponse` on Next.js, Remix,
   Hono, Deno, Bun, Workers and Express.
-- [Linting](docs/LINTING.md) — the eighteen rules, and how to gate on them.
+- [Linting](docs/LINTING.md) — the twenty-five rules, and how to gate on them.
 - [Recipes](docs/RECIPES.md) — merging, form filling, text extraction,
   decryption: calling the engine on the bytes this library produces.
 - [Agent contract](docs/AGENT_CONTRACT.md) — driving the package autonomously.

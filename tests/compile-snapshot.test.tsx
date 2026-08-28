@@ -58,14 +58,20 @@ const ROWS: PdfRow[] = [
 
 /**
  * One document exercising every block kind and every document-level prop —
- * charts, layout sugar, outline, page labels, nested lists, typed table rows,
- * form fields, media and an explicit page group.
+ * charts (incl. the 1.7.0 v2 axes/labels and a scatter chart), layout sugar
+ * (incl. print production), outline, page labels, nested lists, typed table
+ * rows, form fields, media and an explicit page group.
  */
 const kitchenSink = (
     <Document
         title="Everything"
         footerText="Acme Inc"
-        metadata={{ author: 'Acme Inc', subject: 'Snapshot fixture', keywords: 'test' }}
+        metadata={{
+            author: 'Acme Inc',
+            subject: 'Snapshot fixture',
+            keywords: 'test',
+            trapped: 'False',
+        }}
         outline="auto"
         pageLabels={[{ startPage: 0, style: 'roman' }, { startPage: 2, style: 'decimal' }]}
         watermark="DRAFT"
@@ -73,7 +79,20 @@ const kitchenSink = (
         footer={FOOTER}
         attachments={[ATTACHMENT]}
         tagged="pdfa3b"
-        layout={{ pageWidth: 595, maxBlocks: 5000 }}
+        print={{
+            trimBox: [20, 20, 575, 822],
+            marks: { crop: true, registration: true, length: 12, offset: 4, weight: 0.3 },
+        }}
+        layout={{
+            pageWidth: 595,
+            maxBlocks: 5000,
+            viewerPreferences: {
+                duplex: 'duplexFlipLongEdge',
+                pickTrayByPDFSize: true,
+                printPageRange: [[1, 2]],
+                numCopies: 1,
+            },
+        }}
     >
         <Heading level={1}>Everything</Heading>
         <TableOfContents title="Contents" maxLevel={2} />
@@ -103,16 +122,28 @@ const kitchenSink = (
             chartType="bar"
             series={[
                 { label: '2025', values: [12, 18, 24, 31] },
-                { label: '2026', values: [15, 21, 29, 38] },
+                { label: 'Margin %', values: [40, 42, 45, 47], yAxis: 'right' },
             ]}
             categories={['Q1', 'Q2', 'Q3', 'Q4']}
             title="Revenue"
             axis={{ yMin: 0, ticks: 5, grid: true }}
+            axis2={{ yMin: 0, yMax: 100, ticks: 5, scale: 'linear' }}
+            xAxis={{ type: 'category', grid: false }}
+            dataLabels={{ decimals: 0, prefix: '€', suffix: 'k' }}
+            labelStride={1}
+            labelRotation={45}
             legend="bottom"
             markers
             colors={['#4e79a7', '#f28e2b']}
             align="center"
-            altText="Revenue rises each quarter, 2026 above 2025 throughout."
+            altText="Revenue rises each quarter; margin holds in the mid-forties."
+        />
+        <Chart
+            chartType="scatter"
+            series={[{ label: 'Samples', values: [3, 7, 4, 9], xValues: [1, 2, 3, 5] }]}
+            xAxis={{ type: 'linear', min: 0, max: 6, ticks: 3, grid: true }}
+            height={160}
+            altText="Four samples scattered between x=1 and x=5."
         />
         <Image data={PIXEL} width={64} height={64} align="right" alt="A single pixel" />
         <Svg data="M0 0 L10 10" width={40} height={40} viewBox={[0, 0, 10, 10]} alt="A diagonal" />
@@ -155,7 +186,12 @@ describe('DocSpec parity — golden model', () => {
         const spec: DocSpec = {
             title: 'Everything',
             footerText: 'Acme Inc',
-            metadata: { author: 'Acme Inc', subject: 'Snapshot fixture', keywords: 'test' },
+            metadata: {
+                author: 'Acme Inc',
+                subject: 'Snapshot fixture',
+                keywords: 'test',
+                trapped: 'False',
+            },
             outline: 'auto',
             pageLabels: [{ startPage: 0, style: 'roman' }, { startPage: 2, style: 'decimal' }],
             watermark: 'DRAFT',
@@ -163,7 +199,20 @@ describe('DocSpec parity — golden model', () => {
             footer: FOOTER,
             attachments: [ATTACHMENT],
             tagged: 'pdfa3b',
-            layout: { pageWidth: 595, maxBlocks: 5000 },
+            print: {
+                trimBox: [20, 20, 575, 822],
+                marks: { crop: true, registration: true, length: 12, offset: 4, weight: 0.3 },
+            },
+            layout: {
+                pageWidth: 595,
+                maxBlocks: 5000,
+                viewerPreferences: {
+                    duplex: 'duplexFlipLongEdge',
+                    pickTrayByPDFSize: true,
+                    printPageRange: [[1, 2]],
+                    numCopies: 1,
+                },
+            },
             blocks: [['h1', 'Everything']],
         };
 
@@ -171,7 +220,12 @@ describe('DocSpec parity — golden model', () => {
             <Document
                 title="Everything"
                 footerText="Acme Inc"
-                metadata={{ author: 'Acme Inc', subject: 'Snapshot fixture', keywords: 'test' }}
+                metadata={{
+                    author: 'Acme Inc',
+                    subject: 'Snapshot fixture',
+                    keywords: 'test',
+                    trapped: 'False',
+                }}
                 outline="auto"
                 pageLabels={[{ startPage: 0, style: 'roman' }, { startPage: 2, style: 'decimal' }]}
                 watermark="DRAFT"
@@ -179,7 +233,20 @@ describe('DocSpec parity — golden model', () => {
                 footer={FOOTER}
                 attachments={[ATTACHMENT]}
                 tagged="pdfa3b"
-                layout={{ pageWidth: 595, maxBlocks: 5000 }}
+                print={{
+                    trimBox: [20, 20, 575, 822],
+                    marks: { crop: true, registration: true, length: 12, offset: 4, weight: 0.3 },
+                }}
+                layout={{
+                    pageWidth: 595,
+                    maxBlocks: 5000,
+                    viewerPreferences: {
+                        duplex: 'duplexFlipLongEdge',
+                        pickTrayByPDFSize: true,
+                        printPageRange: [[1, 2]],
+                        numCopies: 1,
+                    },
+                }}
             >
                 <Heading level={1}>Everything</Heading>
             </Document>

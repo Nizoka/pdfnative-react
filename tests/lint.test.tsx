@@ -357,6 +357,397 @@ describe('chart rules — pre-empting engine failures', () => {
     });
 });
 
+describe('chart rules — 1.7.0 axes, scales and labels', () => {
+    it('L_CHART_LOG_SCALE — stacked charts cannot use a log scale', () => {
+        for (const chartType of ['stackedBar', 'stackedBarH'] as const) {
+            const report = lintDocument(
+                <Document>
+                    <Chart chartType={chartType} series={SERIES} axis={{ scale: 'log' }} altText="x" />
+                </Document>,
+            );
+            expect(codes(report), chartType).toContain('L_CHART_LOG_SCALE');
+            expect(report.ok).toBe(false);
+        }
+    });
+
+    it('L_CHART_LOG_SCALE — log axis bounds must be strictly positive', () => {
+        const report = lintDocument(
+            <Document>
+                <Chart chartType="line" series={SERIES} axis={{ scale: 'log', yMin: 0 }} altText="x" />
+            </Document>,
+        );
+        expect(codes(report)).toContain('L_CHART_LOG_SCALE');
+    });
+
+    it('L_CHART_LOG_SCALE — flags non-positive values on the series bound to the log axis', () => {
+        const left = lintDocument(
+            <Document>
+                <Chart
+                    chartType="line"
+                    series={[{ label: 'A', values: [1, 0, 3] }]}
+                    axis={{ scale: 'log' }}
+                    altText="x"
+                />
+            </Document>,
+        );
+        expect(codes(left)).toContain('L_CHART_LOG_SCALE');
+
+        // The binding matters: only the series on the log axis is checked.
+        const right = lintDocument(
+            <Document>
+                <Chart
+                    chartType="line"
+                    series={[
+                        { label: 'A', values: [-5, 2, 3] },
+                        { label: 'B', values: [1, 2, -3], yAxis: 'right' },
+                    ]}
+                    axis2={{ scale: 'log' }}
+                    altText="x"
+                />
+            </Document>,
+        );
+        const logFindings = right.findings.filter((f) => f.code === 'L_CHART_LOG_SCALE');
+        expect(logFindings).toHaveLength(1);
+        expect(logFindings[0].message).toContain('"B"');
+    });
+
+    it('L_CHART_LOG_SCALE — a positive-valued log-scale line chart is clean', () => {
+        const report = lintDocument(
+            <Document>
+                <Chart
+                    chartType="line"
+                    series={SERIES}
+                    axis={{ scale: 'log', yMin: 1, yMax: 10 }}
+                    altText="x"
+                />
+            </Document>,
+        );
+        expect(codes(report)).not.toContain('L_CHART_LOG_SCALE');
+    });
+
+    it('L_CHART_X_AXIS — a positional axis applies only to line/area/scatter', () => {
+        const report = lintDocument(
+            <Document>
+                <Chart chartType="bar" series={SERIES} xAxis={{ type: 'linear' }} altText="x" />
+            </Document>,
+        );
+        expect(codes(report)).toContain('L_CHART_X_AXIS');
+        expect(report.ok).toBe(false);
+    });
+
+    it("L_CHART_X_AXIS — scatter rejects an explicit 'category' axis", () => {
+        const report = lintDocument(
+            <Document>
+                <Chart chartType="scatter" series={SERIES} xAxis={{ type: 'category' }} altText="x" />
+            </Document>,
+        );
+        expect(codes(report)).toContain('L_CHART_X_AXIS');
+    });
+
+    it('L_CHART_X_AXIS — a right-axis binding is meaningless on a pie', () => {
+        const report = lintDocument(
+            <Document>
+                <Chart
+                    chartType="pie"
+                    series={[{ label: 'A', values: [1, 2], yAxis: 'right' }]}
+                    altText="x"
+                />
+            </Document>,
+        );
+        expect(codes(report)).toContain('L_CHART_X_AXIS');
+    });
+
+    it('L_CHART_X_AXIS — scatter is positional by default, so xValues are required', () => {
+        // No xAxis prop at all: the engine still resolves scatter to a linear
+        // axis, so the missing-xValues check must fire.
+        const report = lintDocument(
+            <Document>
+                <Chart chartType="scatter" series={[{ label: 'A', values: [1, 2, 3] }]} altText="x" />
+            </Document>,
+        );
+        expect(codes(report)).toContain('L_CHART_X_AXIS');
+    });
+
+    it('L_CHART_X_AXIS — xValues must be one per value', () => {
+        const report = lintDocument(
+            <Document>
+                <Chart
+                    chartType="line"
+                    xAxis={{ type: 'linear' }}
+                    series={[{ label: 'A', values: [1, 2, 3], xValues: [1, 2] }]}
+                    altText="x"
+                />
+            </Document>,
+        );
+        expect(codes(report)).toContain('L_CHART_X_AXIS');
+    });
+
+    it("L_CHART_X_AXIS — date strings on a non-'time' axis are flagged", () => {
+        const report = lintDocument(
+            <Document>
+                <Chart
+                    chartType="line"
+                    xAxis={{ type: 'linear' }}
+                    series={[{ label: 'A', values: [1, 2], xValues: ['2026-01-01', '2026-02-01'] }]}
+                    altText="x"
+                />
+            </Document>,
+        );
+        expect(codes(report)).toContain('L_CHART_X_AXIS');
+        expect(
+            report.findings.find((f) => f.code === 'L_CHART_X_AXIS')?.message,
+        ).toContain("'time'");
+    });
+
+    it('L_CHART_X_AXIS — a scatter with proper xValues is clean', () => {
+        const report = lintDocument(
+            <Document>
+                <Chart
+                    chartType="scatter"
+                    series={[{ label: 'A', values: [1, 2, 3], xValues: [10, 20, 30] }]}
+                    altText="x"
+                />
+            </Document>,
+        );
+        expect(codes(report)).not.toContain('L_CHART_X_AXIS');
+        expect(report.ok).toBe(true);
+    });
+
+    it('L_CHART_LABELS — labelStride/labelRotation do not apply to scatter', () => {
+        const report = lintDocument(
+            <Document>
+                <Chart
+                    chartType="scatter"
+                    series={[{ label: 'A', values: [1, 2], xValues: [1, 2] }]}
+                    labelRotation={45}
+                    altText="x"
+                />
+            </Document>,
+        );
+        expect(codes(report)).toContain('L_CHART_LABELS');
+        expect(report.ok).toBe(false);
+    });
+
+    it('L_CHART_LABELS — labelStride must be an integer >= 1', () => {
+        for (const labelStride of [0, 1.5]) {
+            const report = lintDocument(
+                <Document>
+                    <Chart chartType="bar" series={SERIES} labelStride={labelStride} altText="x" />
+                </Document>,
+            );
+            expect(codes(report), `labelStride ${String(labelStride)}`).toContain('L_CHART_LABELS');
+        }
+    });
+
+    it('L_CHART_LABELS — labelRotation must stay within 0–90 degrees', () => {
+        for (const labelRotation of [-10, 91]) {
+            const report = lintDocument(
+                <Document>
+                    <Chart chartType="bar" series={SERIES} labelRotation={labelRotation} altText="x" />
+                </Document>,
+            );
+            expect(codes(report), `labelRotation ${String(labelRotation)}`).toContain(
+                'L_CHART_LABELS',
+            );
+        }
+    });
+
+    it('L_CHART_LABELS — sensible label options on a category chart are clean', () => {
+        const report = lintDocument(
+            <Document>
+                <Chart
+                    chartType="bar"
+                    series={SERIES}
+                    categories={['Q1', 'Q2', 'Q3']}
+                    labelStride={2}
+                    labelRotation={45}
+                    altText="x"
+                />
+            </Document>,
+        );
+        expect(codes(report)).not.toContain('L_CHART_LABELS');
+        expect(report.ok).toBe(true);
+    });
+
+    it('L_CHART_CATEGORIES — skips charts on a positional x-axis (engine 1.7.0 parity)', () => {
+        // On a category axis this categories/values mismatch fires the rule;
+        // on a positional axis the engine ignores `categories`, so the lint
+        // must too — before the 1.7.0 alignment this was a false positive.
+        const report = lintDocument(
+            <Document>
+                <Chart
+                    chartType="line"
+                    xAxis={{ type: 'linear' }}
+                    series={[{ label: 'A', values: [1, 2, 3], xValues: [1, 2, 3] }]}
+                    categories={['Q1', 'Q2']}
+                    altText="x"
+                />
+            </Document>,
+        );
+        expect(codes(report)).not.toContain('L_CHART_CATEGORIES');
+        expect(report.ok).toBe(true);
+    });
+});
+
+describe('print-production and viewer rules', () => {
+    const FONTS = [{ lang: 'latin' } as never];
+
+    it('L_PRINT_BOXES — bleed and an explicit trimBox are mutually exclusive', () => {
+        const report = lintDocument(
+            <Document print={{ bleed: 9, trimBox: [0, 0, 100, 100] }}>
+                <Paragraph>x</Paragraph>
+            </Document>,
+        );
+        expect(codes(report)).toContain('L_PRINT_BOXES');
+        expect(report.ok).toBe(false);
+    });
+
+    it('L_PRINT_BOXES — printer marks need a TrimBox to stay outside of', () => {
+        const report = lintDocument(
+            <Document print={{ marks: true }}>
+                <Paragraph>x</Paragraph>
+            </Document>,
+        );
+        expect(codes(report)).toContain('L_PRINT_BOXES');
+    });
+
+    it('L_PRINT_BOXES — userUnit must be within 1–75000', () => {
+        const report = lintDocument(
+            <Document print={{ userUnit: 0 }}>
+                <Paragraph>x</Paragraph>
+            </Document>,
+        );
+        expect(codes(report)).toContain('L_PRINT_BOXES');
+    });
+
+    it('L_PRINT_BOXES — userUnit is forbidden under PDF/A-1', () => {
+        const report = lintDocument(
+            <Document print={{ userUnit: 2 }} tagged="pdfa1b" fontEntries={FONTS}>
+                <Paragraph>x</Paragraph>
+            </Document>,
+        );
+        expect(codes(report)).toContain('L_PRINT_BOXES');
+    });
+
+    it('L_PRINT_BOXES — valid print geometry is clean, via bleed or an explicit box', () => {
+        for (const print of [{ bleed: 8.5 }, { trimBox: [20, 20, 400, 600] as const }]) {
+            const report = lintDocument(
+                <Document print={print}>
+                    <Paragraph>x</Paragraph>
+                </Document>,
+            );
+            expect(codes(report), JSON.stringify(print)).not.toContain('L_PRINT_BOXES');
+            expect(report.ok).toBe(true);
+        }
+    });
+
+    it('L_PRINT_BOXES — lintSpec and lintDocument agree on the print prop', () => {
+        const print = { bleed: 9, trimBox: [0, 0, 100, 100] } as const;
+        const viaSpec = lintSpec({ print, blocks: [['p', 'x']] });
+        const viaJsx = lintDocument(
+            <Document print={print}>
+                <Paragraph>x</Paragraph>
+            </Document>,
+        );
+        expect(viaSpec).toEqual(viaJsx);
+        expect(codes(viaSpec)).toContain('L_PRINT_BOXES');
+    });
+
+    it('L_VIEWER_PRINT_RANGE — entries must be 1-based [first, last] pairs', () => {
+        for (const range of [[0, 2], [3, 1], [1.5, 2]] as const) {
+            const report = lintDocument(
+                <Document layout={{ viewerPreferences: { printPageRange: [range] } }}>
+                    <Paragraph>x</Paragraph>
+                </Document>,
+            );
+            expect(codes(report), JSON.stringify(range)).toContain('L_VIEWER_PRINT_RANGE');
+            expect(report.ok).toBe(false);
+        }
+    });
+
+    it('L_VIEWER_PRINT_RANGE — numCopies must be a positive integer', () => {
+        for (const numCopies of [0, 2.5]) {
+            const report = lintDocument(
+                <Document layout={{ viewerPreferences: { numCopies } }}>
+                    <Paragraph>x</Paragraph>
+                </Document>,
+            );
+            expect(codes(report), String(numCopies)).toContain('L_VIEWER_PRINT_RANGE');
+        }
+    });
+
+    it('L_VIEWER_PRINT_RANGE — well-formed print preferences are clean', () => {
+        const report = lintDocument(
+            <Document
+                layout={{
+                    viewerPreferences: { printPageRange: [[1, 3], [5, 5]], numCopies: 2 },
+                }}
+            >
+                <Paragraph>x</Paragraph>
+            </Document>,
+        );
+        expect(codes(report)).not.toContain('L_VIEWER_PRINT_RANGE');
+        expect(report.ok).toBe(true);
+    });
+
+    it('L_OUTPUT_INTENT_IGNORED — an outputIntent without tagged is silently dropped', () => {
+        const report = lintDocument(
+            <Document
+                layout={{
+                    outputIntent: {
+                        iccProfile: new Uint8Array([1, 2, 3]),
+                        outputConditionIdentifier: 'sRGB IEC61966-2.1',
+                    },
+                }}
+            >
+                <Paragraph>x</Paragraph>
+            </Document>,
+        );
+        expect(codes(report)).toContain('L_OUTPUT_INTENT_IGNORED');
+        // A warning, not an error: the document still renders fine.
+        expect(report.ok).toBe(true);
+        expect(report.counts.warning).toBeGreaterThan(0);
+    });
+
+    it('L_OUTPUT_INTENT_IGNORED — an outputIntent WITH tagged is honoured, not flagged', () => {
+        const report = lintDocument(
+            <Document
+                tagged="pdfa2b"
+                fontEntries={FONTS}
+                layout={{
+                    outputIntent: {
+                        iccProfile: new Uint8Array([1, 2, 3]),
+                        outputConditionIdentifier: 'sRGB IEC61966-2.1',
+                    },
+                }}
+            >
+                <Paragraph>x</Paragraph>
+            </Document>,
+        );
+        expect(codes(report)).not.toContain('L_OUTPUT_INTENT_IGNORED');
+    });
+
+    it('L_TAGGED_FORM_FONTS — PDF/A with form fields warns about the AcroForm font', () => {
+        const report = lintDocument(
+            <Document tagged="pdfa2b" fontEntries={FONTS}>
+                <FormField fieldType="text" name="email" label="Email" />
+            </Document>,
+        );
+        expect(codes(report)).toContain('L_TAGGED_FORM_FONTS');
+        // Warning severity: the engine renders (and diagnoses), it does not throw.
+        expect(report.ok).toBe(true);
+    });
+
+    it('L_TAGGED_FORM_FONTS — plain tagging (no PDF/A claim) with form fields is clean', () => {
+        const report = lintDocument(
+            <Document tagged>
+                <FormField fieldType="text" name="email" label="Email" />
+            </Document>,
+        );
+        expect(codes(report)).not.toContain('L_TAGGED_FORM_FONTS');
+    });
+});
+
 describe('geometry rules', () => {
     it('L_OVERFLOW — is off unless explicitly requested', () => {
         const spec = {

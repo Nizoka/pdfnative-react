@@ -45,8 +45,12 @@ Start by reading [docs/KNOWLEDGE_BASE.md](docs/KNOWLEDGE_BASE.md).
 
 1. **All runtime pdfnative imports go through `src/core-bridge/index.ts`.** The
    one sanctioned exception: `src/types.ts` may import *type-only* from
-   `pdfnative`. Never import the engine's runtime elsewhere. (`pdfnative` is a
-   **peer dependency** — never move it back to `dependencies`.)
+   `pdfnative`. Never import the engine's runtime elsewhere **in `src/`** —
+   a test may import the engine directly when it verifies the *finished
+   bytes* (e.g. `validatePdfUA` in `tests/pdfua.test.tsx`; see Knowledge
+   Base §6), since bridging a post-processing API would violate rule 7.
+   (`pdfnative` is a **peer dependency** — never move it back to
+   `dependencies`.)
 2. **Do not invent a CSS layout model.** Map to the existing pdfnative blocks.
    `<Section>` is the single allowed *composite* (heading + children, no host
    tag); do not add more composites without a reason.
@@ -142,6 +146,9 @@ npm run typecheck:all
 npm run lint
 npm test
 npm run build
+npm run validate:pdfa   # PDF/A conformance (veraPDF) — skips cleanly when
+                        # veraPDF is not installed; CI runs it blocking with
+                        # VERAPDF_REQUIRED=1. See CONTRIBUTING.md.
 ```
 
 Add or update tests under `tests/` for any behavioural change, and update

@@ -1,5 +1,6 @@
 /**
- * `<Document>` layout sugar: watermark / header / footer / attachments / tagged.
+ * `<Document>` layout sugar: watermark / header / footer / attachments /
+ * tagged / print.
  *
  * These props fold into `layout`, which makes the *absence* case the one that
  * really matters: a document that uses none of them must still serialize with
@@ -62,6 +63,7 @@ describe('layout sugar folding', () => {
                 footer={FOOTER}
                 attachments={[ATTACHMENT]}
                 tagged="pdfa2b"
+                print={{ bleed: 9 }}
             >
                 <Paragraph>x</Paragraph>
             </Document>,
@@ -73,7 +75,26 @@ describe('layout sugar folding', () => {
             footerTemplate: FOOTER,
             attachments: [ATTACHMENT],
             tagged: 'pdfa2b',
+            print: { bleed: 9 },
         });
+    });
+
+    it('folds the print prop into layout.print on its own', () => {
+        const model = compileDocument(
+            <Document print={{ bleed: 9 }}>
+                <Paragraph>x</Paragraph>
+            </Document>,
+        );
+        expect(model.layout).toEqual({ print: { bleed: 9 } });
+    });
+
+    it('lets an explicit layout.print win over the print prop', () => {
+        const model = compileDocument(
+            <Document print={{ bleed: 9 }} layout={{ print: { trimBox: [20, 20, 575, 822] } }}>
+                <Paragraph>x</Paragraph>
+            </Document>,
+        );
+        expect(model.layout).toEqual({ print: { trimBox: [20, 20, 575, 822] } });
     });
 
     it('expands the watermark string shorthand', () => {
@@ -145,5 +166,23 @@ describe('layout sugar DocSpec parity', () => {
         );
 
         expect(compileSpec(spec)).toEqual(compileDocument(jsx));
+    });
+
+    it('folds a spec-level print field identically to the JSX prop', () => {
+        const spec: DocSpec = {
+            print: { trimBox: [20, 20, 575, 822], marks: true },
+            blocks: [['p', 'Body text.']],
+        };
+
+        const jsx = (
+            <Document print={{ trimBox: [20, 20, 575, 822], marks: true }}>
+                <Paragraph>Body text.</Paragraph>
+            </Document>
+        );
+
+        expect(compileSpec(spec)).toEqual(compileDocument(jsx));
+        expect(compileSpec(spec).layout).toEqual({
+            print: { trimBox: [20, 20, 575, 822], marks: true },
+        });
     });
 });

@@ -58,6 +58,25 @@ describe('error taxonomy', () => {
         });
     });
 
+    it('keeps a wrapped cause reachable, but out of the JSON envelope', () => {
+        // ES2022 ErrorOptions: the original failure stays inspectable in
+        // process, while the wire envelope — which may cross a trust boundary —
+        // deliberately never carries it (a cause can hold non-serializable or
+        // internal state).
+        const original = new Error('engine exploded');
+        const err = new PdfStructureError('render failed', undefined, { cause: original });
+        expect(err.cause).toBe(original);
+
+        const envelope = err.toJSON();
+        expect(envelope).toEqual({
+            ok: false,
+            error: { code: 'E_STRUCTURE', message: 'render failed' },
+        });
+        expect(Object.keys(envelope)).toEqual(['ok', 'error']);
+        expect(Object.keys(envelope.error)).toEqual(['code', 'message']);
+        expect(JSON.stringify(envelope)).not.toContain('cause');
+    });
+
     it('wraps arbitrary thrown values into the same envelope', () => {
         expect(toErrorEnvelope(new Error('boom'))).toEqual({
             ok: false,
@@ -90,7 +109,7 @@ describe('capabilityManifest', () => {
         expect(manifest.version).toBe(barrel.version);
         expect(manifest.contract.authoringOnly).toBe(true);
         expect(manifest.contract.layoutModel).toBe('block-flow');
-        expect(manifest.contract.engine).toBe('^1.6.0');
+        expect(manifest.contract.engine).toBe('^1.7.0');
         expect(manifest.contract.network).toBe('none');
     });
 
@@ -203,10 +222,10 @@ describe('doctor', () => {
         expect(report.ok).toBe(true);
     });
 
-    it('detects the 1.6.0 engine through a capability probe', () => {
+    it('detects the 1.7.0 engine through a capability probe', () => {
         const engine = report.checks.find((c) => c.name === 'pdfnative');
         expect(engine?.status).toBe('ok');
-        expect(engine?.value).toBe('>= 1.6.0');
+        expect(engine?.value).toBe('>= 1.7.0');
     });
 
     it('reports the installed package version', () => {

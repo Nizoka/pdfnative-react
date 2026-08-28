@@ -16,6 +16,7 @@ import type {
     PdfLayoutOptions,
     PdfRow,
     PageTemplate,
+    PrintOptions,
     WatermarkOptions,
 } from '../types.js';
 import { PdfStructureError } from '../errors.js';
@@ -166,6 +167,11 @@ function toBlock(node: ElementNode): DocumentBlock | DocumentBlock[] {
                 title: p.title,
                 legend: p.legend,
                 axis: p.axis,
+                axis2: p.axis2,
+                xAxis: p.xAxis,
+                dataLabels: p.dataLabels,
+                labelStride: p.labelStride,
+                labelRotation: p.labelRotation,
                 markers: p.markers,
                 colors: p.colors,
                 align: p.align,
@@ -346,7 +352,7 @@ function toWatermark(value: unknown): WatermarkOptions | undefined {
 
 /**
  * Fold the `<Document>` layout-sugar props (`watermark`, `header`, `footer`,
- * `attachments`, `tagged`) into a single `layout` object.
+ * `attachments`, `tagged`, `print`) into a single `layout` object.
  *
  * An explicit `layout` prop always wins, mirroring how `RenderOptions.layout`
  * overrides `DocumentParams.layout` in `prepare()` (see `../render.ts`).
@@ -362,6 +368,7 @@ function resolveLayout(p: Record<string, unknown>): Partial<PdfLayoutOptions> | 
         footerTemplate: p.footer as PageTemplate | undefined,
         attachments: p.attachments as readonly PdfAttachment[] | undefined,
         tagged: p.tagged as PdfLayoutOptions['tagged'] | undefined,
+        print: p.print as PrintOptions | undefined,
     });
 
     const explicit = p.layout as Partial<PdfLayoutOptions> | undefined;

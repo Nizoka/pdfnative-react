@@ -48,13 +48,21 @@ export interface ErrorEnvelope {
  *
  * Prefer catching this over the concrete subclasses and branching on
  * {@link PdfReactError.code}.
+ *
+ * Accepts the standard ES2022 `ErrorOptions`, so a wrapped failure keeps its
+ * original error reachable via `error.cause`. The JSON envelope deliberately
+ * omits the cause — it may hold non-serializable state.
  */
 export class PdfReactError extends Error {
     /** Stable machine-readable classification. */
     public readonly code: ErrorCodeValue;
 
-    constructor(message: string, code: ErrorCodeValue = ErrorCode.RUNTIME) {
-        super(message);
+    constructor(
+        message: string,
+        code: ErrorCodeValue = ErrorCode.RUNTIME,
+        options?: ErrorOptions,
+    ) {
+        super(message, options);
         this.name = 'PdfReactError';
         this.code = code;
     }
@@ -73,8 +81,12 @@ export class PdfReactError extends Error {
  * Carries `code: 'E_STRUCTURE'`.
  */
 export class PdfStructureError extends PdfReactError {
-    constructor(message: string, code: ErrorCodeValue = ErrorCode.STRUCTURE) {
-        super(message, code);
+    constructor(
+        message: string,
+        code: ErrorCodeValue = ErrorCode.STRUCTURE,
+        options?: ErrorOptions,
+    ) {
+        super(message, code, options);
         this.name = 'PdfStructureError';
     }
 }

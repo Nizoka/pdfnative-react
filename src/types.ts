@@ -18,6 +18,7 @@ import type {
     FontData,
     FontValidationResult,
     PdfColor,
+    PdfColors,
     BarcodeFormat,
     QRErrorLevel,
     FormFieldType,
@@ -43,6 +44,13 @@ import type {
     PdfAttachment,
     PdfAttachmentRelationship,
     EncryptionOptions,
+    PrintOptions,
+    PrinterMarksOptions,
+    PageBox,
+    CustomOutputIntent,
+    PdfDiagnostic,
+    PdfDiagnosticCode,
+    PdfDiagnosticHandler,
 } from 'pdfnative';
 
 export type {
@@ -56,6 +64,7 @@ export type {
     FontData,
     FontValidationResult,
     PdfColor,
+    PdfColors,
     BarcodeFormat,
     QRErrorLevel,
     FormFieldType,
@@ -81,6 +90,13 @@ export type {
     PdfAttachment,
     PdfAttachmentRelationship,
     EncryptionOptions,
+    PrintOptions,
+    PrinterMarksOptions,
+    PageBox,
+    CustomOutputIntent,
+    PdfDiagnostic,
+    PdfDiagnosticCode,
+    PdfDiagnosticHandler,
 };
 
 /** Horizontal alignment shared by several blocks. */
@@ -101,10 +117,11 @@ export interface RenderOptions {
     /**
      * Convenience map of language → font loader, resolved with
      * {@link resolveFonts} before rendering. Only honored by the *async*
-     * entry points (`renderToFile`, `renderToFileStream`, `usePdf`,
-     * `usePdfStream`) — font loading is asynchronous, so the synchronous
-     * entries (`renderToBytes`, `renderToBlob`, `renderToStream`) ignore it;
-     * resolve manually first: `fontEntries: await resolveFonts(fonts)`.
+     * entry points (`renderToFile`, `renderToFileStream`, `renderToResponse`,
+     * `usePdf`, `usePdfStream`) — font loading is asynchronous, so the
+     * synchronous entries (`renderToBytes`, `renderToBlob`, `renderToStream`)
+     * ignore it; resolve manually first:
+     * `fontEntries: await resolveFonts(fonts)`.
      */
     readonly fonts?: FontsMap;
 }

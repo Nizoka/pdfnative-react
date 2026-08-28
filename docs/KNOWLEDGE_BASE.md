@@ -72,11 +72,16 @@ Two import-graph invariants worth preserving:
   therefore without dragging the engine into the schema path. Emitting a schema
   stays a pure, dependency-free operation. (It is also why `LINT_RULES` lives in
   the registry and is merely *re-exported* from `lint.ts`.)
-- **`core-bridge` imports `estimateChartHeight` purely as a capability probe**
-  for `doctor()`. It is a 1.6.0 marker, and probing beats parsing a version
+- **`core-bridge` imports `estimateChartHeight` and `validatePrintOptions` as
+  capability probes** for `doctor()` — a 1.6.0 marker and a 1.7.0 marker,
+  probed newest-first for graded messaging. Probing beats parsing a version
   string out of `package.json` — it survives bundling into a browser build,
-  which the CLI learned the hard way when tsup flattened its `require` away. It
-  is deliberately *not* re-exported from the public barrel.
+  which the CLI learned the hard way when tsup flattened its `require` away.
+  `validatePrintOptions` doubles as the implementation of the `L_PRINT_BOXES`
+  lint rule (the engine's own validator, called in a try/catch, so the finding
+  carries the engine's message and can never drift). Together with `PG_W`/`PG_H`
+  (the engine's default page size, imported for the same rule), none of these
+  are re-exported from the public barrel.
 
 The golden rule has one sanctioned exception: `src/types.ts` may import
 *type-only* from `pdfnative` directly. All *runtime* imports go through
@@ -190,7 +195,29 @@ Notes learned the hard way:
 - `tests/governance.test.ts` — the `verify-issue.mjs` CLI as a black box, the
   exported policy against `.github/ai-governance.json`, and the source-level
   parity of the duplicated regex tables.
+- `tests/fuzz-validate.test.ts` — deterministic structural fuzzing of
+  `validateSpec` (seeded PRNG, fixed literal seed): it must never throw and
+  must flag every seeded-invalid input.
+- `tests/pdfua.test.tsx` — the PDF/UA round-trip: render tagged output, then
+  validate the bytes with the engine's `validatePdfUA` (the one place a test
+  may import the engine's *API* directly — it exercises the finished bytes,
+  which the authoring surface deliberately does not re-export; the
+  `pdfnative/fonts/*` data subpaths are a documented consumer pattern and
+  fair game anywhere).
 - jsdom lacks `URL.createObjectURL`; `tests/setup.ts` stubs it.
+
+Beyond vitest sits the **external conformance tier**:
+`scripts/generate-pdfa-corpus.mjs` renders an 11-file PDF/A corpus through the
+*built* package (both authoring doors, all four conformance targets, this
+release's chart/print features) into `test-output/pdfa/`, and
+`scripts/validate-pdfa.mjs` validates every claiming file with the pinned
+veraPDF reference validator (six outcomes: PASS/FAIL/XFAIL/XPASS/INFRA/SKIP).
+Two design points matter: the corpus carries **two negative canaries** veraPDF
+must reject (their absence — or an XPASS — fails the run, so a validator that
+accepts everything can never turn the gate green), and without veraPDF the
+runner **skips with exit 0** — a skip, not a pass; CI (`verapdf.yml` + the
+pre-publish gate) sets `VERAPDF_REQUIRED=1` to fail closed. veraPDF is an
+external tool, never a dependency.
 
 ## 7. Agent authoring contract (`src/spec/`)
 
@@ -250,6 +277,19 @@ Design rules:
   providers, font compilation — is done with the `pdfnative` engine directly on
   the bytes this library emits. The wrapper deliberately does not re-export
   those APIs.
+- **One builder, not two.** The engine also ships a legacy *table-centric*
+  builder (`buildPDF`/`buildPDFBytes` over `PdfParams`: `docTitle`,
+  `infoItems`, `balanceText`…). It is authoring, but it is a narrower
+  predecessor of the document builder this package wraps — everything it can
+  express is expressible as document blocks, and mapping JSX onto both would
+  mean two serializers and two grammars for one output. Deliberately not
+  surfaced; this is a decision, not an oversight.
+- **Streaming has two hard limits, checked eagerly.** The engine's streaming
+  path cannot know the final page count when page 1 is emitted, so
+  `<TableOfContents>` and `{pages}` templates are unstreamable.
+  `renderToStream` runs the engine's `validateDocumentStreamable` *before*
+  handing out the generator — otherwise `renderToResponse` (streaming by
+  default) would fail mid-response, after the headers were sent.
 
 ## 9. Agent automation contract
 
@@ -307,13 +347,19 @@ output rather than guessing. Unknown top-level fields are a *warning*, not an
 error, which preserves forward compatibility when a newer spec meets an older
 package.
 
-Tier 3 is where the real leverage is: eight of the eighteen lint rules — the
-five `L_CHART_*` errors, `L_ATTACHMENTS_NEED_PDFA3`, `L_TAGGED_ENCRYPTED` and
-`L_MAX_BLOCKS_EXCEEDED` — mirror validation the engine performs by **throwing
-mid-render**. `L_ATTACHMENTS_NEED_PDFA3` exists because writing
+Tier 3 is where the real leverage is: thirteen of the twenty-five lint rules —
+the eight `L_CHART_*` errors, `L_PRINT_BOXES`, `L_VIEWER_PRINT_RANGE`,
+`L_ATTACHMENTS_NEED_PDFA3`, `L_TAGGED_ENCRYPTED` and `L_MAX_BLOCKS_EXCEEDED` —
+mirror validation the engine performs by **throwing mid-render**.
+`L_ATTACHMENTS_NEED_PDFA3` exists because writing
 `samples/layout/watermark-header-footer.tsx` hit exactly that throw;
 `L_CHART_EMPTY` and `L_MAX_BLOCKS_EXCEEDED` because later review rounds found
-three more engine throws with no rule behind them.
+three more engine throws with no rule behind them. `L_PRINT_BOXES` takes the
+principle to its limit: instead of re-stating the engine's print-geometry
+rules it *calls* the engine's `validatePrintOptions` in a try/catch, so the
+finding is the engine's own message. Since engine 1.7.0 there is also a
+render-time diagnostics channel (`layout.strict` / `layout.onDiagnostic`) for
+the conformance problems only a render can see — see `docs/LINTING.md`.
 
 ### Error taxonomy
 
@@ -332,7 +378,8 @@ handles one shape.
 
 Every check is wrapped: `doctor()` reports rather than raises, which is what
 makes it safe to call before anything else. The engine check is a **capability
-probe** (`typeof estimateChartHeight === 'function'`) rather than a
+probe** (`typeof validatePrintOptions === 'function'`, falling back to
+`estimateChartHeight` to tell a 1.6.x engine apart) rather than a
 version-string parse: it works after bundling, in the browser, and it tests the
 capability we actually need instead of a number that claims it.
 
@@ -341,9 +388,10 @@ these docs claimed the opposite. `core-bridge` re-exports the engine statically,
 so a *completely absent* peer fails at module resolution — `doctor()` is never
 called. That failure is already unambiguous (`ERR_MODULE_NOT_FOUND`), and
 routing it through `doctor()` would mean giving up the static bridge that golden
-rule 1 rests on. What the probe does catch is an engine that resolves but is
-older than 1.6.0, which under a bundler or CJS interop yields an `undefined`
-export rather than a link error.
+rule 1 rests on. What the probes do catch is an engine that resolves but is
+older than 1.7.0 — reported as `1.6.x` with an upgrade hint when the 1.6.0
+marker is present, and as missing-or-older otherwise; under a bundler or CJS
+interop an absent export yields `undefined` rather than a link error.
 
 ### Governance duplication is deliberate
 

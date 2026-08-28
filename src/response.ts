@@ -50,6 +50,21 @@ export interface PdfResponseOptions extends RenderOptions {
     readonly buffered?: boolean;
     /** HTTP status code. Default: `200`. */
     readonly status?: number;
+    /**
+     * `Cache-Control` response header (e.g. `'private, max-age=60'`).
+     * Default: unset — PDF responses are not cached unless you opt in.
+     */
+    readonly cacheControl?: string;
+    /**
+     * `ETag` response header. A string is sent verbatim (bring your own
+     * validator, e.g. derived from the data that fed the document). `true`
+     * derives a strong validator from the rendered bytes — which requires the
+     * whole PDF up front, so it implies `buffered: true`.
+     *
+     * Only the header is set; answer `If-None-Match` with a `304` in your own
+     * handler, where the `Request` lives.
+     */
+    readonly etag?: string | true;
     /** Extra response headers, merged last so they can override the defaults. */
     readonly headers?: HeadersInit;
 }
@@ -92,7 +107,26 @@ function toReadableStream(source: AsyncGenerator<Uint8Array>): ReadableStream<Ui
     });
 }
 
-function buildHeaders(options: PdfResponseOptions | undefined, byteLength?: number): Headers {
+/**
+ * A strong `ETag` from the rendered bytes: 64-bit FNV-1a plus the length.
+ * Change detection, not cryptography — dependency-free and runs everywhere,
+ * including runtimes without `crypto.subtle`.
+ */
+function strongEtag(bytes: Uint8Array): string {
+    const PRIME = 0x100000001b3n;
+    let hash = 0xcbf29ce484222325n;
+    for (const byte of bytes) {
+        hash ^= BigInt(byte);
+        hash = (hash * PRIME) & 0xffffffffffffffffn;
+    }
+    return `"${hash.toString(16).padStart(16, '0')}-${bytes.byteLength.toString(16)}"`;
+}
+
+function buildHeaders(
+    options: PdfResponseOptions | undefined,
+    byteLength?: number,
+    computedEtag?: string,
+): Headers {
     const headers = new Headers({
         'content-type': 'application/pdf',
         'content-disposition': contentDisposition(
@@ -101,6 +135,9 @@ function buildHeaders(options: PdfResponseOptions | undefined, byteLength?: numb
         ),
     });
     if (byteLength !== undefined) headers.set('content-length', String(byteLength));
+    if (options?.cacheControl !== undefined) headers.set('cache-control', options.cacheControl);
+    const etag = typeof options?.etag === 'string' ? options.etag : computedEtag;
+    if (etag !== undefined) headers.set('etag', etag);
     if (options?.headers) {
         // Merge last so callers can override any default (e.g. cache-control).
         new Headers(options.headers).forEach((value, key) => headers.set(key, value));
@@ -124,11 +161,16 @@ export async function renderToResponse(
     const resolved = await optionsWithFonts(options);
     const status = options?.status ?? 200;
 
-    if (options?.buffered === true) {
+    // `etag: true` needs the whole PDF to hash, so it implies buffering.
+    if (options?.buffered === true || options?.etag === true) {
         const bytes = renderToBytes(node, resolved);
         return new Response(bytes as BodyInit, {
             status,
-            headers: buildHeaders(options, bytes.byteLength),
+            headers: buildHeaders(
+                options,
+                bytes.byteLength,
+                options?.etag === true ? strongEtag(bytes) : undefined,
+            ),
         });
     }
 

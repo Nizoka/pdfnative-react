@@ -27,14 +27,14 @@ Read [docs/KNOWLEDGE_BASE.md](../docs/KNOWLEDGE_BASE.md) and
   a rule in those files. Compile-time `Assert<Equals<…>>` locks mean forgetting
   to register something fails `npm run typecheck`. See the 10-step checklist in
   [AGENTS.md](../AGENTS.md).
-- **`pdfnative` is a peer dependency** (`^1.6.0`; Node ≥ 22). Never move it back
+- **`pdfnative` is a peer dependency** (`^1.7.0`; Node ≥ 22). Never move it back
   to `dependencies`.
 - **Authoring only.** Do not re-export byte-level post-processing (merge/split,
   form fill/flatten, text extraction, decryption, annotations, signing, crypto,
   font compilation) — point to [docs/RECIPES.md](../docs/RECIPES.md) instead.
 - **Document-level props on `<Document>`**, not content blocks: `outline` and
   `pageLabels` (they reference post-layout pages), plus the layout sugar
-  `watermark`, `header`, `footer`, `attachments`, `tagged`. The sugar folds into
+  `watermark`, `header`, `footer`, `attachments`, `tagged`, `print`. The sugar folds into
   `layout` via `resolveLayout()`, where an explicit `layout` always wins — and
   which must keep returning `undefined`, never `{}`, when nothing is set, or
   every existing document changes bytes.

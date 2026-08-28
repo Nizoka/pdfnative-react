@@ -154,6 +154,17 @@ function pageTemplateDef(): JsonSchema {
     };
 }
 
+/** A print-production page box: `[llx, lly, urx, ury]` in points. */
+function printBoxDef(what: string): JsonSchema {
+    return {
+        type: 'array',
+        minItems: 4,
+        maxItems: 4,
+        items: { type: 'number' },
+        description: `${what} as [llx, lly, urx, ury] in points, within the MediaBox.`,
+    };
+}
+
 /** `['table', body]` */
 function tableBlock(): JsonSchema {
     return {
@@ -236,10 +247,12 @@ function linkBlock(): JsonSchema {
             { type: 'string', description: 'Link text.' },
             {
                 type: 'object',
-                description: 'Options; one of url/href is required.',
+                description: 'Options; one of url/href is required. Also accepts fontSize and color.',
                 properties: {
                     url: { type: 'string' },
                     href: { type: 'string' },
+                    fontSize: { type: 'number' },
+                    color: { type: ['string', 'array'] },
                 },
             },
         ],
@@ -309,7 +322,7 @@ function svgBlock(): JsonSchema {
         prefixItems: [
             { const: 'svg' },
             { type: 'string', description: 'SVG path data or inline markup.' },
-            { type: 'object', description: 'Optional { width, height, align, viewBox, fill, stroke, strokeWidth }.' },
+            { type: 'object', description: 'Optional { width, height, align, viewBox, fill, stroke, strokeWidth, alt }.' },
         ],
     };
 }
@@ -327,7 +340,12 @@ function chartBlock(): JsonSchema {
                 description:
                     'Chart body. Pie/donut take exactly one series with non-negative values.',
                 properties: {
-                    chartType: { enum: ['bar', 'barH', 'line', 'pie', 'donut'] },
+                    chartType: {
+                        enum: [
+                            'bar', 'barH', 'line', 'pie', 'donut',
+                            'stackedBar', 'stackedBarH', 'area', 'scatter',
+                        ],
+                    },
                     series: {
                         type: 'array',
                         minItems: 1,
@@ -339,6 +357,17 @@ function chartBlock(): JsonSchema {
                                 label: { type: 'string', description: 'Series label (legend).' },
                                 values: { type: 'array', items: { type: 'number' } },
                                 color: { type: ['string', 'array'] },
+                                xValues: {
+                                    type: 'array',
+                                    items: { type: ['number', 'string'] },
+                                    description:
+                                        'Per-point x positions for linear/time axes. '
+                                        + 'Required for scatter; same length as values.',
+                                },
+                                yAxis: {
+                                    enum: ['left', 'right'],
+                                    description: 'Which value axis this series binds to. Default left.',
+                                },
                             },
                         },
                     },
@@ -353,13 +382,74 @@ function chartBlock(): JsonSchema {
                     legend: { enum: ['bottom', 'none'] },
                     axis: {
                         type: 'object',
-                        description: 'Value-axis options (bar/line only).',
+                        description: 'Primary (left) value-axis options.',
                         properties: {
                             yMin: { type: 'number' },
                             yMax: { type: 'number' },
                             ticks: { type: 'integer', minimum: 2 },
                             grid: { type: 'boolean' },
+                            scale: {
+                                enum: ['linear', 'log'],
+                                description:
+                                    'Log scale requires strictly positive values; '
+                                    + 'incompatible with stacked kinds. Default linear.',
+                            },
                         },
+                    },
+                    axis2: {
+                        type: 'object',
+                        description:
+                            'Secondary right value axis; rendered only when a series '
+                            + 'binds to it with yAxis "right".',
+                        properties: {
+                            yMin: { type: 'number' },
+                            yMax: { type: 'number' },
+                            ticks: { type: 'integer', minimum: 2 },
+                            scale: { enum: ['linear', 'log'] },
+                        },
+                    },
+                    xAxis: {
+                        type: 'object',
+                        description:
+                            'X-axis options. "linear"/"time" position points by series '
+                            + 'xValues ("time" parses ISO-8601 or epoch ms, UTC ticks). '
+                            + 'Default "category" ("linear" for scatter).',
+                        properties: {
+                            type: { enum: ['category', 'linear', 'time'] },
+                            min: { type: ['number', 'string'] },
+                            max: { type: ['number', 'string'] },
+                            ticks: { type: 'integer', minimum: 2 },
+                            grid: { type: 'boolean' },
+                        },
+                    },
+                    dataLabels: {
+                        description:
+                            'Per-point value labels: true for defaults, or '
+                            + '{ decimals?, prefix?, suffix? }.',
+                        oneOf: [
+                            { type: 'boolean' },
+                            {
+                                type: 'object',
+                                properties: {
+                                    decimals: { type: 'integer', minimum: 0 },
+                                    prefix: { type: 'string' },
+                                    suffix: { type: 'string' },
+                                },
+                            },
+                        ],
+                    },
+                    labelStride: {
+                        type: 'integer',
+                        minimum: 1,
+                        description:
+                            'Draw every Nth x-label. Defaults to the smallest '
+                            + 'non-overlapping stride; 1 forces every label.',
+                    },
+                    labelRotation: {
+                        type: 'number',
+                        minimum: 0,
+                        maximum: 90,
+                        description: 'Rotate x-labels counter-clockwise (degrees).',
                     },
                     markers: { type: 'boolean', description: 'Point markers on line series.' },
                     colors: { type: 'array', description: 'Palette override (PdfColor[]).' },
@@ -463,9 +553,21 @@ export function docSpecSchema(): JsonSchema {
         properties: {
             title: { type: 'string' },
             footerText: { type: 'string' },
-            metadata: { type: 'object', description: 'DocumentMetadata.' },
+            metadata: {
+                type: 'object',
+                description:
+                    "DocumentMetadata: { author?, subject?, keywords?, trapped? "
+                    + "('True' | 'False' | 'Unknown') }.",
+            },
             fontEntries: { type: 'array', items: { type: 'object' } },
-            layout: { type: 'object', description: 'PdfLayoutOptions overrides.' },
+            layout: {
+                type: 'object',
+                description:
+                    'PdfLayoutOptions overrides. Includes strict (escalate PDF/A '
+                    + 'diagnostics to errors, JSON-safe) and outputIntent (custom ICC '
+                    + 'profile, tagged modes only); onDiagnostic is function-valued and '
+                    + 'not representable in JSON — set it from code.',
+            },
             outline: {
                 oneOf: [
                     { const: 'auto', description: 'Derive a flat outline from every heading.' },
@@ -545,6 +647,49 @@ export function docSpecSchema(): JsonSchema {
                     'Emit a tagged (accessible) PDF, optionally at a PDF/A conformance level. '
                     + 'PDF/A requires every rendering font to be embedded via fontEntries.',
             },
+            print: {
+                type: 'object',
+                description:
+                    'Print-production page geometry. Sugar over layout.print. '
+                    + 'bleed is mutually exclusive with trimBox; marks require a '
+                    + 'TrimBox source; userUnit is rejected under pdfa1b.',
+                properties: {
+                    bleed: {
+                        type: 'number',
+                        exclusiveMinimum: 0,
+                        description: 'Uniform bleed in points (shorthand for a centred TrimBox).',
+                    },
+                    trimBox: printBoxDef('Finished-page trim box'),
+                    bleedBox: printBoxDef('Bleed box'),
+                    artBox: printBoxDef('Art box'),
+                    cropBox: printBoxDef('Crop box'),
+                    marks: {
+                        description:
+                            'Printer’s marks: true for defaults, or '
+                            + '{ crop?, registration?, length?, offset?, weight? }.',
+                        oneOf: [
+                            { type: 'boolean' },
+                            {
+                                type: 'object',
+                                properties: {
+                                    crop: { type: 'boolean' },
+                                    registration: { type: 'boolean' },
+                                    length: { type: 'number' },
+                                    offset: { type: 'number' },
+                                    weight: { type: 'number' },
+                                },
+                            },
+                        ],
+                    },
+                    userUnit: {
+                        type: 'number',
+                        minimum: 1,
+                        maximum: 75000,
+                        description:
+                            'Large-format point multiplier; raises the header to PDF 1.7.',
+                    },
+                },
+            },
             blocks: {
                 type: 'array',
                 description: 'Ordered document blocks (positional tuples).',
@@ -586,7 +731,11 @@ function renderOptionsSchema(): JsonSchema {
                     'PdfLayoutOptions overrides: pageWidth, pageHeight, margins, columns, '
                     + 'colors, fontSizes, tagged, encryption, compress, headerTemplate, '
                     + 'footerTemplate, watermark, attachments, maxBlocks, normalize, '
-                    + 'creationDate, viewerPreferences, debug.',
+                    + 'creationDate, viewerPreferences (incl. duplex, pickTrayByPDFSize, '
+                    + 'printPageRange, numCopies), debug, print, outputIntent, strict, '
+                    + 'onDiagnostic. strict escalates PDF/A diagnostics to thrown errors '
+                    + '(JSON-safe); onDiagnostic is function-valued and not representable '
+                    + 'in JSON — set it from code.',
             },
             fontEntries: {
                 type: 'array',

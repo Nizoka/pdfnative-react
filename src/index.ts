@@ -134,6 +134,7 @@ export {
     validateFontData,
     downloadBlob,
     initNodeCompression,
+    setDeflateImpl,
 } from './core-bridge/index.js';
 
 // Errors — stable, machine-readable taxonomy
@@ -200,4 +201,12 @@ export type {
     PdfAttachment,
     PdfAttachmentRelationship,
     EncryptionOptions,
+    PrintOptions,
+    PrinterMarksOptions,
+    PageBox,
+    CustomOutputIntent,
+    PdfDiagnostic,
+    PdfDiagnosticCode,
+    PdfDiagnosticHandler,
+    PdfColors,
 } from './types.js';

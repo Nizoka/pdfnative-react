@@ -1,0 +1,203 @@
+name: PDF/A Validation (veraPDF)
+
+# Runs the veraPDF reference validator against a corpus of PDF/A-claiming
+# documents rendered by the built package itself (scripts/generate-pdfa-corpus.mjs
+# → test-output/pdfa/), covering both authoring doors (JSX and DocSpec), all
+# four engine conformance targets, and this release's PDF/A-relevant features
+# (Charts v2, print production, attachments). Each file is validated against
+# the profile it claims in XMP and compared with the manifest's
+# `expectCompliant` flag; the corpus includes negative canaries that veraPDF
+# MUST reject (an unexpected pass — XPASS — is fatal), so a validator that
+# accepts everything fails the run instead of turning it green.
+#
+# Status: BLOCKING in pdfnative-react as of v1.2.0 (precedent: the engine's
+# gate has been blocking since its 1.1.0, pdfnative-cli's since its v1.4.0).
+# The validate step has no `continue-on-error`, so any deviation from the
+# manifest expectations fails the workflow. To demote to advisory for one
+# cycle (the pdfnative-mcp precedent), uncomment the `continue-on-error`
+# line on the validate step and rename it "(advisory)".
+# Exit codes of scripts/validate-pdfa.mjs:
+#   0 all expectations met · 1 conformance FAIL / XPASS · 2 no corpus ·
+#   3 INFRA (veraPDF unusable or produced no report — not a verdict).
+#
+# NOTE on `paths:` filters vs. required checks: this workflow only triggers
+# when the listed paths change. GitHub reports a path-filtered workflow that
+# did not run as "Expected — Waiting for status" on a PR, which BLOCKS merging
+# forever if the check is marked "required" in branch protection. Before
+# making this job a required check, either drop the `paths:` filters (run it
+# on every PR) or add a companion workflow with `paths-ignore` mirroring this
+# list that reports a passing status of the same name.
+#
+# veraPDF is an external CI tool (a Java CLI installed on the runner). It is
+# never a dependency of pdfnative-react: the package's only runtime dependency
+# stays `react-reconciler` (golden rule 1), and the validator is never bundled
+# or linked.
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'src/**'
+      - 'scripts/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsup.config.ts'
+      - 'tsconfig.json'
+      - '.github/workflows/verapdf.yml'
+  pull_request:
+    branches: [main, master]
+    paths:
+      - 'src/**'
+      - 'scripts/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsup.config.ts'
+      - 'tsconfig.json'
+      - '.github/workflows/verapdf.yml'
+  # Manual runs against any branch from the Actions UI.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verapdf-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verapdf:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      # Pinned veraPDF release (greenfield) so CI and the documented local
+      # setup validate against the same validator version — a floating
+      # "latest" URL can silently change the rule set between two runs of
+      # the same commit. Bump deliberately, with the release index:
+      # https://software.verapdf.org/rel/
+      VERAPDF_INSTALL_URL: 'https://software.verapdf.org/rel/1.30/verapdf-greenfield-1.30.2-installer.zip'
+      # SHA-256 of the installer zip above. The job fails on mismatch: the
+      # archive is executed with `java -jar`, so a swapped artefact on the
+      # download host would otherwise run arbitrary code on the runner.
+      # Recompute when bumping the URL:
+      #   curl -fsSL <url> | sha256sum
+      VERAPDF_INSTALL_SHA256: '6cc6341cb1af644044054b81f00a6590a7918abb18f762243de115258bcad838'
+      # Fail-closed: a missing / broken veraPDF or Java is an INFRA failure
+      # (exit 3), never a silent skip that would leave the step green.
+      VERAPDF_REQUIRED: '1'
+      VERAPDF_REPORT_DIR: test-output/pdfa/reports
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Setup Java (Temurin 17 LTS)
+        uses: actions/setup-java@d7793b545071e98d581d3bf084a51c3213318a07 # v4.9.0
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install veraPDF CLI
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/verapdf-installer"
+          curl -fsSL -o "$HOME/verapdf-installer/installer.zip" "${VERAPDF_INSTALL_URL}"
+          echo "${VERAPDF_INSTALL_SHA256}  $HOME/verapdf-installer/installer.zip" | sha256sum --check --strict
+          unzip -q "$HOME/verapdf-installer/installer.zip" -d "$HOME/verapdf-installer"
+          INSTALLER_JAR=$(find "$HOME/verapdf-installer" -name 'verapdf-izpack-installer-*.jar' | head -n1)
+          if [ -z "${INSTALLER_JAR}" ]; then
+            echo "veraPDF installer jar not found"; exit 1
+          fi
+          mkdir -p "$HOME/verapdf"
+          # Auto-install via izpack XML descriptor (headless).
+          cat > "$HOME/verapdf/auto-install.xml" <<XML
+          <?xml version="1.0" encoding="UTF-8" standalone="no"?>
+          <AutomatedInstallation langpack="eng">
+            <com.izforge.izpack.panels.htmlhello.HTMLHelloPanel id="welcome"/>
+            <com.izforge.izpack.panels.target.TargetPanel id="install_dir"><installpath>$HOME/verapdf</installpath></com.izforge.izpack.panels.target.TargetPanel>
+            <com.izforge.izpack.panels.packs.PacksPanel id="sdk_pack_select"><pack index="0" name="veraPDF GUI" selected="true"/><pack index="1" name="veraPDF Mac and *nix Scripts" selected="true"/><pack index="2" name="veraPDF Documentation" selected="false"/><pack index="3" name="veraPDF Sample Plugins" selected="false"/></com.izforge.izpack.panels.packs.PacksPanel>
+            <com.izforge.izpack.panels.install.InstallPanel id="install"/>
+            <com.izforge.izpack.panels.finish.FinishPanel id="finish"/>
+          </AutomatedInstallation>
+          XML
+          java -jar "${INSTALLER_JAR}" "$HOME/verapdf/auto-install.xml"
+          echo "VERAPDF_HOME=$HOME/verapdf" >> "$GITHUB_ENV"
+          echo "$HOME/verapdf" >> "$GITHUB_PATH"
+
+      - name: Verify veraPDF
+        run: |
+          verapdf --version
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Generate PDF/A corpus
+        run: npm run corpus:pdfa
+
+      # BLOCKING (see header). The exit code drives the step outcome — the
+      # step fails naturally on a non-zero exit — and the summary step below
+      # surfaces the verdict:
+      #   0 all expectations met · 1 conformance FAIL / XPASS · 2 no corpus ·
+      #   3 INFRA (veraPDF unusable or produced no report — not a verdict).
+      - name: Validate PDF/A corpus (blocking)
+        id: validate
+        # continue-on-error: true   # ← uncomment to demote to advisory for one cycle
+        run: |
+          set +e
+          node scripts/validate-pdfa.mjs 2> >(tee verapdf-stderr.txt >&2) | tee verapdf-report.txt
+          code=${PIPESTATUS[0]}
+          echo "exit_code=${code}" >> "$GITHUB_OUTPUT"
+          exit "${code}"
+
+      # Raw per-file veraPDF XML (+ stderr when non-empty) lives under
+      # test-output/pdfa/reports/ — upload it so a FAIL / INFRA line can be
+      # diagnosed without re-running the job.
+      - name: Upload veraPDF report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: verapdf-report
+          path: |
+            verapdf-report.txt
+            verapdf-stderr.txt
+            test-output/pdfa/manifest.json
+            test-output/pdfa/reports/
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Job summary
+        if: always()
+        run: |
+          code='${{ steps.validate.outputs.exit_code }}'
+          case "${code}" in
+            0) verdict='all expectations met' ;;
+            1) verdict='CONFORMANCE failure (FAIL or XPASS — see report)' ;;
+            2) verdict='no corpus generated' ;;
+            3) verdict='INFRA failure — veraPDF unusable or produced no report (NOT a conformance verdict)' ;;
+            *) verdict="unknown (exit ${code:-n/a})" ;;
+          esac
+          {
+            echo "## PDF/A validation (veraPDF, blocking)"
+            echo
+            echo "Step outcome: ${{ steps.validate.outcome }} · exit ${code:-n/a} · ${verdict}"
+            echo
+            echo '```'
+            cat verapdf-report.txt 2>/dev/null || echo "(no report produced)"
+            echo '```'
+            if [ -s verapdf-stderr.txt ]; then
+              echo
+              echo '<details><summary>validator stderr</summary>'
+              echo
+              echo '```'
+              cat verapdf-stderr.txt
+              echo '```'
+              echo '</details>'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

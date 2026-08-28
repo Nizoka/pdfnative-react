@@ -7,11 +7,24 @@
  * Layout overrides are passed via the `layout` render option (or the
  * `<Document layout>` prop). Here we set US Letter, custom margins, and enable
  * PDF/A-2b (tagged, archival).
+ *
+ * PDF/A requires EVERY rendering font to be embedded — without `fontEntries`
+ * the engine falls back to unembedded standard-14 fonts while still writing
+ * the pdfaid claim, and veraPDF rejects the file (ISO 19005-2 §6.2.11.4.1).
+ * Note the lint blind spot this sample sits in: `L_TAGGED_NO_FONTS` reads the
+ * `tagged` prop on `<Document>`, so a claim set through `RenderOptions.layout`
+ * (as here — the teaching point of this sample) is invisible to
+ * `lintDocument(doc)`. The corpus gate (`npm run validate:pdfa`) is what
+ * proves files like this one conformant for real.
  */
 
 import React from 'react';
-import { Document, Heading, Paragraph, renderToFile } from '../../src/index.js';
+import { Document, Heading, Paragraph, renderToFile, resolveFonts } from '../../src/index.js';
 import type { RenderOptions } from '../../src/index.js';
+
+const fontEntries = await resolveFonts({
+    latin: () => import('pdfnative/fonts/noto-sans-data.js'),
+});
 
 const options: RenderOptions = {
     layout: {
@@ -22,6 +35,7 @@ const options: RenderOptions = {
         // Tagged PDF/A-2b — accessible + archivable.
         tagged: 'pdfa2b',
     },
+    fontEntries,
 };
 
 const doc = (

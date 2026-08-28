@@ -21,11 +21,14 @@ export default defineConfig({
                 // meaningfully. Its real logic is covered via compile/render.
                 'src/reconciler/host-config.ts',
             ],
+            // Raised for 1.2.0 (measured: 95.0 / 90.0 / 97.8 / 95.9) — the
+            // gap to the measured value is head-room for legitimate churn,
+            // not an invitation to regress.
             thresholds: {
-                statements: 85,
-                branches: 80,
-                functions: 85,
-                lines: 85,
+                statements: 90,
+                branches: 84,
+                functions: 92,
+                lines: 90,
             },
         },
     },

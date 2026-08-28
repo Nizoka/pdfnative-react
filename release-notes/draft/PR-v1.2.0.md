@@ -142,6 +142,17 @@ thresholds). No public API was removed or changed.
   (`pdftoppm`/`mutool`) is installed. No dependency added — the rasterizer is
   deliberately external.
 
+### npm discovery metadata (`package.json`)
+- `description` rewritten for the 1.2.0 surface (charts, print production,
+  veraPDF-validated PDF/A, the agent surface); `keywords` 42 → 68, cluster-
+  ordered — the ecosystem's shared print/charts/PDF-A vocabulary plus
+  agent-discovery terms (`llm`, `agent-tools`, and the react-original
+  `docspec`/`capability-manifest`/`verapdf`), and the documented
+  `react-pdf-alternative` anchor. Deliberately excluded: signature/PAdES
+  terms (authoring-only boundary), MCP client names (a library is not a
+  server), `factur-x` (no dedicated recipe). Nothing pins these fields
+  (verified); every keyword maps to a documented capability.
+
 ### Version plumbing
 `src/version.ts` → 1.2.0; `package.json`; `CITATION.cff` (+ `date-released:
 2026-08-26`). Governance spec (`.github/ai-governance.json` / `governance.ts`)

@@ -186,6 +186,12 @@ No public API was removed or changed in a backward-incompatible way. One
 
 ### Documentation
 
+- npm discovery metadata refreshed for the 1.2.0 surface: the package
+  description now names the chart engine, print production, the veraPDF gate
+  and the agent surface, and `keywords` grew 42 → 68 — the print/charts/PDF-A
+  clusters the ecosystem siblings already use, plus agent-discovery terms
+  (`llm`, `agent-tools`, `docspec`, `capability-manifest`, `verapdf`,
+  `react-pdf-alternative`). Every keyword maps to a documented capability.
 - Every guide, `llms.txt`, the JSON schemas and the capability manifest now
   describe the 1.2.0 surface; `docs/CHARTS.md` closes its "Charts v2 is on
   the engine roadmap" promise with the shipped API.

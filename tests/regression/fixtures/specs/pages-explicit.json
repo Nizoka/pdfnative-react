@@ -1,0 +1,10 @@
+{
+  "outline": [
+    { "title": "Cover", "pageIndex": 0 },
+    { "title": "Body", "pageIndex": 1, "children": [{ "title": "Detail", "pageIndex": 1 }] }
+  ],
+  "blocks": [
+    ["page", [["h1", "Cover"]]],
+    ["page", [["h1", "Body"], ["h2", "Detail"]]]
+  ]
+}

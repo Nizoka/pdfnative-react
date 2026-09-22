@@ -1,0 +1,992 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pdfnative.dev/schema/react/1.2.0/doc-spec.schema.json",
+  "title": "pdfnative-react DocSpec",
+  "description": "Compact, token-frugal document specification. Compiles to the same pdfnative model as the JSX components.",
+  "type": "object",
+  "required": [
+    "blocks"
+  ],
+  "properties": {
+    "title": {
+      "type": "string"
+    },
+    "footerText": {
+      "type": "string"
+    },
+    "metadata": {
+      "type": "object",
+      "description": "DocumentMetadata: { author?, subject?, keywords?, trapped? ('True' | 'False' | 'Unknown') }."
+    },
+    "fontEntries": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "layout": {
+      "type": "object",
+      "description": "PdfLayoutOptions overrides. Includes strict (escalate PDF/A diagnostics to errors, JSON-safe) and outputIntent (custom ICC profile, tagged modes only); onDiagnostic is function-valued and not representable in JSON — set it from code."
+    },
+    "outline": {
+      "oneOf": [
+        {
+          "const": "auto",
+          "description": "Derive a flat outline from every heading."
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/outlineItem"
+          }
+        }
+      ],
+      "description": "Document outline / bookmarks."
+    },
+    "pageLabels": {
+      "type": "array",
+      "description": "PageLabelRange[] — viewer page numbering.",
+      "items": {
+        "type": "object",
+        "required": [
+          "startPage"
+        ],
+        "properties": {
+          "startPage": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "style": {
+            "enum": [
+              "decimal",
+              "roman",
+              "Roman",
+              "alpha",
+              "Alpha",
+              "none"
+            ]
+          },
+          "prefix": {
+            "type": "string"
+          },
+          "start": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      }
+    },
+    "watermark": {
+      "oneOf": [
+        {
+          "type": "string",
+          "description": "Shorthand for { text: { text: … } }."
+        },
+        {
+          "type": "object",
+          "description": "WatermarkOptions: { text?, image?, position? }.",
+          "properties": {
+            "text": {
+              "type": "object",
+              "required": [
+                "text"
+              ],
+              "properties": {
+                "text": {
+                  "type": "string"
+                },
+                "fontSize": {
+                  "type": "number"
+                },
+                "color": {
+                  "type": [
+                    "string",
+                    "array"
+                  ]
+                },
+                "opacity": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "angle": {
+                  "type": "number"
+                },
+                "autoFit": {
+                  "type": "boolean"
+                }
+              }
+            },
+            "image": {
+              "type": "object",
+              "required": [
+                "data"
+              ],
+              "description": "{ data: Uint8Array, opacity?, width?, height? }."
+            },
+            "position": {
+              "enum": [
+                "background",
+                "foreground"
+              ]
+            }
+          }
+        }
+      ],
+      "description": "Watermark repeated on every page. Sugar over layout.watermark."
+    },
+    "header": {
+      "$ref": "#/$defs/pageTemplate",
+      "description": "Running page header."
+    },
+    "footer": {
+      "$ref": "#/$defs/pageTemplate",
+      "description": "Running page footer."
+    },
+    "attachments": {
+      "type": "array",
+      "description": "Embedded file attachments (PDF/A-3).",
+      "items": {
+        "type": "object",
+        "required": [
+          "filename",
+          "data",
+          "mimeType"
+        ],
+        "properties": {
+          "filename": {
+            "type": "string"
+          },
+          "data": {
+            "description": "File content as Uint8Array."
+          },
+          "mimeType": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "relationship": {
+            "enum": [
+              "Source",
+              "Data",
+              "Alternative",
+              "Supplement",
+              "Unspecified"
+            ]
+          }
+        }
+      }
+    },
+    "tagged": {
+      "oneOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "enum": [
+            "pdfa1b",
+            "pdfa2b",
+            "pdfa2u",
+            "pdfa3b"
+          ]
+        }
+      ],
+      "description": "Emit a tagged (accessible) PDF, optionally at a PDF/A conformance level. PDF/A requires every rendering font to be embedded via fontEntries."
+    },
+    "print": {
+      "type": "object",
+      "description": "Print-production page geometry. Sugar over layout.print. bleed is mutually exclusive with trimBox; marks require a TrimBox source; userUnit is rejected under pdfa1b.",
+      "properties": {
+        "bleed": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Uniform bleed in points (shorthand for a centred TrimBox)."
+        },
+        "trimBox": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "items": {
+            "type": "number"
+          },
+          "description": "Finished-page trim box as [llx, lly, urx, ury] in points, within the MediaBox."
+        },
+        "bleedBox": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "items": {
+            "type": "number"
+          },
+          "description": "Bleed box as [llx, lly, urx, ury] in points, within the MediaBox."
+        },
+        "artBox": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "items": {
+            "type": "number"
+          },
+          "description": "Art box as [llx, lly, urx, ury] in points, within the MediaBox."
+        },
+        "cropBox": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "items": {
+            "type": "number"
+          },
+          "description": "Crop box as [llx, lly, urx, ury] in points, within the MediaBox."
+        },
+        "marks": {
+          "description": "Printer’s marks: true for defaults, or { crop?, registration?, length?, offset?, weight? }.",
+          "oneOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "crop": {
+                  "type": "boolean"
+                },
+                "registration": {
+                  "type": "boolean"
+                },
+                "length": {
+                  "type": "number"
+                },
+                "offset": {
+                  "type": "number"
+                },
+                "weight": {
+                  "type": "number"
+                }
+              }
+            }
+          ]
+        },
+        "userUnit": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 75000,
+          "description": "Large-format point multiplier; raises the header to PDF 1.7."
+        }
+      }
+    },
+    "blocks": {
+      "type": "array",
+      "description": "Ordered document blocks (positional tuples).",
+      "items": {
+        "$ref": "#/$defs/block"
+      }
+    }
+  },
+  "$defs": {
+    "listItem": {
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "object",
+          "required": [
+            "text"
+          ],
+          "properties": {
+            "text": {
+              "type": "string"
+            },
+            "items": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/listItem"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "outlineItem": {
+      "type": "object",
+      "required": [
+        "title",
+        "pageIndex"
+      ],
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "Bookmark label."
+        },
+        "pageIndex": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "0-based destination page."
+        },
+        "y": {
+          "type": "number",
+          "description": "Destination Y in points (default: top of page)."
+        },
+        "bold": {
+          "type": "boolean"
+        },
+        "italic": {
+          "type": "boolean"
+        },
+        "color": {
+          "type": [
+            "string",
+            "array"
+          ]
+        },
+        "open": {
+          "type": "boolean",
+          "description": "Initial expansion state (default true)."
+        },
+        "children": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/outlineItem"
+          }
+        }
+      }
+    },
+    "pageTemplate": {
+      "type": "object",
+      "description": "PageTemplate. Placeholders: {page}, {pages}, {date}, {title}.",
+      "properties": {
+        "left": {
+          "type": "string"
+        },
+        "center": {
+          "type": "string"
+        },
+        "right": {
+          "type": "string"
+        },
+        "fontSize": {
+          "type": "number",
+          "description": "Default 7."
+        },
+        "color": {
+          "type": [
+            "string",
+            "array"
+          ]
+        }
+      }
+    },
+    "block": {
+      "oneOf": [
+        {
+          "type": "array",
+          "title": "HeadingSpec",
+          "prefixItems": [
+            {
+              "enum": [
+                "h1",
+                "h2",
+                "h3"
+              ]
+            },
+            {
+              "type": "string",
+              "description": "Heading text."
+            },
+            {
+              "type": "object",
+              "description": "Optional { color }."
+            }
+          ],
+          "description": "Section heading (levels 1–3). Feeds the TOC and outline=\"auto\".",
+          "minItems": 2,
+          "maxItems": 3
+        },
+        {
+          "type": "array",
+          "title": "ParagraphSpec",
+          "prefixItems": [
+            {
+              "const": "p"
+            },
+            {
+              "type": "string",
+              "description": "Paragraph text."
+            },
+            {
+              "type": "object",
+              "description": "Optional { fontSize, lineHeight, align, indent, color }."
+            }
+          ],
+          "description": "Wrapping paragraph of body text.",
+          "minItems": 2,
+          "maxItems": 3
+        },
+        {
+          "type": "array",
+          "title": "ListSpec",
+          "prefixItems": [
+            {
+              "enum": [
+                "ul",
+                "ol"
+              ]
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/listItem"
+              },
+              "description": "List items: strings, or { text, items } for nested sub-lists."
+            },
+            {
+              "type": "object",
+              "description": "Optional { fontSize }."
+            }
+          ],
+          "description": "Bullet or numbered list; items may nest sub-lists.",
+          "minItems": 2,
+          "maxItems": 3
+        },
+        {
+          "type": "array",
+          "title": "TableSpec",
+          "prefixItems": [
+            {
+              "const": "table"
+            },
+            {
+              "type": "object",
+              "required": [
+                "r"
+              ],
+              "properties": {
+                "h": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Column headers."
+                },
+                "r": {
+                  "type": "array",
+                  "description": "Rows: arrays of cell strings, or full PdfRow objects.",
+                  "items": {
+                    "oneOf": [
+                      {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      {
+                        "type": "object",
+                        "required": [
+                          "cells",
+                          "type",
+                          "pointed"
+                        ],
+                        "properties": {
+                          "cells": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "type": {
+                            "type": "string"
+                          },
+                          "pointed": {
+                            "type": "boolean"
+                          }
+                        }
+                      }
+                    ]
+                  }
+                },
+                "columns": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  },
+                  "description": "ColumnDef[] (widths, align, vAlign, kind)."
+                },
+                "zebra": {
+                  "type": [
+                    "boolean",
+                    "string",
+                    "array"
+                  ]
+                },
+                "caption": {
+                  "type": "string"
+                },
+                "clipCells": {
+                  "type": "boolean"
+                },
+                "autoFitColumns": {
+                  "type": "boolean"
+                },
+                "wrap": {
+                  "enum": [
+                    "auto",
+                    "always",
+                    "never"
+                  ]
+                },
+                "repeatHeader": {
+                  "type": "boolean"
+                },
+                "minRowHeight": {
+                  "type": "number"
+                },
+                "cellPadding": {
+                  "type": "number"
+                },
+                "cellBorders": {
+                  "type": "object",
+                  "description": "CellBorders: { top?, right?, bottom?, left?, all?, color?, width?, style?: 'solid'|'dashed'|'dotted' }."
+                },
+                "cellVAlign": {
+                  "enum": [
+                    "top",
+                    "middle",
+                    "bottom"
+                  ]
+                }
+              }
+            }
+          ],
+          "description": "Data table with headers, column definitions, zebra striping and borders.",
+          "minItems": 2,
+          "maxItems": 2
+        },
+        {
+          "type": "array",
+          "title": "ImageSpec",
+          "prefixItems": [
+            {
+              "const": "img"
+            },
+            {
+              "type": "object",
+              "required": [
+                "data"
+              ],
+              "description": "Image body: { data: Uint8Array, width?, height?, align?, alt? }."
+            }
+          ],
+          "description": "Raster image (JPEG/PNG) from a Uint8Array.",
+          "minItems": 2,
+          "maxItems": 2
+        },
+        {
+          "type": "array",
+          "title": "LinkSpec",
+          "prefixItems": [
+            {
+              "const": "link"
+            },
+            {
+              "type": "string",
+              "description": "Link text."
+            },
+            {
+              "type": "object",
+              "description": "Options; one of url/href is required. Also accepts fontSize and color.",
+              "properties": {
+                "url": {
+                  "type": "string"
+                },
+                "href": {
+                  "type": "string"
+                },
+                "fontSize": {
+                  "type": "number"
+                },
+                "color": {
+                  "type": [
+                    "string",
+                    "array"
+                  ]
+                }
+              }
+            }
+          ],
+          "description": "External hyperlink annotation.",
+          "minItems": 3,
+          "maxItems": 3
+        },
+        {
+          "type": "array",
+          "title": "SpacerSpec",
+          "prefixItems": [
+            {
+              "const": "sp"
+            },
+            {
+              "type": "number",
+              "description": "Height in points."
+            }
+          ],
+          "description": "Vertical whitespace in points.",
+          "minItems": 1,
+          "maxItems": 2
+        },
+        {
+          "type": "array",
+          "title": "PageBreakSpec",
+          "prefixItems": [
+            {
+              "const": "br"
+            }
+          ],
+          "description": "Hard page break.",
+          "minItems": 1,
+          "maxItems": 1
+        },
+        {
+          "type": "array",
+          "title": "PageSpec",
+          "prefixItems": [
+            {
+              "const": "page"
+            },
+            {
+              "type": "array",
+              "description": "Nested blocks for this page.",
+              "items": {
+                "$ref": "#/$defs/block"
+              }
+            }
+          ],
+          "description": "Explicit page group; blocks inside start on a fresh page.",
+          "minItems": 2,
+          "maxItems": 2
+        },
+        {
+          "type": "array",
+          "title": "TocSpec",
+          "prefixItems": [
+            {
+              "const": "toc"
+            },
+            {
+              "type": "object",
+              "description": "Optional { title, maxLevel, fontSize, indent }."
+            }
+          ],
+          "description": "Auto-generated table of contents built from heading blocks.",
+          "minItems": 1,
+          "maxItems": 2
+        },
+        {
+          "type": "array",
+          "title": "BarcodeSpec",
+          "prefixItems": [
+            {
+              "enum": [
+                "qr",
+                "code128",
+                "ean13",
+                "pdf417",
+                "datamatrix"
+              ]
+            },
+            {
+              "type": "string",
+              "description": "Data to encode."
+            },
+            {
+              "type": "object",
+              "description": "Optional { width, height, align, ecLevel, pdf417ECLevel }."
+            }
+          ],
+          "description": "1D or 2D barcode rendered with vector operators.",
+          "minItems": 2,
+          "maxItems": 3
+        },
+        {
+          "type": "array",
+          "title": "SvgSpec",
+          "prefixItems": [
+            {
+              "const": "svg"
+            },
+            {
+              "type": "string",
+              "description": "SVG path data or inline markup."
+            },
+            {
+              "type": "object",
+              "description": "Optional { width, height, align, viewBox, fill, stroke, strokeWidth, alt }."
+            }
+          ],
+          "description": "Inline vector graphics; <text>/<tspan> render as selectable PDF text.",
+          "minItems": 2,
+          "maxItems": 3
+        },
+        {
+          "type": "array",
+          "title": "ChartSpec",
+          "prefixItems": [
+            {
+              "const": "chart"
+            },
+            {
+              "type": "object",
+              "required": [
+                "chartType",
+                "series"
+              ],
+              "description": "Chart body. Pie/donut take exactly one series with non-negative values.",
+              "properties": {
+                "chartType": {
+                  "enum": [
+                    "bar",
+                    "barH",
+                    "line",
+                    "pie",
+                    "donut",
+                    "stackedBar",
+                    "stackedBarH",
+                    "area",
+                    "scatter"
+                  ]
+                },
+                "series": {
+                  "type": "array",
+                  "minItems": 1,
+                  "description": "Data series; each value array matches `categories` in length.",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "label",
+                      "values"
+                    ],
+                    "properties": {
+                      "label": {
+                        "type": "string",
+                        "description": "Series label (legend)."
+                      },
+                      "values": {
+                        "type": "array",
+                        "items": {
+                          "type": "number"
+                        }
+                      },
+                      "color": {
+                        "type": [
+                          "string",
+                          "array"
+                        ]
+                      },
+                      "xValues": {
+                        "type": "array",
+                        "items": {
+                          "type": [
+                            "number",
+                            "string"
+                          ]
+                        },
+                        "description": "Per-point x positions for linear/time axes. Required for scatter; same length as values."
+                      },
+                      "yAxis": {
+                        "enum": [
+                          "left",
+                          "right"
+                        ],
+                        "description": "Which value axis this series binds to. Default left."
+                      }
+                    }
+                  }
+                },
+                "categories": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Category / slice labels. Defaults to 1-based indices."
+                },
+                "width": {
+                  "type": "number",
+                  "description": "Plot width in points. Default 460."
+                },
+                "height": {
+                  "type": "number",
+                  "description": "Plot height in points. Default 240."
+                },
+                "title": {
+                  "type": "string"
+                },
+                "legend": {
+                  "enum": [
+                    "bottom",
+                    "none"
+                  ]
+                },
+                "axis": {
+                  "type": "object",
+                  "description": "Primary (left) value-axis options.",
+                  "properties": {
+                    "yMin": {
+                      "type": "number"
+                    },
+                    "yMax": {
+                      "type": "number"
+                    },
+                    "ticks": {
+                      "type": "integer",
+                      "minimum": 2
+                    },
+                    "grid": {
+                      "type": "boolean"
+                    },
+                    "scale": {
+                      "enum": [
+                        "linear",
+                        "log"
+                      ],
+                      "description": "Log scale requires strictly positive values; incompatible with stacked kinds. Default linear."
+                    }
+                  }
+                },
+                "axis2": {
+                  "type": "object",
+                  "description": "Secondary right value axis; rendered only when a series binds to it with yAxis \"right\".",
+                  "properties": {
+                    "yMin": {
+                      "type": "number"
+                    },
+                    "yMax": {
+                      "type": "number"
+                    },
+                    "ticks": {
+                      "type": "integer",
+                      "minimum": 2
+                    },
+                    "scale": {
+                      "enum": [
+                        "linear",
+                        "log"
+                      ]
+                    }
+                  }
+                },
+                "xAxis": {
+                  "type": "object",
+                  "description": "X-axis options. \"linear\"/\"time\" position points by series xValues (\"time\" parses ISO-8601 or epoch ms, UTC ticks). Default \"category\" (\"linear\" for scatter).",
+                  "properties": {
+                    "type": {
+                      "enum": [
+                        "category",
+                        "linear",
+                        "time"
+                      ]
+                    },
+                    "min": {
+                      "type": [
+                        "number",
+                        "string"
+                      ]
+                    },
+                    "max": {
+                      "type": [
+                        "number",
+                        "string"
+                      ]
+                    },
+                    "ticks": {
+                      "type": "integer",
+                      "minimum": 2
+                    },
+                    "grid": {
+                      "type": "boolean"
+                    }
+                  }
+                },
+                "dataLabels": {
+                  "description": "Per-point value labels: true for defaults, or { decimals?, prefix?, suffix? }.",
+                  "oneOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "decimals": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "prefix": {
+                          "type": "string"
+                        },
+                        "suffix": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "labelStride": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "description": "Draw every Nth x-label. Defaults to the smallest non-overlapping stride; 1 forces every label."
+                },
+                "labelRotation": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 90,
+                  "description": "Rotate x-labels counter-clockwise (degrees)."
+                },
+                "markers": {
+                  "type": "boolean",
+                  "description": "Point markers on line series."
+                },
+                "colors": {
+                  "type": "array",
+                  "description": "Palette override (PdfColor[])."
+                },
+                "align": {
+                  "enum": [
+                    "left",
+                    "center",
+                    "right"
+                  ]
+                },
+                "altText": {
+                  "type": "string",
+                  "description": "Tagged-PDF /Figure /Alt text. Auto-generated when omitted."
+                }
+              }
+            }
+          ],
+          "description": "Native vector chart (bar, barH, line, pie, donut, stackedBar, stackedBarH, area, scatter) drawn with PDF path operators. Requires the pdfnative engine >= 1.7.0.",
+          "minItems": 2,
+          "maxItems": 2
+        },
+        {
+          "type": "array",
+          "title": "FormFieldSpec",
+          "prefixItems": [
+            {
+              "const": "field"
+            },
+            {
+              "type": "object",
+              "required": [
+                "fieldType",
+                "name"
+              ],
+              "description": "Form-field body: { fieldType, name, label?, value?, options?, … }."
+            }
+          ],
+          "description": "Interactive AcroForm widget.",
+          "minItems": 2,
+          "maxItems": 2
+        }
+      ]
+    }
+  }
+}

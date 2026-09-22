@@ -1,7 +1,7 @@
 {
   "name": "pdfnative-react",
-  "version": "1.2.0",
-  "description": "React renderer for pdfnative — declarative JSX components (<Document>, <Table>, <Chart>, <Barcode>…) that compile to PDF on-device with zero SaaS round-trips. Nine native vector chart types (stacked/area/scatter, log & time axes), print production (bleed, printer's marks, /Trapped), tagged PDF/A validated against veraPDF, streaming HTTP responses, 22 Unicode scripts. Built for autonomous AI agents: token-frugal DocSpec JSON grammar, capability manifest, versioned JSON Schemas, llms.txt, and a self-verification loop (lint, layout inspection, visual rasterization).",
+  "version": "1.3.0",
+  "description": "React renderer for pdfnative — declarative JSX components (<Document>, <Table>, <Chart>, <Barcode>…) that compile to PDF on-device with zero SaaS round-trips. Fine typography (widows/orphans, justification, kerning, OpenType features), CMYK colour and PDF/X-4 print output, nine native vector chart types, tagged PDF/A validated against veraPDF, byte-reproducible rendering, streaming HTTP responses, 27 Unicode scripts. Built for autonomous AI agents: token-frugal DocSpec JSON grammar, capability manifest, versioned JSON Schemas, llms.txt, and a self-verification loop (lint, layout inspection, PDF/X and PDF/UA checks, visual rasterization).",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
@@ -145,32 +145,36 @@
     "provenance": true
   },
   "peerDependencies": {
-    "pdfnative": "^1.7.0",
+    "pdfnative": "^1.8.0",
     "react": "^19.0.0"
   },
   "dependencies": {
     "react-reconciler": "^0.31.0"
   },
   "devDependencies": {
+    "@arethetypeswrong/cli": "^0.18.5",
     "@eslint/js": "^9.0.0",
     "@testing-library/react": "^16.1.0",
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-reconciler": "^0.32.0",
     "@vitest/coverage-v8": "^4.1.7",
+    "esbuild": "^0.28.2",
     "eslint": "^9.0.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "jsdom": "^25.0.0",
-    "pdfnative": "^1.7.0",
+    "pdfnative": "^1.8.0",
+    "publint": "^0.3.24",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "tsup": "^8.0.0",
+    "tsx": "^4.23.15",
     "typescript": "^5.4.0",
     "typescript-eslint": "^8.59.2",
     "vitest": "^4.1.7"
   },
   "overrides": {
-    "esbuild": "^0.28.1",
+    "esbuild": "^0.28.2",
     "js-yaml": "^4.3.0",
     "postcss": "^8.5.18"
   }

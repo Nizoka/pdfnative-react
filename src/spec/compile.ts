@@ -149,6 +149,10 @@ export function specToElement(spec: DocSpec): ReactElement {
             attachments: spec.attachments,
             tagged: spec.tagged,
             print: spec.print,
+            pdfx: spec.pdfx,
+            outputIntent: spec.outputIntent,
+            typography: spec.typography,
+            creationDate: spec.creationDate,
         },
         children,
     );

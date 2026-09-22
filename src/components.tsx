@@ -22,6 +22,7 @@ import type {
     ChartSeries,
     ChartType,
     ColumnDef,
+    CustomOutputIntent,
     DocumentMetadata,
     FontEntry,
     FormFieldType,
@@ -29,6 +30,7 @@ import type {
     OutlineItem,
     PageLabelRange,
     PageTemplate,
+    ParagraphAlign,
     PdfAttachment,
     PdfColor,
     PdfLayoutOptions,
@@ -36,6 +38,7 @@ import type {
     PrintOptions,
     QRErrorLevel,
     SvgRenderOptions,
+    TypographyOptions,
     WatermarkOptions,
 } from './types.js';
 import type { HostTag } from './reconciler/nodes.js';
@@ -108,8 +111,10 @@ export interface DocumentProps {
      * one-line `bleed` shorthand), vector printer's marks, and large-format
      * `/UserUnit`. Sugar over `layout.print`; an explicit `layout` wins.
      *
-     * Requires the `pdfnative` engine ≥ 1.7.0. See `lintDocument`
-     * (rule `L_PRINT_BOXES`) for pre-render geometry validation.
+     * First shipped with engine 1.7.0; `marks.colourBars` (C/M/Y/K control
+     * bars in the bottom bleed strip) needs 1.8.0 and a bleed of 5 mm or more.
+     * See `lintDocument` (rules `L_PRINT_BOXES`, `L_PRINT_COLOUR_BARS`) for
+     * pre-render geometry validation.
      */
     readonly print?: PrintOptions;
     /**
@@ -119,8 +124,77 @@ export interface DocumentProps {
      *
      * PDF/A requires every rendering font to be embedded — pair it with
      * `fontEntries`, and see `lintDocument` (rule `L_TAGGED_NO_FONTS`).
+     * Mutually exclusive with `pdfx`.
      */
     readonly tagged?: PdfLayoutOptions['tagged'];
+    /**
+     * Claim PDF/X-4 conformance (ISO 15930-7) for print production. Sugar over
+     * `layout.pdfx`; an explicit `layout` wins. Requires the `pdfnative`
+     * engine ≥ 1.8.0.
+     *
+     * The engine writes a `%PDF-1.6` header, the PDF/X-4 XMP identification, a
+     * `/GTS_PDFX` output intent, a TrimBox on every page and `/Trapped`. It
+     * needs an `outputIntent` carrying the printer's output profile (ICC device
+     * class `prtr`; pdfnative ships no press profile), `metadata.trapped` set
+     * to `'True'` or `'False'` (never `'Unknown'`), embedded fonts via
+     * `fontEntries`, and a TrimBox *or* an ArtBox — not both. It cannot be
+     * combined with `tagged` or `layout.encryption`; every one of those
+     * constraints is an `L_PDFX_*` lint rule before it is an engine throw.
+     *
+     * Check the bytes with the engine's `validatePdfX()` — see
+     * `docs/RECIPES.md`. A `valid` result means the structural prerequisites
+     * hold; it is not a certified preflight.
+     */
+    readonly pdfx?: PdfLayoutOptions['pdfx'];
+    /**
+     * A custom output intent: the ICC profile of the intended output condition.
+     * Sugar over `layout.outputIntent`; an explicit `layout` wins.
+     *
+     * Honoured under `tagged` (PDF/A, RGB/CMYK/Gray profiles) and required
+     * under `pdfx` (a `prtr` press profile). The profile must be a real ICC
+     * file: the engine checks the `acsp` signature and the size field (rule
+     * `L_OUTPUT_INTENT_PROFILE` pre-empts that throw). RGB content under a
+     * CMYK or Gray intent is remapped by the engine through `/DefaultRGB`.
+     */
+    readonly outputIntent?: CustomOutputIntent;
+    /**
+     * Fine typography — all opt-in, and with it omitted the output is
+     * byte-identical to earlier releases. Sugar over `layout.typography`; an
+     * explicit `layout` wins (the object replaces the prop whole, no deep
+     * merge). Requires the `pdfnative` engine ≥ 1.8.0.
+     *
+     * Keys: `splitParagraphs` (with `orphans` / `widows`),
+     * `keepHeadingsWithNext` (`true` or `{ minLines }`), `unitBinding`,
+     * `bindShortWords`, `punctuationSpacing` (`'fr'`, `'fr-CA'` or explicit
+     * rules), `opticalMargins`, `metrics` (`'exact'` Adobe Core 14 advances),
+     * `fontFeatures` (`tnum`, `pnum`, `lnum`, `onum`, `zero`, `ordn`, `sups`,
+     * `subs`, `smcp`, `c2sc`, `case`), `kerning` and `hyphenationLanguage`.
+     *
+     * Limits worth knowing (each is a lint finding, `L_TYPOGRAPHY_INEFFECTIVE`):
+     * `kerning`, `fontFeatures` and the narrow no-break space of the `'fr'`
+     * preset need a registered font (`fontEntries`) — the base-14 faces carry
+     * no OpenType data and no U+202F, so `'fr'` degrades to `'fr-CA'`;
+     * `metrics: 'exact'` acts on base-14 text only; `tnum` / `lnum` change
+     * nothing on the bundled Noto Sans, whose figures are tabular and lining
+     * by default (the engine reports `TYPOGRAPHY_FEATURE_INEFFECTIVE`); no
+     * hyphenation dictionary ships — soft hyphens (U+00AD) are honoured, and
+     * `setHyphenationProvider` accepts yours. See `docs/TYPOGRAPHY.md`.
+     */
+    readonly typography?: TypographyOptions;
+    /**
+     * Pin the document's creation instant, for byte-reproducible output. Sugar
+     * over `layout.creationDate`; an explicit `layout` wins. A `Date`, or an
+     * ISO 8601 string (the JSON form used by `DocSpec`); an unparseable string
+     * is an `E_INPUT` error at compile time, never a silent wall-clock fallback.
+     *
+     * With the engine ≥ 1.8.0 every date is written in UTC (`+00'00'`), the
+     * `{date}` header/footer placeholder follows the pin, and the trailer `/ID`
+     * derives from it — so a pinned document renders to the same bytes on
+     * every host. Not covered by design: `layout.encryption` (fresh keys, salts
+     * and IVs on every build). For a process-wide pin, `setDefaultCreationDate`
+     * is re-exported. See `docs/REPRODUCIBLE.md`.
+     */
+    readonly creationDate?: Date | string;
     readonly children?: ReactNode;
 }
 
@@ -195,6 +269,12 @@ export interface HeadingProps {
     readonly level?: 1 | 2 | 3;
     /** Text color. */
     readonly color?: PdfColor;
+    /**
+     * Keep this heading on the same page as the block that follows it,
+     * overriding `typography.keepHeadingsWithNext` in either direction
+     * (engine ≥ 1.8.0). Unset means "follow the document setting".
+     */
+    readonly keepWithNext?: boolean;
     /** Heading text (alternatively provide it as children). */
     readonly text?: string;
     readonly children?: ReactNode;
@@ -212,12 +292,27 @@ export interface ParagraphProps {
     readonly fontSize?: number;
     /** Line height multiplier. */
     readonly lineHeight?: number;
-    /** Horizontal alignment. Default: `'left'`. */
-    readonly align?: Align;
+    /**
+     * Horizontal alignment. Default: `'left'`. `'justify'` (engine ≥ 1.8.0)
+     * sets every line but the last flush on both margins, as one `TJ` array
+     * per line with the spaces kept, so extraction still reads words apart.
+     */
+    readonly align?: ParagraphAlign;
     /** First-line indent in points. */
     readonly indent?: number;
     /** Text color. */
     readonly color?: PdfColor;
+    /**
+     * Keep this paragraph on the same page as the block that follows it
+     * (engine ≥ 1.8.0). Unset means "follow the document setting".
+     */
+    readonly keepWithNext?: boolean;
+    /**
+     * Let this paragraph break across pages at a line boundary — or forbid
+     * it — overriding `typography.splitParagraphs` for this block only
+     * (engine ≥ 1.8.0). Unset means "follow the document setting".
+     */
+    readonly splittable?: boolean;
     /** Paragraph text (alternatively provide it as children). */
     readonly text?: string;
     readonly children?: ReactNode;
@@ -574,13 +669,27 @@ type ChartPropsExact =
 export type ChartPropsCoversChartBlock = ChartPropsAssert<ChartPropsExact>;
 
 /**
+ * Compile-time lock: the `typography` prop is the engine's `TypographyOptions`
+ * itself, so a key the engine adds reaches JSX authors (and the `DocSpec`
+ * schema, which is hand-authored — `tests/typography.test.tsx` walks the
+ * schema's `$defs.typography.properties` against this same key set) the day
+ * the peer is bumped. Same idea as {@link ChartPropsCoversChartBlock}.
+ */
+type TypographyPropsExact =
+    (<T>() => T extends keyof NonNullable<DocumentProps['typography']> ? 1 : 2) extends
+        <T>() => T extends keyof TypographyOptions ? 1 : 2
+        ? true
+        : false;
+export type TypographyPropsCoverTypographyOptions = ChartPropsAssert<TypographyPropsExact>;
+
+/**
  * A native vector chart — bar, horizontal bar, stacked bar, line, area,
  * scatter, pie or donut — rendered as pure PDF path operators. No
  * rasterisation, no chart library, and PDF/A-safe. Supports log and
  * UTC-deterministic time scales, a secondary right axis and per-point data
  * labels.
  *
- * Requires the `pdfnative` engine ≥ 1.7.0.
+ * First shipped with engine 1.7.0 (this release requires ≥ 1.8.0).
  */
 export function Chart(props: ChartProps): ReactElement {
     return h('chart', { ...props });

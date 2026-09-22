@@ -18,6 +18,30 @@ export {
     validateDocumentStreamable,
     initNodeCompression,
     setDeflateImpl,
+    /**
+     * Environment helpers first shipped in pdfnative 1.8.0, re-exported from
+     * the public barrel beside `setDeflateImpl`:
+     *
+     * - `setDeflateRawImpl` / `wrapZlib` — inject a raw RFC 1951 compressor
+     *   (fflate's `deflateSync`, for instance) and let the engine add the
+     *   RFC 1950 envelope. `setDeflateImpl` now rejects raw output (#78).
+     * - `setDefaultCreationDate` / `getDefaultCreationDate` — pin the
+     *   creation instant process-wide; with dates written in UTC the output
+     *   is byte-identical on every host (see `docs/REPRODUCIBLE.md`).
+     * - `setHyphenationProvider` / `getHyphenationProvider` — bring your own
+     *   hyphenation dictionary; the engine ships none.
+     */
+    setDeflateRawImpl,
+    wrapZlib,
+    /**
+     * Also the **capability probe** for `doctor()`: this function first
+     * exists in pdfnative 1.8.0, alongside typography, CMYK and PDF/X-4. Its
+     * presence distinguishes a 1.8.x engine from a 1.7.x one.
+     */
+    setDefaultCreationDate,
+    getDefaultCreationDate,
+    setHyphenationProvider,
+    getHyphenationProvider,
     inspectDocumentLayout,
     streamToFile,
     downloadBlob,
@@ -43,7 +67,7 @@ export {
      * 1. **Capability probe** for `doctor()`: this function first exists in
      *    pdfnative 1.7.0, alongside print production (`layout.print`). Its
      *    presence distinguishes a 1.7.x engine from a 1.6.x one without
-     *    parsing version strings.
+     *    parsing version strings (the 1.8.0 probe is `setDefaultCreationDate`).
      * 2. **Lint delegate** for `L_PRINT_BOXES`: `lintDocument` calls it in a
      *    try/catch so the lint report carries the engine's own validation
      *    message — zero duplicated geometry rules, zero drift.
@@ -58,6 +82,12 @@ export {
      */
     PG_W,
     PG_H,
+    /**
+     * The engine's list of PDF/X conformance targets (`['pdfx4']` in 1.8.0).
+     * Imported so the `L_PDFX_*` lint hints name the targets the engine will
+     * actually accept — no hard-coded copy to drift. Not re-exported.
+     */
+    PDF_X_CONFORMANCE_TARGETS,
 } from 'pdfnative';
 
 export type {
@@ -99,8 +129,20 @@ export type {
     PrinterMarksOptions,
     PageBox,
     CustomOutputIntent,
-    // PDF/A conformance diagnostics channel (engine ≥ 1.7.0)
+    // PDF/A conformance diagnostics channel (engine ≥ 1.7.0; nine codes as of 1.8.0)
     PdfDiagnostic,
     PdfDiagnosticCode,
     PdfDiagnosticHandler,
+    // Typography engine (engine ≥ 1.8.0)
+    TypographyOptions,
+    UnitBindingOptions,
+    PunctuationSpacingRule,
+    PunctuationSpacingPreset,
+    Base14Metrics,
+    HyphenationProvider,
+    // CMYK colour, colour bars and PDF/X-4 (engine ≥ 1.8.0)
+    ColourBarOptions,
+    PdfCmykTuple,
+    PdfCmykString,
+    PdfXConformanceTarget,
 } from 'pdfnative';

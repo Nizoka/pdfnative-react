@@ -9,12 +9,19 @@
  * Findings carry a stable {@link LintRuleCode}. Branch on the code, never on
  * the message: messages may be reworded in any release, codes may not.
  *
- * Thirteen of the twenty-five rules pre-empt an exception the engine raises
- * mid-render — the eight `L_CHART_*` errors, `L_PRINT_BOXES`,
- * `L_VIEWER_PRINT_RANGE`, `L_ATTACHMENTS_NEED_PDFA3`, `L_TAGGED_ENCRYPTED`
- * and `L_MAX_BLOCKS_EXCEEDED` — turning a runtime throw into a finding you
- * can act on beforehand. Two more (`L_EMPTY_DOCUMENT`, `L_TAGGED_NO_FONTS`)
- * catch output that renders successfully but is wrong.
+ * Twenty of the thirty-seven rules pre-empt an exception the engine raises at
+ * build time — the eight `L_CHART_*` errors, `L_PRINT_BOXES`,
+ * `L_VIEWER_PRINT_RANGE`, `L_ATTACHMENTS_NEED_PDFA3`, `L_TAGGED_ENCRYPTED`,
+ * `L_MAX_BLOCKS_EXCEEDED`, `L_OUTPUT_INTENT_PROFILE` and the six PDF/X
+ * coherence rules (`L_PDFX_TARGET`, `L_PDFX_TAGGED_CONFLICT`,
+ * `L_PDFX_ENCRYPTED`, `L_PDFX_OUTPUT_INTENT`, `L_PDFX_TRAPPED_UNKNOWN`,
+ * `L_PDFX_BOXES`) — turning a runtime throw into a finding you can act on
+ * beforehand; for the PDF/X rules the finding's message *is* the engine's
+ * message. Five more mirror an engine diagnostic that becomes a throw under
+ * `layout.strict` (`L_TAGGED_FORM_FONTS`, `L_PDFX_NO_FONTS`,
+ * `L_PDFX_ANNOTATIONS`, `L_TYPOGRAPHY_INEFFECTIVE`, `L_CMYK_INTENT_MISMATCH`),
+ * and two (`L_EMPTY_DOCUMENT`, `L_TAGGED_NO_FONTS`) catch output that renders
+ * successfully but is wrong.
  *
  * The function is pure: it never writes to the console and never throws for a
  * lint failure. What you do with the report is your call.
@@ -23,7 +30,12 @@
  */
 
 import type { ReactNode } from 'react';
-import { PG_H, PG_W, validatePrintOptions } from './core-bridge/index.js';
+import {
+    PDF_X_CONFORMANCE_TARGETS,
+    PG_H,
+    PG_W,
+    validatePrintOptions,
+} from './core-bridge/index.js';
 import { compileDocument, inspectDocument } from './render.js';
 import {
     LINT_RULES,
@@ -33,9 +45,12 @@ import {
 } from './registry.js';
 import type {
     ChartBlock,
+    CustomOutputIntent,
     DocumentBlock,
     DocumentParams,
+    PdfLayoutOptions,
     RenderOptions,
+    TypographyOptions,
 } from './types.js';
 
 // The rule table lives in `./registry.js` so the JSON Schema can describe a lint
@@ -129,7 +144,401 @@ export const EMITTED_LINT_RULES: readonly LintRuleCode[] = [
     'L_OUTPUT_INTENT_IGNORED',
     'L_TAGGED_FORM_FONTS',
     'L_OVERFLOW',
+    'L_OUTPUT_INTENT_PROFILE',
+    'L_PDFX_TARGET',
+    'L_PDFX_TAGGED_CONFLICT',
+    'L_PDFX_ENCRYPTED',
+    'L_PDFX_OUTPUT_INTENT',
+    'L_PDFX_TRAPPED_UNKNOWN',
+    'L_PDFX_BOXES',
+    'L_PDFX_NO_FONTS',
+    'L_PDFX_ANNOTATIONS',
+    'L_TYPOGRAPHY_INEFFECTIVE',
+    'L_PRINT_COLOUR_BARS',
+    'L_CMYK_INTENT_MISMATCH',
 ];
+
+/** The OpenType single-substitution features the engine applies (`fontFeatures`). */
+const FONT_FEATURE_TAGS: ReadonlySet<string> = new Set([
+    'tnum', 'pnum', 'lnum', 'onum', 'zero', 'ordn', 'sups', 'subs', 'smcp', 'c2sc', 'case',
+]);
+
+/** 5 mm in points — the bleed the engine recommends for colour bars. */
+const COLOUR_BAR_MIN_STRIP = 14.17;
+/** Below this strip height the engine skips colour bars silently. */
+const COLOUR_BAR_SKIP_STRIP = 4;
+
+/**
+ * The engine's own grammar for a four-operand CMYK string: four values in
+ * [0, 1], single spaces, no sign, no exponent (`'0 0.6 1 0'`).
+ */
+const CMYK_STRING = /^(?:0(?:\.\d+)?|1(?:\.0+)?)(?: (?:0(?:\.\d+)?|1(?:\.0+)?)){3}$/;
+
+/** `true` for the two CMYK colour forms the engine accepts since 1.8.0. */
+function isCmykColor(value: unknown): boolean {
+    if (typeof value === 'string') return CMYK_STRING.test(value);
+    return (
+        Array.isArray(value)
+        && value.length === 4
+        && value.every((v) => typeof v === 'number')
+    );
+}
+
+/** The four ICC header fields the engine reads before writing an output intent. */
+interface IccHeader {
+    /** Profile size from bytes 0–3. */
+    readonly size: number;
+    /** Device class from bytes 12–15 (`'prtr'` for an output profile). */
+    readonly deviceClass: string;
+    /** Data colour space from bytes 16–19, trimmed (`'RGB'`, `'CMYK'`, `'GRAY'`). */
+    readonly space: string;
+    /** `true` when bytes 36–39 spell `acsp`. */
+    readonly hasAcsp: boolean;
+}
+
+/** Pure byte reads — no engine call, no allocation beyond four short strings. */
+function iccHeader(icc: Uint8Array): IccHeader | undefined {
+    if (icc.length < 128) return undefined;
+    const ascii = (at: number): string =>
+        String.fromCharCode(icc[at], icc[at + 1], icc[at + 2], icc[at + 3]);
+    const size = ((icc[0] << 24) >>> 0) + (icc[1] << 16) + (icc[2] << 8) + icc[3];
+    return {
+        size,
+        deviceClass: ascii(12),
+        space: ascii(16).trim(),
+        hasAcsp: ascii(36) === 'acsp',
+    };
+}
+
+/**
+ * Mirror of the engine's `resolveOutputIntent()` checks (`outputIntent.*`
+ * throws): the header length, the `acsp` signature, the size field and the
+ * data colour space. Returns the engine's message, or `undefined` when the
+ * profile passes.
+ */
+function outputIntentProblem(intent: CustomOutputIntent): string | undefined {
+    const icc = intent.iccProfile;
+    const header = iccHeader(icc);
+    if (header === undefined) {
+        return 'outputIntent.iccProfile is too short to be an ICC profile (128-byte header required)';
+    }
+    if (!header.hasAcsp) {
+        return 'outputIntent.iccProfile is not an ICC profile (no `acsp` signature at byte 36)';
+    }
+    if (header.size < 128 || header.size > icc.length) {
+        return `outputIntent.iccProfile header declares ${String(header.size)} bytes but `
+            + `${String(icc.length)} were supplied — the profile is truncated or corrupt`;
+    }
+    if (header.space !== 'RGB' && header.space !== 'CMYK' && header.space !== 'GRAY') {
+        return `outputIntent.iccProfile declares data colour space '${header.space}' — an `
+            + 'OutputIntent profile must describe RGB, CMYK or Gray';
+    }
+    return undefined;
+}
+
+/**
+ * The PDF/X coherence rules, in the engine's own order (`resolvePdfXConfig`
+ * then `pdfxBoxes`), with the engine's own messages — so the finding an agent
+ * reads before rendering is the sentence the engine would throw.
+ */
+function lintPdfX(params: DocumentParams, out: LintFinding[]): void {
+    const layout = params.layout;
+    const pdfx = layout?.pdfx;
+    if (pdfx === undefined) return;
+
+    const targets = PDF_X_CONFORMANCE_TARGETS as readonly string[];
+    if (!targets.includes(pdfx)) {
+        out.push(
+            finding(
+                'L_PDFX_TARGET',
+                `layout.pdfx: unknown target '${String(pdfx)}' — use one of ${targets.join(', ')}`,
+                { hint: "Set pdfx to 'pdfx4', the one target the engine writes." },
+            ),
+        );
+    }
+
+    const tagged = layout?.tagged;
+    if (tagged !== undefined && tagged !== false) {
+        out.push(
+            finding(
+                'L_PDFX_TAGGED_CONFLICT',
+                'layout.pdfx and layout.tagged cannot be combined — pdfnative writes one '
+                    + 'conformance claim per file; drop one of them',
+                { hint: 'Build the print file and the archival file as two documents.' },
+            ),
+        );
+    }
+
+    if (layout?.encryption !== undefined) {
+        out.push(
+            finding(
+                'L_PDFX_ENCRYPTED',
+                'PDF/X forbids encryption (ISO 15930-7) — drop layout.encryption or layout.pdfx',
+                { hint: 'Drop one of the two.' },
+            ),
+        );
+    }
+
+    const intent = layout?.outputIntent;
+    if (intent === undefined) {
+        out.push(
+            finding(
+                'L_PDFX_OUTPUT_INTENT',
+                'PDF/X-4 requires layout.outputIntent: the ICC profile of the printing '
+                    + 'condition, e.g. ISO Coated v2 or GRACoL from your printer. pdfnative '
+                    + 'ships no press profile',
+                { hint: 'Pass the output ICC profile your printer names as <Document outputIntent>.' },
+            ),
+        );
+    } else {
+        const header = iccHeader(intent.iccProfile);
+        // An unreadable header is already an L_OUTPUT_INTENT_PROFILE error.
+        if (header?.hasAcsp === true && header.deviceClass !== 'prtr') {
+            out.push(
+                finding(
+                    'L_PDFX_OUTPUT_INTENT',
+                    'PDF/X-4 requires an output (printer) profile as layout.outputIntent — '
+                        + `the supplied profile's class is '${header.deviceClass}'`,
+                    { hint: "Use a press profile (ICC device class 'prtr'), not a monitor profile such as sRGB." },
+                ),
+            );
+        }
+    }
+
+    if (params.metadata?.trapped === 'Unknown') {
+        out.push(
+            finding(
+                'L_PDFX_TRAPPED_UNKNOWN',
+                "PDF/X requires the trapping state to be known — set metadata.trapped to "
+                    + "'True' or 'False', or omit it for 'False'",
+                { hint: "pdfnative never traps, so 'False' is accurate for its output." },
+            ),
+        );
+    }
+
+    const print = layout?.print;
+    if (
+        print?.artBox !== undefined
+        && (print.trimBox !== undefined || print.bleed !== undefined)
+    ) {
+        out.push(
+            finding(
+                'L_PDFX_BOXES',
+                'PDF/X pages carry a TrimBox or an ArtBox, not both — drop print.artBox, or '
+                    + 'print.trimBox and print.bleed',
+                { hint: 'Keep one of the two boxes.' },
+            ),
+        );
+    }
+
+    if (params.fontEntries === undefined || params.fontEntries.length === 0) {
+        out.push(
+            finding(
+                'L_PDFX_NO_FONTS',
+                `pdfx="${String(pdfx)}" requires embedded fonts, but no fontEntries were supplied; `
+                    + 'the engine reports PDFX_NO_FONT_ENTRIES (and throws under layout.strict).',
+                {
+                    hint: 'Pass fontEntries={await resolveFonts({ … })} on <Document> or in the render options.',
+                },
+            ),
+        );
+    }
+
+    params.blocks.forEach((block, index) => {
+        if (block.type === 'link' || block.type === 'formField') {
+            out.push(
+                finding(
+                    'L_PDFX_ANNOTATIONS',
+                    `Block #${String(index)} is a ${block.type === 'link' ? 'link' : 'form field'}; `
+                        + 'PDF/X-4 forbids interactive annotations inside the BleedBox, so the '
+                        + 'engine reports PDFX_ANNOTATIONS (and throws under layout.strict).',
+                    { blockIndex: index, hint: 'Print the URL as text, or drop the form field.' },
+                ),
+            );
+        }
+    });
+}
+
+/** Typography options that can have no effect as written (engine diagnostics and documented no-ops). */
+function lintTypography(
+    typography: TypographyOptions,
+    hasFonts: boolean,
+    out: LintFinding[],
+): void {
+    const warn = (message: string, hint: string): void => {
+        out.push(finding('L_TYPOGRAPHY_INEFFECTIVE', message, { hint }));
+    };
+
+    if (
+        typography.splitParagraphs !== true
+        && (typography.orphans !== undefined || typography.widows !== undefined)
+    ) {
+        warn(
+            'typography.orphans / widows only apply when splitParagraphs is true; paragraphs stay atomic.',
+            'Set typography.splitParagraphs: true, or drop the quotas.',
+        );
+    }
+    for (const key of ['orphans', 'widows'] as const) {
+        const value = typography[key];
+        if (value !== undefined && (!Number.isInteger(value) || value < 1)) {
+            warn(
+                `typography.${key} must be a whole number >= 1, got ${String(value)}; the engine floors it at 1.`,
+                'Use 1, 2 (the default) or 3.',
+            );
+        }
+    }
+    const keep = typography.keepHeadingsWithNext;
+    if (
+        typeof keep === 'object'
+        && keep.minLines !== undefined
+        && (!Number.isInteger(keep.minLines) || keep.minLines < 1)
+    ) {
+        warn(
+            `typography.keepHeadingsWithNext.minLines must be a whole number >= 1, got ${String(keep.minLines)}.`,
+            'Use 2 (the default, byte-identical to true) or 3.',
+        );
+    }
+
+    const unknownTags = (typography.fontFeatures ?? []).filter((tag) => !FONT_FEATURE_TAGS.has(tag));
+    if (unknownTags.length > 0) {
+        warn(
+            `typography.fontFeatures names tags the engine cannot apply: ${unknownTags.join(', ')} `
+                + '(only single substitutions are supported).',
+            `Use one of ${[...FONT_FEATURE_TAGS].join(', ')}.`,
+        );
+    }
+
+    if (!hasFonts) {
+        const needsFont: string[] = [];
+        if (typography.kerning === true) needsFont.push('kerning');
+        if ((typography.fontFeatures ?? []).length > 0) needsFont.push('fontFeatures');
+        if (typography.punctuationSpacing === 'fr') needsFont.push("punctuationSpacing 'fr'");
+        if (needsFont.length > 0) {
+            warn(
+                `${needsFont.join(', ')} need a registered font, but no fontEntries were supplied: `
+                    + 'the base-14 faces carry no OpenType tables and no narrow no-break space '
+                    + "(the 'fr' preset degrades to 'fr-CA').",
+                'Pass fontEntries={await resolveFonts({ … })}, e.g. the bundled Noto Sans.',
+            );
+        }
+    }
+}
+
+/**
+ * Colour bars need a bleed strip to sit in: under 4 pt the engine skips them
+ * silently; under 5 mm (14.17 pt) the patches fall below a densitometer
+ * aperture. The TrimBox source is `bleed`, or an explicit `trimBox` above the
+ * `bleedBox` (or the MediaBox) bottom edge.
+ */
+function lintColourBars(print: NonNullable<PdfLayoutOptions['print']>, out: LintFinding[]): void {
+    const marks = print.marks;
+    if (typeof marks !== 'object' || marks.colourBars === undefined || marks.colourBars === false) {
+        return;
+    }
+    let strip: number | undefined;
+    if (print.bleed !== undefined) strip = print.bleed;
+    else if (print.trimBox !== undefined) strip = print.trimBox[1] - (print.bleedBox?.[1] ?? 0);
+    // No TrimBox source at all is `L_PRINT_BOXES` territory (marks need one).
+    if (strip === undefined || !Number.isFinite(strip)) return;
+
+    if (strip < COLOUR_BAR_SKIP_STRIP) {
+        out.push(
+            finding(
+                'L_PRINT_COLOUR_BARS',
+                `print.marks.colourBars is set but the bottom bleed strip is ${strip.toFixed(2)} pt; `
+                    + 'under 4 pt the engine skips the bars silently.',
+                { hint: 'Use a bleed of 5 mm (14.17 pt) or more.' },
+            ),
+        );
+    } else if (strip < COLOUR_BAR_MIN_STRIP) {
+        out.push(
+            finding(
+                'L_PRINT_COLOUR_BARS',
+                `print.marks.colourBars is set but the bottom bleed strip is ${strip.toFixed(2)} pt; `
+                    + 'the patches are clamped below the 12 pt densitometer aperture.',
+                { hint: 'Use a bleed of 5 mm (14.17 pt) or more.' },
+            ),
+        );
+    }
+}
+
+/**
+ * Every colour position of the compiled model, as `[where, value]` pairs — the
+ * block-level colours plus the document palette, watermark and page templates.
+ */
+function colourPositions(params: DocumentParams): [string, unknown][] {
+    const out: [string, unknown][] = [];
+    const layout = params.layout;
+    for (const [name, value] of Object.entries(layout?.colors ?? {})) out.push([`layout.colors.${name}`, value]);
+    out.push(['watermark.text.color', layout?.watermark?.text?.color]);
+    out.push(['header.color', layout?.headerTemplate?.color]);
+    out.push(['footer.color', layout?.footerTemplate?.color]);
+    params.blocks.forEach((block, index) => {
+        const at = `block #${String(index)}`;
+        switch (block.type) {
+            case 'heading':
+            case 'paragraph':
+            case 'link':
+                out.push([at, block.color]);
+                break;
+            case 'table':
+                out.push([`${at} zebra`, block.zebra]);
+                out.push([`${at} cellBorders`, block.cellBorders?.color]);
+                break;
+            case 'chart':
+                for (const c of block.colors ?? []) out.push([`${at} colors`, c]);
+                for (const s of block.series) out.push([`${at} series "${s.label}"`, s.color]);
+                break;
+            default:
+                break;
+        }
+    });
+    return out;
+}
+
+/**
+ * A CMYK colour under a conformance claim whose output intent is not CMYK is
+ * an engine diagnostic (`PDFA_DEVICE_CMYK_CONTENT` / `PDFX_DEVICE_CMYK`). The
+ * built-in PDF/A intent is sRGB; a custom intent's space comes from its ICC
+ * header. Under `pdfx` without an intent the `L_PDFX_OUTPUT_INTENT` rule
+ * already fires, so there is nothing to compare against here.
+ */
+function lintCmykIntent(params: DocumentParams, out: LintFinding[]): void {
+    const layout = params.layout;
+    const claim =
+        layout?.pdfx !== undefined
+            ? 'PDF/X'
+            : layout?.tagged !== undefined && layout.tagged !== false
+              ? 'PDF/A'
+              : undefined;
+    if (claim === undefined) return;
+
+    let space: string | undefined;
+    const intent = layout?.outputIntent;
+    if (intent === undefined) {
+        if (claim === 'PDF/X') return;
+        space = 'RGB';
+    } else {
+        space = iccHeader(intent.iccProfile)?.space;
+        if (space === undefined) return; // unreadable — L_OUTPUT_INTENT_PROFILE
+    }
+    if (space === 'CMYK') return;
+
+    const offenders = colourPositions(params).filter(([, value]) => isCmykColor(value));
+    if (offenders.length === 0) return;
+    out.push(
+        finding(
+            'L_CMYK_INTENT_MISMATCH',
+            `${String(offenders.length)} CMYK colour(s) under a ${claim} claim whose output intent `
+                + `is ${space} (${offenders.map(([where]) => where).join(', ')}); the engine reports `
+                + `${claim === 'PDF/X' ? 'PDFX_DEVICE_CMYK' : 'PDFA_DEVICE_CMYK_CONTENT'} `
+                + '(and throws under layout.strict).',
+            {
+                hint: 'Supply a CMYK outputIntent (the press profile), or use RGB colours under this claim.',
+            },
+        ),
+    );
+}
 
 function finding(
     code: LintRuleCode,
@@ -582,19 +991,49 @@ function lintDocumentParams(params: DocumentParams, out: LintFinding[]): void {
         );
     }
 
+    // Under `pdfx` the output intent is mandatory, not ignored — that case is
+    // the `L_PDFX_OUTPUT_INTENT` rule's.
     if (
         layout?.outputIntent !== undefined
         && (tagged === undefined || tagged === false)
+        && layout.pdfx === undefined
     ) {
         out.push(
             finding(
                 'L_OUTPUT_INTENT_IGNORED',
                 'layout.outputIntent is set but the document is not tagged — the engine '
                     + 'silently ignores it.',
-                { hint: "Set tagged (e.g. 'pdfa2b'), or drop the outputIntent." },
+                { hint: "Set tagged (e.g. 'pdfa2b') or pdfx, or drop the outputIntent." },
             ),
         );
     }
+
+    // Engine 1.8.0: output-intent profiles are validated before any byte is
+    // written; the same four checks here, with the engine's messages.
+    if (layout?.outputIntent !== undefined) {
+        const problem = outputIntentProblem(layout.outputIntent);
+        if (problem !== undefined) {
+            out.push(
+                finding('L_OUTPUT_INTENT_PROFILE', problem, {
+                    hint: 'Pass the full .icc file of the output condition; a hand-made stub is rejected.',
+                }),
+            );
+        }
+    }
+
+    lintPdfX(params, out);
+
+    if (layout?.typography !== undefined) {
+        lintTypography(
+            layout.typography,
+            params.fontEntries !== undefined && params.fontEntries.length > 0,
+            out,
+        );
+    }
+
+    if (print !== undefined) lintColourBars(print, out);
+
+    lintCmykIntent(params, out);
 
     const maxBlocks = layout?.maxBlocks ?? DEFAULT_MAX_BLOCKS;
     const blockCount = params.blocks.length;

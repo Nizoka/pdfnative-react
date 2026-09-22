@@ -1,0 +1,24 @@
+{
+  "title": "Watermark object",
+  "watermark": {
+    "text": {
+      "text": "CONFIDENTIAL",
+      "fontSize": 48,
+      "color": "#ef4444",
+      "opacity": 0.2,
+      "angle": 30
+    }
+  },
+  "header": {
+    "center": "{title}"
+  },
+  "footer": {
+    "right": "{page}/{pages}"
+  },
+  "blocks": [
+    [
+      "p",
+      "Body"
+    ]
+  ]
+}

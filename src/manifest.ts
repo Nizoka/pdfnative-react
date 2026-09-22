@@ -19,6 +19,7 @@ import {
     BLOCK_REGISTRY,
     CLIENT_COMPONENT_REGISTRY,
     COMPONENT_REGISTRY,
+    DOC_SPEC_FIELDS,
     LINT_RULES,
     type LintRuleCode,
 } from './registry.js';
@@ -110,6 +111,12 @@ export interface CapabilityManifest {
     /** Error classes exported for `instanceof` checks. */
     readonly errorClasses: readonly string[];
     readonly specBlocks: readonly ManifestBlock[];
+    /**
+     * Every top-level `DocSpec` field, in schema order (since 1.3.0). The
+     * grammar an agent can rely on: `specBlocks` for the tuples, this for the
+     * document-level keys.
+     */
+    readonly specFields: readonly string[];
     readonly entrypoints: readonly ManifestEntrypoint[];
     readonly errorCodes: readonly ErrorCodeValue[];
     readonly lintRules: readonly ManifestLintRule[];
@@ -352,8 +359,51 @@ const ENTRYPOINTS: readonly ManifestEntrypoint[] = [
         name: 'setDeflateImpl',
         signature: '(deflate) => void',
         summary:
-            'Inject a DEFLATE implementation so layout.compress produces real '
-            + 'compression outside Node (browsers, workers).',
+            'Inject a zlib-wrapped (RFC 1950) DEFLATE implementation so layout.compress '
+            + 'produces real compression outside Node (browsers, workers). A raw-DEFLATE '
+            + 'function is rejected at build time — use setDeflateRawImpl for those.',
+        kind: 'sync',
+    },
+    {
+        name: 'setDeflateRawImpl',
+        signature: '(deflateRaw) => void',
+        summary:
+            'Inject a raw RFC 1951 compressor (e.g. fflate deflateSync); the engine adds '
+            + 'the zlib envelope. Engine >= 1.8.0.',
+        kind: 'sync',
+    },
+    {
+        name: 'wrapZlib',
+        signature: '(raw, source) => Uint8Array',
+        summary: 'Wrap raw DEFLATE output in the RFC 1950 zlib envelope. Engine >= 1.8.0.',
+        kind: 'sync',
+    },
+    {
+        name: 'setDefaultCreationDate',
+        signature: '(date | null) => void',
+        summary:
+            'Pin the creation instant process-wide for byte-reproducible output; null '
+            + 'restores the wall clock. Per-document: <Document creationDate>. Engine >= 1.8.0.',
+        kind: 'sync',
+    },
+    {
+        name: 'getDefaultCreationDate',
+        signature: '() => Date | null',
+        summary: 'The process-wide creation-date pin, or null. Engine >= 1.8.0.',
+        kind: 'sync',
+    },
+    {
+        name: 'setHyphenationProvider',
+        signature: '(provider | null) => void',
+        summary:
+            'Install a hyphenation provider ((word, lang?) => break offsets) used by '
+            + 'typography.splitParagraphs; the engine ships no dictionary. Engine >= 1.8.0.',
+        kind: 'sync',
+    },
+    {
+        name: 'getHyphenationProvider',
+        signature: '() => HyphenationProvider | null',
+        summary: 'The installed hyphenation provider, or null. Engine >= 1.8.0.',
         kind: 'sync',
     },
     {
@@ -414,7 +464,7 @@ export function capabilityManifest(): CapabilityManifest {
             authoringOnly: true,
             layoutModel: 'block-flow',
             react: '^19.0.0',
-            engine: '^1.7.0',
+            engine: '^1.8.0',
             node: '>=22',
             sideEffects: 'none',
             network: 'none',
@@ -440,6 +490,7 @@ export function capabilityManifest(): CapabilityManifest {
             summary: b.summary,
             component: b.component,
         })),
+        specFields: [...DOC_SPEC_FIELDS],
         entrypoints: ENTRYPOINTS,
         errorCodes: Object.values(ErrorCode),
         lintRules: (Object.keys(LINT_RULES) as LintRuleCode[]).map((code) => ({

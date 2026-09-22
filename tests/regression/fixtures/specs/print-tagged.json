@@ -1,0 +1,22 @@
+{
+  "title": "Print + PDF/A",
+  "metadata": {
+    "trapped": "True"
+  },
+  "tagged": "pdfa3b",
+  "print": {
+    "bleed": 8.5,
+    "marks": true,
+    "userUnit": 2
+  },
+  "blocks": [
+    [
+      "h1",
+      "Print"
+    ],
+    [
+      "p",
+      "Body"
+    ]
+  ]
+}

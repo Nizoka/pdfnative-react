@@ -181,6 +181,97 @@ describe('compileDocument — golden model', () => {
     });
 });
 
+/**
+ * The 1.3.0 surface — engine 1.8.0's typography, the block-level break
+ * controls, a CMYK palette, a pinned creation date and a PDF/X-4 claim — in a
+ * second fixture, so the 1.2.0 snapshot above stays byte-identical (that is
+ * part of the "no serialization change for existing inputs" evidence).
+ */
+const ICC = new Uint8Array([0x61, 0x63, 0x73, 0x70]);
+
+const sinceOneEight = (
+    <Document
+        title="Since 1.8.0"
+        metadata={{ trapped: 'False' }}
+        pdfx="pdfx4"
+        outputIntent={{ iccProfile: ICC, outputConditionIdentifier: 'Synthetic CMYK' }}
+        print={{ bleed: 14.17, marks: { crop: true, colourBars: { tints: true, size: 10 } } }}
+        creationDate={new Date('2026-01-01T00:00:00Z')}
+        typography={{
+            splitParagraphs: true,
+            orphans: 2,
+            widows: 3,
+            keepHeadingsWithNext: { minLines: 3 },
+            unitBinding: { units: ['kg', '€'] },
+            bindShortWords: { maxLength: 2, words: ['a', 'w'] },
+            punctuationSpacing: [{ char: ';', side: 'before', space: 'narrow' }],
+            opticalMargins: true,
+            metrics: 'exact',
+            fontFeatures: ['tnum', 'smcp'],
+            kerning: true,
+            hyphenationLanguage: 'en-US',
+        }}
+        layout={{ colors: { title: [0, 0, 0, 100] } as never }}
+    >
+        <Heading level={1} keepWithNext>
+            Keep me with the paragraph
+        </Heading>
+        <Paragraph align="justify" keepWithNext splittable={false} color="0 1 1 0">
+            Justified, kept with the next block, never split.
+        </Paragraph>
+        <Paragraph splittable>May break across pages.</Paragraph>
+    </Document>
+);
+
+describe('compileDocument — golden model, 1.3.0 surface', () => {
+    it('produces a stable DocumentParams for the engine-1.8.0 props', () => {
+        expect(compileDocument(sinceOneEight)).toMatchSnapshot();
+    });
+
+    it('emits no undefined values anywhere in the model', () => {
+        const json = JSON.stringify(compileDocument(sinceOneEight), (_k, v: unknown) =>
+            v === undefined ? '__UNDEFINED__' : v,
+        );
+        expect(json).not.toContain('__UNDEFINED__');
+    });
+
+    it('compiles to the same shape from the DocSpec twin', () => {
+        const spec: DocSpec = {
+            title: 'Since 1.8.0',
+            metadata: { trapped: 'False' },
+            pdfx: 'pdfx4',
+            outputIntent: { iccProfile: ICC, outputConditionIdentifier: 'Synthetic CMYK' },
+            print: { bleed: 14.17, marks: { crop: true, colourBars: { tints: true, size: 10 } } },
+            creationDate: '2026-01-01T00:00:00Z',
+            typography: {
+                splitParagraphs: true,
+                orphans: 2,
+                widows: 3,
+                keepHeadingsWithNext: { minLines: 3 },
+                unitBinding: { units: ['kg', '€'] },
+                bindShortWords: { maxLength: 2, words: ['a', 'w'] },
+                punctuationSpacing: [{ char: ';', side: 'before', space: 'narrow' }],
+                opticalMargins: true,
+                metrics: 'exact',
+                fontFeatures: ['tnum', 'smcp'],
+                kerning: true,
+                hyphenationLanguage: 'en-US',
+            },
+            layout: { colors: { title: [0, 0, 0, 100] } as never },
+            blocks: [
+                ['h1', 'Keep me with the paragraph', { keepWithNext: true }],
+                [
+                    'p',
+                    'Justified, kept with the next block, never split.',
+                    { align: 'justify', keepWithNext: true, splittable: false, color: '0 1 1 0' },
+                ],
+                ['p', 'May break across pages.', { splittable: true }],
+            ],
+        };
+        expect(compileSpec(spec)).toEqual(compileDocument(sinceOneEight));
+    });
+});
+
 describe('DocSpec parity — golden model', () => {
     it('a spec using every top-level field compiles to the same shape as JSX', () => {
         const spec: DocSpec = {

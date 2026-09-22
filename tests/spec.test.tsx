@@ -79,6 +79,29 @@ describe('compileSpec — parity with the JSX surface', () => {
         ]);
     });
 
+    it('forwards the 1.8.0 block-level break controls and justified alignment', () => {
+        const model = compileSpec({
+            blocks: [
+                ['h2', 'Kept', { keepWithNext: true, color: '#111' }],
+                ['p', 'Body', { align: 'justify', keepWithNext: false, splittable: true }],
+            ],
+        });
+        const jsx = compileDocument(
+            <Document>
+                <Heading level={2} keepWithNext color="#111">Kept</Heading>
+                <Paragraph align="justify" keepWithNext={false} splittable>Body</Paragraph>
+            </Document>,
+        );
+        expect(model).toEqual(jsx);
+        expect(model.blocks[0]).toMatchObject({ type: 'heading', keepWithNext: true });
+        expect(model.blocks[1]).toMatchObject({
+            type: 'paragraph',
+            align: 'justify',
+            keepWithNext: false,
+            splittable: true,
+        });
+    });
+
     it('maps ol to a numbered list and ul to a bullet list', () => {
         const model = compileSpec({
             blocks: [

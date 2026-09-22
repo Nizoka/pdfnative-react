@@ -6,6 +6,7 @@
  */
 
 import type {
+    CustomOutputIntent,
     DocumentParams,
     DocumentBlock,
     DocumentMetadata,
@@ -17,9 +18,10 @@ import type {
     PdfRow,
     PageTemplate,
     PrintOptions,
+    TypographyOptions,
     WatermarkOptions,
 } from '../types.js';
-import { PdfStructureError } from '../errors.js';
+import { ErrorCode, PdfReactError, PdfStructureError } from '../errors.js';
 import {
     type ElementNode,
     type HostNode,
@@ -68,6 +70,7 @@ function toBlock(node: ElementNode): DocumentBlock | DocumentBlock[] {
                 text: elementText(node),
                 level: (p.level as 1 | 2 | 3) ?? 1,
                 color: p.color,
+                keepWithNext: p.keepWithNext,
             }) as DocumentBlock;
 
         case 'paragraph':
@@ -79,6 +82,8 @@ function toBlock(node: ElementNode): DocumentBlock | DocumentBlock[] {
                 align: p.align,
                 indent: p.indent,
                 color: p.color,
+                keepWithNext: p.keepWithNext,
+                splittable: p.splittable,
             }) as DocumentBlock;
 
         case 'list':
@@ -351,8 +356,27 @@ function toWatermark(value: unknown): WatermarkOptions | undefined {
 }
 
 /**
+ * Normalize the `creationDate` sugar: a `Date` passes through, an ISO 8601
+ * string (the JSON form a `DocSpec` carries) is parsed. An unparseable value
+ * is an input error at compile time — never a silent wall-clock fallback,
+ * which would defeat the reproducibility the prop exists for.
+ */
+function toCreationDate(value: unknown): Date | undefined {
+    if (value === undefined) return undefined;
+    const date = value instanceof Date ? value : new Date(String(value));
+    if (Number.isNaN(date.getTime())) {
+        throw new PdfReactError(
+            `creationDate must be a Date or an ISO 8601 string, got ${JSON.stringify(value)}.`,
+            ErrorCode.INPUT,
+        );
+    }
+    return date;
+}
+
+/**
  * Fold the `<Document>` layout-sugar props (`watermark`, `header`, `footer`,
- * `attachments`, `tagged`, `print`) into a single `layout` object.
+ * `attachments`, `tagged`, `print`, `pdfx`, `outputIntent`, `typography`,
+ * `creationDate`) into a single `layout` object.
  *
  * An explicit `layout` prop always wins, mirroring how `RenderOptions.layout`
  * overrides `DocumentParams.layout` in `prepare()` (see `../render.ts`).
@@ -369,6 +393,10 @@ function resolveLayout(p: Record<string, unknown>): Partial<PdfLayoutOptions> | 
         attachments: p.attachments as readonly PdfAttachment[] | undefined,
         tagged: p.tagged as PdfLayoutOptions['tagged'] | undefined,
         print: p.print as PrintOptions | undefined,
+        pdfx: p.pdfx as PdfLayoutOptions['pdfx'] | undefined,
+        outputIntent: p.outputIntent as CustomOutputIntent | undefined,
+        typography: p.typography as TypographyOptions | undefined,
+        creationDate: toCreationDate(p.creationDate),
     });
 
     const explicit = p.layout as Partial<PdfLayoutOptions> | undefined;

@@ -247,9 +247,11 @@ describe('fuzz-mutating a valid spec', () => {
         return JSON.parse(
             JSON.stringify({
                 title: 'Fuzz baseline',
+                typography: { splitParagraphs: true, keepHeadingsWithNext: { minLines: 2 } },
+                creationDate: '2026-01-01T00:00:00Z',
                 blocks: [
-                    ['h1', 'Title'],
-                    ['p', 'Body.', { align: 'left' }],
+                    ['h1', 'Title', { keepWithNext: true }],
+                    ['p', 'Body.', { align: 'justify', splittable: true }],
                     ['ul', ['one', 'two']],
                     ['page', [['p', 'inner']]],
                     ['sp', 12],

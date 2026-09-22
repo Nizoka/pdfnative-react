@@ -60,6 +60,160 @@ export function schemaId(subject: SchemaSubject = 'doc-spec'): string {
     return `${ID_BASE}/${version}/${subject}.schema.json`;
 }
 
+/** A `$ref` to the shared colour definition. */
+const COLOR = { $ref: '#/$defs/color' } as const;
+
+/**
+ * Every colour form the engine accepts (`PdfColor`). Since engine 1.8.0 a
+ * four-element tuple (percent) or a four-operand string is DeviceCMYK.
+ */
+function colorDef(): JsonSchema {
+    return {
+        description:
+            "PdfColor: '#RRGGBB' hex, [r, g, b] 0–255, 'r g b' operands 0–1, "
+            + "[c, m, y, k] percent 0–100 (DeviceCMYK, engine >= 1.8.0), or "
+            + "'c m y k' operands 0–1 (DeviceCMYK, engine >= 1.8.0). The component "
+            + 'count selects the colour space: three is RGB, four is CMYK.',
+        anyOf: [
+            { type: 'string' },
+            { type: 'array', items: { type: 'number' }, minItems: 3, maxItems: 4 },
+        ],
+    };
+}
+
+/** The OpenType single-substitution features the engine can apply. */
+const FONT_FEATURE_TAGS = [
+    'tnum', 'pnum', 'lnum', 'onum', 'zero', 'ordn', 'sups', 'subs', 'smcp', 'c2sc', 'case',
+] as const;
+
+/** `TypographyOptions` (engine ≥ 1.8.0) — every key opt-in. */
+function typographyDef(): JsonSchema {
+    return {
+        type: 'object',
+        description:
+            'TypographyOptions (engine >= 1.8.0). Every key is opt-in; omitted, the '
+            + 'output is byte-identical to earlier releases. kerning, fontFeatures and '
+            + "the 'fr' preset need a registered font (fontEntries); metrics 'exact' "
+            + 'acts on base-14 text only; no hyphenation dictionary ships.',
+        properties: {
+            splitParagraphs: {
+                type: 'boolean',
+                description: 'Let paragraphs break across pages at a line boundary. Default false.',
+            },
+            orphans: {
+                type: 'integer',
+                minimum: 1,
+                description: 'Minimum lines left at the foot of a page (needs splitParagraphs). Default 2.',
+            },
+            widows: {
+                type: 'integer',
+                minimum: 1,
+                description: 'Minimum lines carried to the next page (needs splitParagraphs). Default 2.',
+            },
+            keepHeadingsWithNext: {
+                description:
+                    'Keep every heading with what follows: true (two lines), or '
+                    + '{ minLines } to reserve more. Per-block override: keepWithNext.',
+                oneOf: [
+                    { type: 'boolean' },
+                    {
+                        type: 'object',
+                        properties: { minLines: { type: 'integer', minimum: 1 } },
+                    },
+                ],
+            },
+            unitBinding: {
+                description:
+                    'Bind numbers to the unit symbol that follows (ISO 80000-1): true for '
+                    + 'the built-in list, or { units } to replace it.',
+                oneOf: [
+                    { type: 'boolean' },
+                    {
+                        type: 'object',
+                        properties: { units: { type: 'array', items: { type: 'string' } } },
+                    },
+                ],
+            },
+            bindShortWords: {
+                description:
+                    'Bind short words to the next word with a no-break space: true for '
+                    + 'one-letter words, or { maxLength (1–3), words }.',
+                oneOf: [
+                    { type: 'boolean' },
+                    {
+                        type: 'object',
+                        properties: {
+                            maxLength: { type: 'integer', minimum: 1, maximum: 3 },
+                            words: { type: 'array', items: { type: 'string' } },
+                        },
+                    },
+                ],
+            },
+            punctuationSpacing: {
+                description:
+                    "No-break spaces around punctuation: the 'fr' or 'fr-CA' preset, or "
+                    + 'explicit rules [{ char, side, space }].',
+                oneOf: [
+                    { enum: ['fr', 'fr-CA'] },
+                    {
+                        type: 'array',
+                        items: {
+                            type: 'object',
+                            required: ['char', 'side', 'space'],
+                            properties: {
+                                char: { type: 'string' },
+                                side: { enum: ['before', 'after'] },
+                                space: { enum: ['nbsp', 'narrow'] },
+                            },
+                        },
+                    },
+                ],
+            },
+            opticalMargins: {
+                type: 'boolean',
+                description: 'Hang leading/trailing punctuation past the margin. Default false.',
+            },
+            metrics: {
+                enum: ['approximate', 'exact'],
+                description: "Base-14 advance widths: 'exact' reads the Adobe Core 14 AFM tables.",
+            },
+            fontFeatures: {
+                type: 'array',
+                items: { enum: [...FONT_FEATURE_TAGS] },
+                description: 'OpenType single-substitution features to apply (registered fonts only).',
+            },
+            kerning: {
+                type: 'boolean',
+                description: "Apply the font's pair kerning (registered fonts only). Default false.",
+            },
+            hyphenationLanguage: {
+                type: 'string',
+                description: 'BCP 47 tag handed to the installed hyphenation provider.',
+            },
+        },
+    };
+}
+
+/** `CustomOutputIntent` — an ICC profile plus its identification. */
+function outputIntentDef(): JsonSchema {
+    return {
+        type: 'object',
+        required: ['iccProfile', 'outputConditionIdentifier'],
+        description:
+            'CustomOutputIntent. iccProfile is the full ICC file (Uint8Array; the engine '
+            + 'checks the acsp signature and the size field). Under tagged (PDF/A) any '
+            + 'RGB/CMYK/Gray profile; under pdfx a printer (prtr) profile is required. '
+            + 'pdfnative ships no press profile.',
+        properties: {
+            iccProfile: { description: 'ICC profile bytes as Uint8Array.' },
+            outputConditionIdentifier: { type: 'string' },
+            registryName: { type: 'string' },
+            outputCondition: { type: 'string' },
+            info: { type: 'string' },
+        },
+    };
+}
+
 /** `['h1' | 'h2' | 'h3', text, opts?]` */
 function headingBlock(): JsonSchema {
     return {
@@ -68,7 +222,17 @@ function headingBlock(): JsonSchema {
         prefixItems: [
             { enum: ['h1', 'h2', 'h3'] },
             { type: 'string', description: 'Heading text.' },
-            { type: 'object', description: 'Optional { color }.' },
+            {
+                type: 'object',
+                description: 'Optional { color, keepWithNext }.',
+                properties: {
+                    color: COLOR,
+                    keepWithNext: {
+                        type: 'boolean',
+                        description: 'Keep with the following block (engine >= 1.8.0).',
+                    },
+                },
+            },
         ],
     };
 }
@@ -81,7 +245,31 @@ function paragraphBlock(): JsonSchema {
         prefixItems: [
             { const: 'p' },
             { type: 'string', description: 'Paragraph text.' },
-            { type: 'object', description: 'Optional { fontSize, lineHeight, align, indent, color }.' },
+            {
+                type: 'object',
+                description:
+                    'Optional { fontSize, lineHeight, align, indent, color, keepWithNext, '
+                    + 'splittable }.',
+                properties: {
+                    fontSize: { type: 'number' },
+                    lineHeight: { type: 'number' },
+                    align: {
+                        enum: ['left', 'center', 'right', 'justify'],
+                        description: "'justify' needs engine >= 1.8.0.",
+                    },
+                    indent: { type: 'number' },
+                    color: COLOR,
+                    keepWithNext: {
+                        type: 'boolean',
+                        description: 'Keep with the following block (engine >= 1.8.0).',
+                    },
+                    splittable: {
+                        type: 'boolean',
+                        description:
+                            'Override typography.splitParagraphs for this block (engine >= 1.8.0).',
+                    },
+                },
+            },
         ],
     };
 }
@@ -131,7 +319,7 @@ function outlineItemDef(): JsonSchema {
             y: { type: 'number', description: 'Destination Y in points (default: top of page).' },
             bold: { type: 'boolean' },
             italic: { type: 'boolean' },
-            color: { type: ['string', 'array'] },
+            color: COLOR,
             open: { type: 'boolean', description: 'Initial expansion state (default true).' },
             children: { type: 'array', items: { $ref: '#/$defs/outlineItem' } },
         },
@@ -149,7 +337,7 @@ function pageTemplateDef(): JsonSchema {
             center: { type: 'string' },
             right: { type: 'string' },
             fontSize: { type: 'number', description: 'Default 7.' },
-            color: { type: ['string', 'array'] },
+            color: COLOR,
         },
     };
 }
@@ -200,7 +388,7 @@ function tableBlock(): JsonSchema {
                         items: { type: 'object' },
                         description: 'ColumnDef[] (widths, align, vAlign, kind).',
                     },
-                    zebra: { type: ['boolean', 'string', 'array'] },
+                    zebra: { oneOf: [{ type: 'boolean' }, COLOR] },
                     caption: { type: 'string' },
                     clipCells: { type: 'boolean' },
                     autoFitColumns: { type: 'boolean' },
@@ -252,7 +440,7 @@ function linkBlock(): JsonSchema {
                     url: { type: 'string' },
                     href: { type: 'string' },
                     fontSize: { type: 'number' },
-                    color: { type: ['string', 'array'] },
+                    color: COLOR,
                 },
             },
         ],
@@ -356,7 +544,7 @@ function chartBlock(): JsonSchema {
                             properties: {
                                 label: { type: 'string', description: 'Series label (legend).' },
                                 values: { type: 'array', items: { type: 'number' } },
-                                color: { type: ['string', 'array'] },
+                                color: COLOR,
                                 xValues: {
                                     type: 'array',
                                     items: { type: ['number', 'string'] },
@@ -452,7 +640,11 @@ function chartBlock(): JsonSchema {
                         description: 'Rotate x-labels counter-clockwise (degrees).',
                     },
                     markers: { type: 'boolean', description: 'Point markers on line series.' },
-                    colors: { type: 'array', description: 'Palette override (PdfColor[]).' },
+                    colors: {
+                        type: 'array',
+                        items: COLOR,
+                        description: 'Palette override (PdfColor[]; CMYK forms accepted).',
+                    },
                     align: { enum: ['left', 'center', 'right'] },
                     altText: {
                         type: 'string',
@@ -550,6 +742,9 @@ export function docSpecSchema(): JsonSchema {
             + 'pdfnative model as the JSX components.',
         type: 'object',
         required: ['blocks'],
+        // The property set is held to `DOC_SPEC_FIELDS` (the registry) by
+        // `tests/registry.test.ts`, so a field `validateSpec` accepts can never
+        // be invisible here.
         properties: {
             title: { type: 'string' },
             footerText: { type: 'string' },
@@ -557,16 +752,18 @@ export function docSpecSchema(): JsonSchema {
                 type: 'object',
                 description:
                     "DocumentMetadata: { author?, subject?, keywords?, trapped? "
-                    + "('True' | 'False' | 'Unknown') }.",
+                    + "('True' | 'False' | 'Unknown') }. Under pdfx, trapped must be "
+                    + "'True' or 'False'.",
             },
             fontEntries: { type: 'array', items: { type: 'object' } },
             layout: {
                 type: 'object',
                 description:
-                    'PdfLayoutOptions overrides. Includes strict (escalate PDF/A '
-                    + 'diagnostics to errors, JSON-safe) and outputIntent (custom ICC '
-                    + 'profile, tagged modes only); onDiagnostic is function-valued and '
-                    + 'not representable in JSON — set it from code.',
+                    'PdfLayoutOptions overrides. Includes strict (escalate PDF/A and '
+                    + 'PDF/X diagnostics to errors, JSON-safe), outputIntent (custom ICC '
+                    + 'profile; RGB, CMYK or Gray), typography, pdfx, creationDate and '
+                    + 'colors (every entry accepts the CMYK forms); onDiagnostic is '
+                    + 'function-valued and not representable in JSON — set it from code.',
             },
             outline: {
                 oneOf: [
@@ -602,7 +799,7 @@ export function docSpecSchema(): JsonSchema {
                                 properties: {
                                     text: { type: 'string' },
                                     fontSize: { type: 'number' },
-                                    color: { type: ['string', 'array'] },
+                                    color: COLOR,
                                     opacity: { type: 'number', minimum: 0, maximum: 1 },
                                     angle: { type: 'number' },
                                     autoFit: { type: 'boolean' },
@@ -645,7 +842,34 @@ export function docSpecSchema(): JsonSchema {
                 ],
                 description:
                     'Emit a tagged (accessible) PDF, optionally at a PDF/A conformance level. '
-                    + 'PDF/A requires every rendering font to be embedded via fontEntries.',
+                    + 'PDF/A requires every rendering font to be embedded via fontEntries. '
+                    + 'Mutually exclusive with pdfx.',
+            },
+            pdfx: {
+                const: 'pdfx4',
+                description:
+                    'Claim PDF/X-4 conformance (ISO 15930-7; engine >= 1.8.0). Sugar over '
+                    + 'layout.pdfx. Needs outputIntent (a prtr press profile), '
+                    + "metadata.trapped 'True' or 'False', fontEntries, and a TrimBox or an "
+                    + 'ArtBox (not both); exclusive with tagged and layout.encryption. '
+                    + 'Every constraint is an L_PDFX_* lint rule.',
+            },
+            outputIntent: {
+                $ref: '#/$defs/outputIntent',
+                description: 'Custom output intent. Sugar over layout.outputIntent.',
+            },
+            typography: {
+                $ref: '#/$defs/typography',
+                description: 'Fine typography (engine >= 1.8.0). Sugar over layout.typography; layout wins.',
+            },
+            creationDate: {
+                type: 'string',
+                format: 'date-time',
+                description:
+                    'Pin the creation instant (ISO 8601) for byte-reproducible output: '
+                    + '/CreationDate, the XMP dates, the {date} placeholder and the trailer '
+                    + '/ID all derive from it, in UTC. Sugar over layout.creationDate. Not '
+                    + 'covered: layout.encryption (fresh keys on every build).',
             },
             print: {
                 type: 'object',
@@ -666,7 +890,7 @@ export function docSpecSchema(): JsonSchema {
                     marks: {
                         description:
                             'Printer’s marks: true for defaults, or '
-                            + '{ crop?, registration?, length?, offset?, weight? }.',
+                            + '{ crop?, registration?, length?, offset?, weight?, colourBars? }.',
                         oneOf: [
                             { type: 'boolean' },
                             {
@@ -677,6 +901,22 @@ export function docSpecSchema(): JsonSchema {
                                     length: { type: 'number' },
                                     offset: { type: 'number' },
                                     weight: { type: 'number' },
+                                    colourBars: {
+                                        description:
+                                            'C/M/Y/K control bars in the bottom bleed strip '
+                                            + '(engine >= 1.8.0): true, or { tints, size }. '
+                                            + 'Use a bleed of 5 mm (14.17 pt) or more.',
+                                        oneOf: [
+                                            { type: 'boolean' },
+                                            {
+                                                type: 'object',
+                                                properties: {
+                                                    tints: { type: 'boolean' },
+                                                    size: { type: 'number', exclusiveMinimum: 0 },
+                                                },
+                                            },
+                                        ],
+                                    },
                                 },
                             },
                         ],
@@ -697,13 +937,17 @@ export function docSpecSchema(): JsonSchema {
             },
         },
         $defs: {
+            color: colorDef(),
             listItem: listItemDef(),
             outlineItem: outlineItemDef(),
             pageTemplate: pageTemplateDef(),
+            typography: typographyDef(),
+            outputIntent: outputIntentDef(),
             block: { oneOf: blockDefs() },
         },
     };
 }
+
 
 /** The `$id` (versioned URL) of the current {@link docSpecSchema}. */
 export function docSpecSchemaId(): string {
@@ -729,13 +973,15 @@ function renderOptionsSchema(): JsonSchema {
                 type: 'object',
                 description:
                     'PdfLayoutOptions overrides: pageWidth, pageHeight, margins, columns, '
-                    + 'colors, fontSizes, tagged, encryption, compress, headerTemplate, '
-                    + 'footerTemplate, watermark, attachments, maxBlocks, normalize, '
-                    + 'creationDate, viewerPreferences (incl. duplex, pickTrayByPDFSize, '
-                    + 'printPageRange, numCopies), debug, print, outputIntent, strict, '
-                    + 'onDiagnostic. strict escalates PDF/A diagnostics to thrown errors '
-                    + '(JSON-safe); onDiagnostic is function-valued and not representable '
-                    + 'in JSON — set it from code.',
+                    + 'colors (CMYK forms accepted), fontSizes, tagged, pdfx, encryption, '
+                    + 'compress, headerTemplate, footerTemplate, watermark, attachments, '
+                    + 'maxBlocks, normalize, creationDate (pins the dates, {date} and the '
+                    + 'trailer /ID; UTC), typography, viewerPreferences (incl. duplex, '
+                    + 'pickTrayByPDFSize, printPageRange, numCopies), debug, print, '
+                    + 'outputIntent (RGB, CMYK or Gray), strict, onDiagnostic. strict '
+                    + 'escalates PDF/A and PDF/X diagnostics to thrown errors (JSON-safe); '
+                    + 'onDiagnostic is function-valued and not representable in JSON — set '
+                    + 'it from code.',
             },
             fontEntries: {
                 type: 'array',
@@ -901,6 +1147,7 @@ function manifestSchema(): JsonSchema {
             'clientComponents',
             'errorClasses',
             'specBlocks',
+            'specFields',
             'entrypoints',
             'errorCodes',
             'lintRules',
@@ -936,6 +1183,11 @@ function manifestSchema(): JsonSchema {
                 type: 'array',
                 items: { type: 'object' },
                 description: 'The whole DocSpec grammar: tuple form, summary, equivalent component.',
+            },
+            specFields: {
+                type: 'array',
+                items: { type: 'string' },
+                description: 'Every top-level DocSpec field, in schema order.',
             },
             entrypoints: {
                 type: 'array',

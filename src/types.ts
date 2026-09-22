@@ -51,6 +51,16 @@ import type {
     PdfDiagnostic,
     PdfDiagnosticCode,
     PdfDiagnosticHandler,
+    TypographyOptions,
+    UnitBindingOptions,
+    PunctuationSpacingRule,
+    PunctuationSpacingPreset,
+    Base14Metrics,
+    ColourBarOptions,
+    PdfCmykTuple,
+    PdfCmykString,
+    HyphenationProvider,
+    PdfXConformanceTarget,
 } from 'pdfnative';
 
 export type {
@@ -97,13 +107,42 @@ export type {
     PdfDiagnostic,
     PdfDiagnosticCode,
     PdfDiagnosticHandler,
+    // Typography engine (engine ≥ 1.8.0)
+    TypographyOptions,
+    UnitBindingOptions,
+    PunctuationSpacingRule,
+    PunctuationSpacingPreset,
+    Base14Metrics,
+    HyphenationProvider,
+    // CMYK colour, colour bars and PDF/X-4 (engine ≥ 1.8.0)
+    ColourBarOptions,
+    PdfCmykTuple,
+    PdfCmykString,
+    PdfXConformanceTarget,
 };
 
 /** Horizontal alignment shared by several blocks. */
 export type Align = 'left' | 'center' | 'right';
 
-/** A color accepted by the pdfnative engine: hex, RGB tuple, or PDF operator string. */
-export type Color = string | readonly [number, number, number];
+/**
+ * Paragraph alignment: {@link Align} plus `'justify'` (engine ≥ 1.8.0).
+ *
+ * A separate type rather than a wider `Align`, because the engine accepts
+ * `'justify'` on paragraphs only — images, barcodes, SVG and charts keep the
+ * three-valued alignment.
+ */
+export type ParagraphAlign = Align | 'justify';
+
+/**
+ * A color accepted by the pdfnative engine: a hex string (`'#2563EB'`), an RGB
+ * tuple (0–255), a PDF operator string (`'0.1 0.4 0.9'`), and — since engine
+ * 1.8.0 — a CMYK tuple in percent (`[0, 60, 100, 0]`) or a four-operand
+ * `'c m y k'` string (0.0–1.0), emitted as DeviceCMYK.
+ */
+export type Color =
+    | string
+    | readonly [number, number, number]
+    | readonly [number, number, number, number];
 
 /**
  * Options accepted by every render entry point. Forwarded to the underlying

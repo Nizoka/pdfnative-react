@@ -60,12 +60,13 @@ every push). One *install-time* floor was raised — see **Compatibility** first
   #78) — a document built with `fflate.deflateSync` was unreadable; use a
   zlib-producing function or the new `setDeflateRawImpl` (re-exported). This
   closes a silent-corruption path this package documented in 1.2.0.
-- Development tree: `js-yaml` pinned to 4.3.2 (GHSA-2883-xcg3-v3hh,
-  GHSA-5p4m-2wfm-xmqj), `nanoid` ≥ 3.3.18 (GHSA-2v37-7h3g-55p8),
-  `brace-expansion` ≥ 1.1.18 / ≥ 5.0.9 (GHSA-mh99-v99m-4gvg,
-  GHSA-rgw5-rvv9-x895) through `overrides`, and vitest / `@vitest/coverage-v8`
-  4.1.11 (GHSA-82fw-gwwq-j7x9) — nothing ships to consumers;
-  `npm audit --audit-level=high` is clean and blocking in CI.
+- Development tree, exactly as the sibling repositories: `js-yaml` pinned to
+  4.3.2 through `overrides` (GHSA-2883-xcg3-v3hh, GHSA-5p4m-2wfm-xmqj),
+  vitest / `@vitest/coverage-v8` 4.1.11 (GHSA-82fw-gwwq-j7x9), and the
+  lockfile refreshed so `nanoid` (GHSA-2v37-7h3g-55p8) and `brace-expansion`
+  (GHSA-mh99-v99m-4gvg, GHSA-rgw5-rvv9-x895) resolve to their fixed releases —
+  nothing ships to consumers; `npm audit --audit-level=high` is clean and
+  blocking in CI.
 - Supply chain: every workflow job starts with `step-security/harden-runner`
   (audit; skipped on macOS, where the action is unsupported), checks out with
   `persist-credentials: false`, installs with `npm ci --ignore-scripts`

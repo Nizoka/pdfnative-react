@@ -1,7 +1,8 @@
 ---
-description: "Use when touching the react-reconciler host config, the host tree, serialization or the layout sugar folding."
-applyTo: "src/reconciler/**"
+paths:
+  - "src/reconciler/**"
 ---
+<!-- GENERATED from .github/instructions/reconciler.instructions.md by scripts/build-claude-rules.ts — do not edit -->
 
 # Reconciler instructions
 

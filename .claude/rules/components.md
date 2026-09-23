@@ -1,7 +1,8 @@
 ---
-description: "Use when adding or changing a public component, its props, its JSDoc or the host tag it emits."
-applyTo: "src/components.tsx"
+paths:
+  - "src/components.tsx"
 ---
+<!-- GENERATED from .github/instructions/components.instructions.md by scripts/build-claude-rules.ts — do not edit -->
 
 # Component instructions
 

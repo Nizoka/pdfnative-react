@@ -9,7 +9,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { execFileSync } from 'node:child_process';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { agentRulesText, aiGovernancePolicy, validateIssueDraft } from '../src/index.js';
@@ -89,6 +89,37 @@ describe('repo governance artifacts', () => {
         expect(contract.policy['runtime_dependencies_allowed']).toBe(false);
         expect(contract.human_in_the_loop['role_of_agent']).toBe('draftsman');
         expect(contract.applies_to).toContain('pdfnative-react');
+    });
+
+    it('keeps the always-loaded sources under 16 KiB and names the Claude Code enforcement layer', async () => {
+        const raw = await readFile(join(ROOT, '.github', 'ai-governance.json'), 'utf8');
+        const contract = JSON.parse(raw) as {
+            capability_manifest: {
+                sources: string[];
+                on_demand: string[];
+                claude_code: { settings: string; hooks: Array<{ matcher: string; command: string; tests: string }>; rules: { generator: string }; skills: Array<{ path: string; model_invocable: boolean }> };
+            };
+        };
+        const { sources, on_demand, claude_code } = contract.capability_manifest;
+        expect(sources).toEqual(['AGENTS.md', '.github/AGENT_RULES.md']);
+        let total = 0;
+        for (const p of [...sources, ...on_demand]) {
+            const s = await stat(join(ROOT, p));
+            if (sources.includes(p)) total += s.size;
+        }
+        expect(total).toBeLessThan(16 * 1024);
+        expect(claude_code.settings).toBe('.claude/settings.json');
+        expect(claude_code.hooks.map((h) => h.matcher).sort()).toEqual(['Bash', 'PowerShell']);
+        for (const h of claude_code.hooks) {
+            expect(h.command).toBe('node .claude/hooks/guard.mjs');
+            await stat(join(ROOT, h.tests));
+        }
+        await stat(join(ROOT, '.claude', 'hooks', 'guard.mjs'));
+        expect(claude_code.rules.generator).toBe('npm run agents:rules');
+        for (const skill of claude_code.skills) {
+            await stat(join(ROOT, skill.path));
+            expect(skill.model_invocable).toBe(false);
+        }
     });
 
     it('ships the AGENT_RULES.md protocol and a drafts staging area', async () => {

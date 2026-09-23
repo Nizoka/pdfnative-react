@@ -1,0 +1,90 @@
+{
+  "attribution": {
+    "commit": ""
+  },
+  "env": {
+    "BASH_MAX_OUTPUT_LENGTH": "16000",
+    "BASH_DEFAULT_TIMEOUT_MS": "300000",
+    "BASH_MAX_TIMEOUT_MS": "1800000",
+    "NO_COLOR": "1"
+  },
+  "permissions": {
+    "allow": [
+      "Bash(npm run *)",
+      "Bash(npm test*)",
+      "Bash(npx vitest *)",
+      "Bash(npx tsx scripts/*)",
+      "Bash(npx tsx samples/*)",
+      "Bash(npx tsc *)",
+      "Bash(npx eslint *)",
+      "Bash(node scripts/verify-issue.mjs *)",
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(git show*)",
+      "Bash(git check-ignore *)",
+      "Bash(node -e *)",
+      "PowerShell(npm run *)",
+      "PowerShell(npm test*)",
+      "PowerShell(npx vitest *)",
+      "PowerShell(npx tsx scripts/*)",
+      "PowerShell(npx tsx samples/*)",
+      "PowerShell(npx tsc *)",
+      "PowerShell(npx eslint *)",
+      "PowerShell(git status*)",
+      "PowerShell(git diff*)",
+      "PowerShell(git log*)",
+      "PowerShell(git show*)"
+    ],
+    "deny": [
+      "Read(dist/**)",
+      "Read(coverage/**)",
+      "Read(test-output/**)",
+      "Read(samples/output/**)",
+      "Read(package-lock.json)",
+      "Read(node_modules/**)",
+      "Bash(npm publish*)",
+      "Bash(git push --force*)",
+      "Bash(git push -f*)",
+      "Bash(git push *)",
+      "Bash(git push)",
+      "Bash(gh pr create*)",
+      "Bash(gh issue create*)",
+      "Bash(gh release *)",
+      "Bash(gh api *--method POST*)",
+      "PowerShell(npm publish*)",
+      "PowerShell(git push --force*)",
+      "PowerShell(git push -f*)",
+      "PowerShell(git push *)",
+      "PowerShell(git push)",
+      "PowerShell(gh pr create*)",
+      "PowerShell(gh issue create*)",
+      "PowerShell(gh release *)",
+      "PowerShell(gh api *--method POST*)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .claude/hooks/guard.mjs",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .claude/hooks/guard.mjs",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,7 +1,8 @@
 ---
-description: "Use when touching the compact DocSpec grammar, its compiler, the JSON Schema, validateSpec or the registry tables."
-applyTo: "src/spec/**"
+paths:
+  - "src/spec/**"
 ---
+<!-- GENERATED from .github/instructions/spec.instructions.md by scripts/build-claude-rules.ts — do not edit -->
 
 # Spec (agent authoring) instructions
 

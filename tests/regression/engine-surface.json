@@ -1,0 +1,695 @@
+{
+  "$comment": "Traceability matrix: every bullet of the pdfnative CHANGELOG entry named by `engine` is either exercised THROUGH pdfnative-react (named tests, and baseline samples where a sample can show it) or waived with a reason. tests/regression/engine-surface.test.ts holds every reference to the tree. Extend it in the same change that moves the pdfnative peer pin (CONTRIBUTING.md, 'Bumping the engine pin'). Item ids and changelog prefixes are shared with pdfnative-mcp's and pdfnative-cli's matrices, so the three wrappers can be compared line by line. Waiver kinds: LIB (an engine API the authoring surface deliberately does not carry — golden rule 7 — or an internal of the engine with no JSX/DocSpec-facing behaviour), TOOLING / DOCS (the engine repository's own build, CI, samples or documentation), tested-upstream (a rule of the engine the renderer only transmits — `transmission` names the suite that proves the transmission), upstream-limit (observable through the renderer but wrong or incomplete in the engine; see `upstreamLimits`).",
+  "engine": "1.8.0",
+  "items": [
+    {
+      "id": "deterministic-samples",
+      "kind": "feature",
+      "changelog": "feat(samples): deterministic samples and a byte-level regression harness",
+      "tests": [
+        { "file": "tests/regression/samples.test.ts", "name": "every tracked sample still emits what its reference release emitted" },
+        { "file": "tests/regression/reproducible-build.test.ts", "name": "a document pinned with creationDate is byte-identical in two zones, and the dates are UTC" },
+        { "file": "tests/reproducible.test.tsx", "name": "renders the same bytes twice" }
+      ],
+      "samples": ["quality/reproducible.pdf"]
+    },
+    {
+      "id": "typography",
+      "kind": "feature",
+      "changelog": "feat(core): typography",
+      "tests": [
+        { "file": "tests/typography.test.tsx", "name": "reaches layout.typography whole, every key preserved" },
+        { "file": "tests/typography.test.tsx", "name": "is described by the schema with exactly the engine’s key set" },
+        { "file": "tests/typography.test.tsx", "name": "compiles to the same model from a DocSpec" },
+        { "file": "tests/typography.test.tsx", "name": "leaves a document without it byte-identical to before (layout stays undefined)" },
+        { "file": "tests/typography.test.tsx", "name": "serialise keepWithNext and splittable only when set" },
+        { "file": "tests/typography.test.tsx", "name": "splits a long paragraph across pages when asked, and keeps it whole otherwise" },
+        { "file": "tests/lint.test.tsx", "name": "L_TYPOGRAPHY_INEFFECTIVE — a well-formed typography block with fonts is clean" }
+      ],
+      "samples": ["text/typography-engine.pdf", "text/typography-french.pdf"]
+    },
+    {
+      "id": "five-new-scripts",
+      "kind": "feature",
+      "changelog": "feat(shaping): Lao, Tai Tham, New Tai Lue, Tai Le and Cham",
+      "tests": [
+        { "file": "tests/fonts-27.test.tsx", "name": "resolve to one font entry each, with a slash-prefixed reference" }
+      ],
+      "samples": ["fonts/scripts-27.pdf"]
+    },
+    {
+      "id": "universal-shaping-engine",
+      "kind": "feature",
+      "changelog": "feat(shaping): a data-driven Universal Shaping Engine",
+      "waiver": {
+        "kind": "tested-upstream",
+        "reason": "Tai Tham and Cham are shaped by the USE inside the engine, tested there glyph by glyph. The renderer transmits text and font entries unchanged; tests/fonts-27.test.tsx resolves the five new font modules through resolveFonts and samples/fonts/scripts-27.tsx renders both scripts into the byte baseline.",
+        "transmission": "tests/fonts-27.test.tsx"
+      },
+      "note": "Known upstream limit: one Tai Tham glyph has no ToUnicode entry, so PDF/A-2u fails ISO 19005-2 6.2.11.7.2 (pinned in the sibling wrappers' corpora; this repository claims no PDF/A-2u for Tai Tham)."
+    },
+    {
+      "id": "colrv1",
+      "kind": "feature",
+      "changelog": "feat(fonts): COLRv1 transforms, variable paints and masks",
+      "waiver": {
+        "kind": "tested-upstream",
+        "reason": "COLRv1 transform paints, variable paints and masks are internals of the colour-glyph renderer, tested in the engine paint by paint. The renderer transmits whichever font module the consumer loads through resolveFonts / fontEntries; nothing in JSX or DocSpec selects a paint.",
+        "transmission": "tests/fonts-27.test.tsx"
+      }
+    },
+    {
+      "id": "skin-tones",
+      "kind": "feature",
+      "changelog": "feat(fonts): bundled skin tones",
+      "waiver": {
+        "kind": "tested-upstream",
+        "reason": "The skin-tone glyphs live in the engine's emoji font module and are tested there. The renderer transmits the consumer's font entries unchanged (tests/fonts-27.test.tsx proves the resolveFonts path for every module shape).",
+        "transmission": "tests/fonts-27.test.tsx"
+      }
+    },
+    {
+      "id": "cmyk-colours",
+      "kind": "feature",
+      "changelog": "feat(core): CMYK colours",
+      "tests": [
+        { "file": "tests/color.test.tsx", "name": "validates a spec using CMYK on every colour position, under the schema and validateSpec" },
+        { "file": "tests/color.test.tsx", "name": "keeps the tuples and operand strings verbatim in the model" },
+        { "file": "tests/color.test.tsx", "name": "the Color type admits a four-element tuple beside the 1.2.0 forms" },
+        { "file": "tests/color.test.tsx", "name": "writes DeviceCMYK fill and stroke operators for CMYK colours" }
+      ],
+      "samples": ["layout/cmyk.pdf"]
+    },
+    {
+      "id": "cmyk-gray-output-intents",
+      "kind": "feature",
+      "changelog": "feat(core): CMYK and Gray OutputIntents",
+      "tests": [
+        { "file": "tests/pdfx.test.tsx", "name": "writes a PDF 1.6 file with the PDF/X output intent and a known trapping state" },
+        { "file": "tests/lint.test.tsx", "name": "L_OUTPUT_INTENT_PROFILE — the three synthetic profiles pass" },
+        { "file": "tests/lint.test.tsx", "name": "L_CMYK_INTENT_MISMATCH — clean under a CMYK intent, and without any claim" }
+      ],
+      "samples": ["layout/print-pdfx4.pdf"]
+    },
+    {
+      "id": "pdfx4",
+      "kind": "feature",
+      "changelog": "feat(core): PDF/X-4",
+      "tests": [
+        { "file": "tests/pdfx.test.tsx", "name": "lints clean before rendering" },
+        { "file": "tests/pdfx.test.tsx", "name": "passes the engine" },
+        { "file": "tests/pdfx.test.tsx", "name": "renders to the same bytes through the DocSpec door" },
+        { "file": "tests/lint.test.tsx", "name": "L_PDFX_TAGGED_CONFLICT — pdfx and tagged together" },
+        { "file": "tests/lint.test.tsx", "name": "L_PDFX_ENCRYPTED — pdfx and encryption together" },
+        { "file": "tests/lint.test.tsx", "name": "L_PDFX_OUTPUT_INTENT — missing, and a monitor (mntr) profile" },
+        { "file": "tests/lint.test.tsx", "name": "L_PDFX_NO_FONTS — PDF/X-4 without embedded fonts is an error" },
+        { "file": "tests/lint.test.tsx", "name": "L_PDFX_ANNOTATIONS — links and form fields warn, with a block index" }
+      ],
+      "samples": ["layout/print-pdfx4.pdf"]
+    },
+    {
+      "id": "validate-pdfx",
+      "kind": "feature",
+      "changelog": "feat(parser): `validatePdfX()`",
+      "tests": [
+        { "file": "tests/pdfx.test.tsx", "name": "passes the engine" },
+        { "file": "tests/api-surface.test.ts", "name": "still does not re-export the byte-level validators (golden rule 7)" }
+      ],
+      "note": "Used on the finished bytes by the test, by scripts/validate-pdfx.ts (gate step validate:pdfx) and by samples/layout/print-pdfx4.tsx; deliberately NOT re-exported from the barrel (golden rule 7 — docs/RECIPES.md shows the one-line import)."
+    },
+    {
+      "id": "registration-colour",
+      "kind": "feature",
+      "changelog": "feat(core): registration colour",
+      "waiver": {
+        "kind": "tested-upstream",
+        "reason": "The registration (All) separation is what the engine strokes crop marks and registration targets with; the geometry and the colour space are asserted in the engine. The renderer transmits print.marks verbatim; tests/pdfx.test.tsx renders crop and registration marks in the bleed and the engine's validatePdfX accepts the file.",
+        "transmission": "tests/pdfx.test.tsx"
+      }
+    },
+    {
+      "id": "colour-bars",
+      "kind": "feature",
+      "changelog": "feat(core): colour control bars",
+      "tests": [
+        { "file": "tests/pdfx.test.tsx", "name": "passes the engine" },
+        { "file": "tests/lint.test.tsx", "name": "L_PRINT_COLOUR_BARS — a thin bleed strip clamps or skips the bars" }
+      ],
+      "samples": ["layout/print-pdfx4.pdf"]
+    },
+    {
+      "id": "deflate-raw-impl",
+      "kind": "feature",
+      "changelog": "feat(core): `setDeflateRawImpl()` and `wrapZlib()`",
+      "tests": [
+        { "file": "tests/api-surface.test.ts", "name": "is the engine’s own function, not a wrapper" }
+      ],
+      "note": "Re-exported through src/core-bridge/index.ts as environment helpers, the same family as setDeflateImpl; docs/RECIPES.md carries the Bun/Deno recipe."
+    },
+    {
+      "id": "validate-pdfx-form-xobjects",
+      "kind": "feature",
+      "changelog": "feat(parser): `validatePdfX()` covers fonts inside Form XObjects and",
+      "waiver": {
+        "kind": "tested-upstream",
+        "reason": "Fonts inside Form XObjects, patterns and appearance streams are rules of the engine validator, tested there on crafted files. scripts/validate-pdfx.ts transmits errors[] and warnings[] verbatim (tests/tools/pdfx.test.ts holds the verdict plumbing).",
+        "transmission": "tests/tools/pdfx.test.ts"
+      }
+    },
+    {
+      "id": "actualtext",
+      "kind": "feature",
+      "changelog": "feat(parser): `extractText()` honours `/ActualText`",
+      "waiver": {
+        "kind": "LIB",
+        "reason": "extractText() is a byte-level post-processing API the authoring surface does not carry (golden rule 7): docs/RECIPES.md shows the direct engine call on the bytes this library produces."
+      }
+    },
+    {
+      "id": "indic-opentype",
+      "kind": "feature",
+      "changelog": "feat(shaping): Indic OpenType engine",
+      "waiver": {
+        "kind": "tested-upstream",
+        "reason": "The Indic OpenType shaper is tested in the engine glyph by glyph. The renderer transmits text and font entries; tests/fonts-27.test.tsx and samples/fonts/custom-fonts.tsx prove the path for a non-Latin module.",
+        "transmission": "tests/fonts-27.test.tsx"
+      }
+    },
+    {
+      "id": "latin-marks",
+      "kind": "feature",
+      "changelog": "feat(shaping): `shapeLatinMarksText()`",
+      "tests": [
+        { "file": "tests/fonts-27.test.tsx", "name": "Hausa, Yoruba, Igbo and Swahili render on the bundled latin module" }
+      ],
+      "samples": ["fonts/scripts-27.pdf"]
+    },
+    {
+      "id": "otl-font-modules",
+      "kind": "feature",
+      "changelog": "feat(fonts): `otl` in every font module",
+      "waiver": {
+        "kind": "LIB",
+        "reason": "The `otl` tables are the internal format of the bundled font modules. resolveFonts imports the modules whole and never reads their fields."
+      }
+    },
+    {
+      "id": "shaped-glyph-cps",
+      "kind": "feature",
+      "changelog": "feat(core): `ShapedGlyph.cps`",
+      "waiver": {
+        "kind": "tested-upstream",
+        "reason": "Multi-code-point ToUnicode destinations are written by the engine's font embedder and asserted there. The renderer never sees a ShapedGlyph; the text it transmits round-trips through the engine (tests/fonts-27.test.tsx).",
+        "transmission": "tests/fonts-27.test.tsx"
+      }
+    },
+    {
+      "id": "pdfa-icc-profile-version",
+      "kind": "feature",
+      "changelog": "feat(core): `PDFA_ICC_PROFILE_VERSION`",
+      "waiver": {
+        "kind": "tested-upstream",
+        "reason": "The diagnostic is raised by the engine when an ICC v4 profile meets a PDF/A-1 claim, and tested there. The renderer transmits outputIntent verbatim and its lint rule L_OUTPUT_INTENT_PROFILE pre-checks the profile header; the diagnostics channel itself is proven by tests/lint.test.tsx and samples/quality/diagnostics.tsx.",
+        "transmission": "tests/lint.test.tsx"
+      }
+    },
+    {
+      "id": "validate-pdfx-more-checks",
+      "kind": "feature",
+      "changelog": "feat(parser): `validatePdfX()` also checks",
+      "waiver": {
+        "kind": "tested-upstream",
+        "reason": "Annotation appearance fonts, OPI, PostScript and reference XObjects, embedded files: rules of the engine's validator, tested there one by one; scripts/validate-pdfx.ts transmits errors[] and warnings[] verbatim.",
+        "transmission": "tests/tools/pdfx.test.ts"
+      }
+    },
+    {
+      "id": "language-conformance-documents",
+      "kind": "feature",
+      "changelog": "feat(samples): twenty-nine one-page language conformance documents",
+      "waiver": {
+        "kind": "TOOLING",
+        "reason": "Sample documents of the engine repository; this repository renders the five new scripts through samples/fonts/scripts-27.tsx and holds them in its byte baseline."
+      }
+    },
+    {
+      "id": "glyph-names-tool",
+      "kind": "feature",
+      "changelog": "feat(tooling): `scripts/glyph-names.ts`",
+      "waiver": { "kind": "TOOLING", "reason": "A debugging script of the engine repository." }
+    },
+    {
+      "id": "typography-feature-ineffective",
+      "kind": "feature",
+      "changelog": "feat(core): `TYPOGRAPHY_FEATURE_INEFFECTIVE`",
+      "tests": [
+        { "file": "tests/lint.test.tsx", "name": "L_TYPOGRAPHY_INEFFECTIVE — unknown feature tags, and features/kerning/fr without fonts" },
+        { "file": "tests/lint.test.tsx", "name": "L_TYPOGRAPHY_INEFFECTIVE — orphans/widows without splitParagraphs" }
+      ],
+      "samples": ["quality/diagnostics.pdf"]
+    },
+    {
+      "id": "bind-short-words",
+      "kind": "feature",
+      "changelog": "feat(core): `typography.bindShortWords`",
+      "tests": [
+        { "file": "tests/typography.test.tsx", "name": "reaches layout.typography whole, every key preserved" },
+        { "file": "tests/typography.test.tsx", "name": "is described by the schema with exactly the engine’s key set" }
+      ],
+      "samples": ["text/typography-engine.pdf", "text/typography-french.pdf"]
+    },
+    {
+      "id": "engine-gate",
+      "kind": "feature",
+      "changelog": "feat(tooling): `npm run gate`",
+      "waiver": { "kind": "TOOLING", "reason": "The engine's own quality gate; this repository ports it as scripts/gate.ts (tests/tools/gate.test.ts)." }
+    },
+    {
+      "id": "fifty-new-samples",
+      "kind": "feature",
+      "changelog": "feat(samples): 50 new samples",
+      "waiver": { "kind": "TOOLING", "reason": "Samples of the engine repository; this repository's corpus is test-output/samples/ (38 fingerprinted samples)." }
+    },
+    {
+      "id": "one-pagination-planner",
+      "kind": "change",
+      "changelog": "refactor(core): one pagination planner",
+      "tests": [
+        { "file": "tests/typography.test.tsx", "name": "splits a long paragraph across pages when asked, and keeps it whole otherwise" },
+        { "file": "tests/typography.test.tsx", "name": "leaves a document without it byte-identical to before (layout stays undefined)" }
+      ]
+    },
+    {
+      "id": "shaper-registry",
+      "kind": "change",
+      "changelog": "refactor(shaping): one shaper registry",
+      "waiver": { "kind": "LIB", "reason": "An internal refactoring of the shaper dispatch; SCRIPT_SHAPERS / findShaper() are engine exports with no JSX- or DocSpec-facing behaviour." }
+    },
+    {
+      "id": "colour-operator-choke-point",
+      "kind": "change",
+      "changelog": "refactor(core): one colour-operator choke point",
+      "waiver": { "kind": "LIB", "reason": "An internal refactoring (fillOp / strokeOp / resolveColor). Its observable effect — CMYK operators in the content stream — is covered by the cmyk-colours item." }
+    },
+    {
+      "id": "kerning-class-form",
+      "kind": "change",
+      "changelog": "perf(fonts): kerning kept in OpenType class form",
+      "waiver": { "kind": "LIB", "reason": "A size optimisation of the font modules; the observable behaviour (kerning) is covered by the typography item." }
+    },
+    {
+      "id": "parse-color-cmyk",
+      "kind": "change",
+      "changelog": "feat(core): `parseColor()` accepts CMYK inputs",
+      "tests": [
+        { "file": "tests/color.test.tsx", "name": "writes DeviceCMYK fill and stroke operators for CMYK colours" },
+        { "file": "tests/color.test.tsx", "name": "keeps the tuples and operand strings verbatim in the model" }
+      ],
+      "samples": ["layout/cmyk.pdf"]
+    },
+    {
+      "id": "output-intent-cmyk-gray",
+      "kind": "change",
+      "changelog": "feat(core): `outputIntent` accepts CMYK and Gray profiles",
+      "tests": [
+        { "file": "tests/lint.test.tsx", "name": "L_OUTPUT_INTENT_PROFILE — the three synthetic profiles pass" },
+        { "file": "tests/pdfx.test.tsx", "name": "writes a PDF 1.6 file with the PDF/X output intent and a known trapping state" }
+      ]
+    },
+    {
+      "id": "tree-shakeable-bundle",
+      "kind": "change",
+      "changelog": "perf(bundle): tree-shakeable output",
+      "waiver": { "kind": "LIB", "reason": "A bundler property of the engine package. This library marks pdfnative external (tsup.config.ts) so the consumer's bundler tree-shakes it; the gate's bundle-smoke step bundles both entries with the engine external." }
+    },
+    {
+      "id": "utc-dates",
+      "kind": "change",
+      "changelog": "feat(core): dates written in UTC",
+      "tests": [
+        { "file": "tests/reproducible.test.tsx", "name": "writes UTC even without a pin (the offset is never the host zone)" },
+        { "file": "tests/reproducible.test.tsx", "name": "pins /CreationDate in UTC, from a Date or an ISO string" },
+        { "file": "tests/regression/reproducible-build.test.ts", "name": "a process-wide setDefaultCreationDate() pin gives the same bytes as the prop, in both zones" }
+      ],
+      "samples": ["quality/reproducible.pdf"]
+    },
+    {
+      "id": "validate-pdfx-transfer-functions",
+      "kind": "change",
+      "changelog": "feat(parser): `validatePdfX()` rejects any `/TR`",
+      "waiver": {
+        "kind": "tested-upstream",
+        "reason": "The /TR and /TR2 rule is one check of the engine validator, tested there; scripts/validate-pdfx.ts transmits its verdict verbatim.",
+        "transmission": "tests/tools/pdfx.test.ts"
+      }
+    },
+    {
+      "id": "deps-js-yaml",
+      "kind": "change",
+      "changelog": "chore(deps): js-yaml pinned to 4.3.2",
+      "waiver": { "kind": "TOOLING", "reason": "A devDependency pin of the engine repository; this repository carries its own overrides (package.json)." }
+    },
+    {
+      "id": "deps-vitest",
+      "kind": "change",
+      "changelog": "chore(deps): vitest and @vitest/coverage-v8 4.1.11",
+      "waiver": { "kind": "TOOLING", "reason": "A devDependency bump of the engine repository; this repository is on vitest 4 as well." }
+    },
+    {
+      "id": "ci-on-the-gate",
+      "kind": "change",
+      "changelog": "chore(ci): CI and publish on the gate",
+      "waiver": { "kind": "TOOLING", "reason": "The engine's CI; this repository's workflows are locked by tests/tools/workflows.test.ts." }
+    },
+    {
+      "id": "pinned-font-sources",
+      "kind": "change",
+      "changelog": "chore(fonts): pinned sources, nothing committed",
+      "waiver": { "kind": "TOOLING", "reason": "The font supply chain of the engine repository; the renderer consumes the published font modules." }
+    },
+    {
+      "id": "subset-keep-layout-tables",
+      "kind": "change",
+      "changelog": "feat(fonts): `subsetTTF(ttf, gids, { keepLayoutTables })`",
+      "waiver": { "kind": "LIB", "reason": "A third argument of subsetTTF(), which is not part of the engine's public entry point and is not used by the renderer." }
+    },
+    {
+      "id": "repo-gitattributes",
+      "kind": "change",
+      "changelog": "chore(repo):",
+      "waiver": { "kind": "TOOLING", "reason": "The engine's repository hygiene; ported here as .gitattributes, .npmrc and the opt-in git hooks." }
+    },
+    {
+      "id": "agents-config",
+      "kind": "change",
+      "changelog": "chore(agents):",
+      "waiver": { "kind": "TOOLING", "reason": "The engine's agent configuration; ported here as .claude/ and the agent-config rules of verify:docs." }
+    },
+    {
+      "id": "fix-sara-am",
+      "kind": "fix",
+      "changelog": "fix(shaping): Thai and Lao sara am under a tone mark",
+      "waiver": {
+        "kind": "tested-upstream",
+        "reason": "The glyph order of sara am under a tone mark is asserted in the engine. The renderer transmits the Lao text of samples/fonts/scripts-27.tsx (which carries the case) with the Lao font module resolved by tests/fonts-27.test.tsx.",
+        "transmission": "tests/fonts-27.test.tsx"
+      }
+    },
+    {
+      "id": "fix-thai-lao-documents",
+      "kind": "fix",
+      "changelog": "fix(samples): Thai and Lao language documents",
+      "waiver": { "kind": "TOOLING", "reason": "Sample documents of the engine repository." }
+    },
+    {
+      "id": "fix-acroform-pdfa",
+      "kind": "fix",
+      "changelog": "fix(core): AcroForm fields under a PDF/A claim",
+      "tests": [
+        { "file": "tests/lint.test.tsx", "name": "L_TAGGED_FORM_FONTS — PDF/A with form fields warns about the AcroForm font" },
+        { "file": "tests/lint.test.tsx", "name": "L_TAGGED_FORM_FONTS — plain tagging (no PDF/A claim) with form fields is clean" }
+      ],
+      "note": "The conformance corpus renders form-pdfa2b.pdf (expected compliant) and form-nofonts-pdfa2b.pdf (a negative canary) through both doors; npm run validate:pdfa holds the verdicts."
+    },
+    {
+      "id": "fix-inspect-layout-toc",
+      "kind": "fix",
+      "changelog": "fix(core): `inspectDocumentLayout()` page count with a table of",
+      "tests": [
+        { "file": "tests/render.test.tsx", "name": "reports page count and per-block geometry without rendering" }
+      ],
+      "note": "inspectDocument() is the renderer's name for the engine's inspectDocumentLayout(); samples/layout/debug-inspect.tsx and samples/agent/visual-verify.tsx read its page count."
+    },
+    {
+      "id": "fix-set-deflate-impl",
+      "kind": "fix",
+      "changelog": "fix(core): `setDeflateImpl()` documentation",
+      "waiver": { "kind": "LIB", "reason": "A documentation fix of an engine seam the renderer re-exports unchanged; the manifest summary of setDeflateImpl now points at setDeflateRawImpl for raw deflate." }
+    },
+    {
+      "id": "fix-soft-hyphens",
+      "kind": "fix",
+      "changelog": "fix(core): soft hyphens",
+      "tests": [
+        { "file": "tests/typography.test.tsx", "name": "passes soft hyphens (U+00AD) through the model and renders them" }
+      ],
+      "samples": ["text/typography-engine.pdf"]
+    },
+    {
+      "id": "fix-gsub-single-substitutions",
+      "kind": "fix",
+      "changelog": "fix(fonts): GSUB single substitutions",
+      "waiver": {
+        "kind": "tested-upstream",
+        "reason": "GSUB single substitutions for CJK and Lao: a rule of the engine's shaper, tested there glyph by glyph. The renderer transmits text and font entries; tests/fonts-27.test.tsx resolves the real Lao module and samples/fonts/scripts-27.tsx renders it.",
+        "transmission": "tests/fonts-27.test.tsx"
+      }
+    },
+    {
+      "id": "fix-gpos-mark-classes",
+      "kind": "fix",
+      "changelog": "fix(fonts): GPOS mark classes",
+      "waiver": {
+        "kind": "tested-upstream",
+        "reason": "Per-subtable GPOS mark anchors: a rule of the engine's shaper, tested there glyph by glyph. The renderer transmits text and font entries unchanged.",
+        "transmission": "tests/fonts-27.test.tsx"
+      }
+    },
+    {
+      "id": "fix-indic-shapers",
+      "kind": "fix",
+      "changelog": "fix(shaping): Indic shapers",
+      "waiver": {
+        "kind": "tested-upstream",
+        "reason": "The Indic shapers (Devanagari, Bengali, Tamil, Telugu, Sinhala): a rule of the engine's shaper, tested there glyph by glyph. The renderer transmits text and font entries unchanged.",
+        "transmission": "tests/fonts-27.test.tsx"
+      }
+    },
+    {
+      "id": "fix-bengali-tamil-detection",
+      "kind": "fix",
+      "changelog": "fix(shaping): Bengali and Tamil",
+      "waiver": {
+        "kind": "tested-upstream",
+        "reason": "Bengali and Tamil script detection: a rule of the engine's shaper, tested there glyph by glyph. The renderer transmits text and font entries unchanged.",
+        "transmission": "tests/fonts-27.test.tsx"
+      }
+    },
+    {
+      "id": "fix-checksum-adjustment",
+      "kind": "fix",
+      "changelog": "fix(fonts): `head.checkSumAdjustment`",
+      "waiver": {
+        "kind": "tested-upstream",
+        "reason": "head.checkSumAdjustment is a field of the embedded TrueType subset, asserted in the engine. Every fingerprinted sample with fontEntries embeds a /FontFile2 subset through the renderer, and the byte baseline holds it.",
+        "transmission": "tests/fonts-27.test.tsx"
+      }
+    },
+    {
+      "id": "fix-compile-font-data-cjs",
+      "kind": "fix",
+      "changelog": "fix(tools): `compileFontData()` CommonJS output",
+      "waiver": { "kind": "LIB", "reason": "compileFontData() is a build tool of the engine (pdfnative/tools) that golden rule 7 keeps out of the authoring surface; docs/RECIPES.md points at it." }
+    },
+    {
+      "id": "fix-undrawable-glyphs",
+      "kind": "fix",
+      "changelog": "fix(fonts): modules advertised undrawable glyphs",
+      "waiver": {
+        "kind": "tested-upstream",
+        "reason": "Glyphs a font module advertised but could not draw: a rule of the engine's shaper, tested there glyph by glyph. The renderer transmits text and font entries unchanged.",
+        "transmission": "tests/fonts-27.test.tsx"
+      }
+    },
+    {
+      "id": "fix-khmer-myanmar-stacks",
+      "kind": "fix",
+      "changelog": "fix(shaping): Khmer subscripts, Myanmar kinzi and stacked marks",
+      "waiver": {
+        "kind": "tested-upstream",
+        "reason": "Khmer subscripts, Myanmar kinzi and stacked marks: a rule of the engine's shaper, tested there glyph by glyph. The renderer transmits text and font entries unchanged.",
+        "transmission": "tests/fonts-27.test.tsx"
+      }
+    },
+    {
+      "id": "fix-arabic-letter-mark",
+      "kind": "fix",
+      "changelog": "fix(shaping): U+061C ARABIC LETTER MARK",
+      "waiver": {
+        "kind": "tested-upstream",
+        "reason": "U+061C ARABIC LETTER MARK: a rule of the engine's shaper, tested there glyph by glyph. The renderer transmits text and font entries unchanged (samples/fonts/fonts-prop.tsx renders Arabic through resolveFonts).",
+        "transmission": "tests/fonts-27.test.tsx"
+      }
+    },
+    {
+      "id": "fix-colrv1-sweep-angles",
+      "kind": "fix",
+      "changelog": "fix(fonts): COLRv1 sweep angles",
+      "waiver": {
+        "kind": "tested-upstream",
+        "reason": "A geometry fix inside the COLRv1 renderer, asserted in the engine. The renderer transmits the consumer's font entries unchanged.",
+        "transmission": "tests/fonts-27.test.tsx"
+      }
+    },
+    {
+      "id": "fix-locale-dependent-samples",
+      "kind": "fix",
+      "changelog": "fix(samples): locale-dependent sample output",
+      "tests": [
+        { "file": "tests/regression/samples.test.ts", "name": "never formats numbers or dates without an explicit locale — in the library, the scripts or the samples" }
+      ]
+    },
+    {
+      "id": "fix-emoji-alpha-ramps",
+      "kind": "fix",
+      "changelog": "fix(core): colour-emoji alpha ramps",
+      "waiver": {
+        "kind": "tested-upstream",
+        "reason": "A rendering fix inside the colour-glyph renderer, asserted in the engine. The renderer transmits the consumer's font entries unchanged.",
+        "transmission": "tests/fonts-27.test.tsx"
+      }
+    },
+    {
+      "id": "fix-hinting-tables",
+      "kind": "fix",
+      "changelog": "fix(fonts): embedded subsets keep the hinting tables",
+      "waiver": {
+        "kind": "tested-upstream",
+        "reason": "The hinting tables of an embedded subset are asserted in the engine. Their effect here is a byte change of every 1.2.0 output embedding a TrueType subset, declared in the 1.3.0 release note (Upgrade) and anchored by the byte baseline.",
+        "transmission": "tests/fonts-27.test.tsx"
+      }
+    },
+    {
+      "id": "fix-font-features-glyphs",
+      "kind": "fix",
+      "changelog": "fix(fonts): glyphs introduced by `fontFeatures`",
+      "waiver": {
+        "kind": "tested-upstream",
+        "reason": "Subsetting the glyphs a GSUB feature introduces is asserted in the engine. The renderer transmits typography.fontFeatures verbatim (tests/typography.test.tsx) and samples/text/typography-engine.tsx renders smcp and onum into the byte baseline.",
+        "transmission": "tests/typography.test.tsx"
+      }
+    },
+    {
+      "id": "fix-keep-headings-split",
+      "kind": "fix",
+      "changelog": "fix(core): `keepHeadingsWithNext` with `splitParagraphs`",
+      "waiver": {
+        "kind": "tested-upstream",
+        "reason": "The interaction of keepHeadingsWithNext and splitParagraphs is a pagination rule asserted in the engine. The renderer transmits both keys and the per-block keepWithNext / splittable flags (tests/typography.test.tsx); samples/text/typography-engine.tsx sets both.",
+        "transmission": "tests/typography.test.tsx"
+      }
+    },
+    {
+      "id": "fix-marks-clearance",
+      "kind": "fix",
+      "changelog": "fix(core): printer's marks clearance",
+      "waiver": {
+        "kind": "tested-upstream",
+        "reason": "The 0.5 pt clearance of printer's marks is geometry asserted in the engine. Its effect here is a byte change of every 1.2.0 document drawing print.marks, declared in the 1.3.0 release note; tests/pdfx.test.tsx proves marks reach the engine.",
+        "transmission": "tests/pdfx.test.tsx"
+      }
+    },
+    {
+      "id": "fix-justified-text",
+      "kind": "fix",
+      "changelog": "fix(core): justified text",
+      "tests": [
+        { "file": "tests/typography.test.tsx", "name": "renders justified paragraphs as TJ arrays with the spaces kept" }
+      ],
+      "samples": ["text/typography-engine.pdf"]
+    },
+    {
+      "id": "fix-no-break-spaces",
+      "kind": "fix",
+      "changelog": "fix(core): no-break spaces",
+      "waiver": {
+        "kind": "tested-upstream",
+        "reason": "The width and the non-breaking of U+00A0 / U+202F are asserted in the engine's line breaker. The renderer transmits unitBinding and punctuationSpacing verbatim (tests/typography.test.tsx); samples/text/typography-french.tsx renders both spaces into the byte baseline.",
+        "transmission": "tests/typography.test.tsx"
+      }
+    },
+    {
+      "id": "fix-base14-measurement",
+      "kind": "fix",
+      "changelog": "fix(core): base-14 measurement",
+      "waiver": {
+        "kind": "tested-upstream",
+        "reason": "The Adobe Core 14 advance widths (typography.metrics: 'exact') are asserted in the engine. The renderer transmits the key verbatim (tests/typography.test.tsx) and samples/text/typography-engine.tsx sets it.",
+        "transmission": "tests/typography.test.tsx"
+      }
+    },
+    {
+      "id": "fix-pdfx-trimbox",
+      "kind": "fix",
+      "changelog": "fix(core): PDF/X TrimBox",
+      "tests": [
+        { "file": "tests/pdfx.test.tsx", "name": "passes the engine" },
+        { "file": "tests/lint.test.tsx", "name": "L_PDFX_BOXES — an ArtBox beside a TrimBox source" }
+      ],
+      "samples": ["layout/print-pdfx4.pdf"]
+    },
+    {
+      "id": "fix-inline-dict-skip",
+      "kind": "fix",
+      "changelog": "fix(parser): the inline-dict skip in `extractText`",
+      "waiver": { "kind": "LIB", "reason": "A parser fix inside extractText(), a post-processing API the authoring surface does not carry (golden rule 7)." }
+    },
+    {
+      "id": "fix-typography-showcase",
+      "kind": "fix",
+      "changelog": "fix(samples): the typography showcase",
+      "waiver": { "kind": "TOOLING", "reason": "A sample generator of the engine repository." }
+    },
+    {
+      "id": "fix-output-intent-validation",
+      "kind": "fix",
+      "changelog": "fix(core): OutputIntent profiles are validated",
+      "tests": [
+        { "file": "tests/lint.test.tsx", "name": "L_OUTPUT_INTENT_PROFILE — a hand-made stub is rejected with the engine’s message" },
+        { "file": "tests/lint.test.tsx", "name": "L_OUTPUT_INTENT_PROFILE — too short, truncated, and a non-RGB/CMYK/Gray space" }
+      ]
+    },
+    {
+      "id": "fix-gsub-parser-locked",
+      "kind": "fix",
+      "changelog": "fix(fonts): the GSUB single-substitution parser is locked",
+      "waiver": { "kind": "TOOLING", "reason": "A regression test of the engine's font compiler." }
+    },
+    {
+      "id": "ci-trusted-publishing",
+      "kind": "fix",
+      "changelog": "chore(ci): Trusted Publishing on Node 22",
+      "waiver": { "kind": "TOOLING", "reason": "The engine's publish workflow; this repository's is locked by tests/tools/workflows.test.ts." }
+    },
+    {
+      "id": "verify-docs-claims",
+      "kind": "fix",
+      "changelog": "chore(verify): more of the docs' claims are checked",
+      "waiver": { "kind": "TOOLING", "reason": "The engine's documentation verifier; ported here as scripts/verify-docs.ts." }
+    },
+    { "id": "docs-licences", "kind": "docs", "changelog": "docs(licences): per-font third-party notices", "waiver": { "kind": "DOCS", "reason": "Documentation of the engine repository. This repository's own documentation is held by verify:docs." } },
+    { "id": "docs-discoverability", "kind": "docs", "changelog": "docs(discoverability): 1.8.0 keywords", "waiver": { "kind": "DOCS", "reason": "Documentation of the engine repository. This repository's own documentation is held by verify:docs." } },
+    { "id": "docs-guides", "kind": "docs", "changelog": "docs(guides): typography guide", "waiver": { "kind": "DOCS", "reason": "Documentation of the engine repository. This repository's own documentation is held by verify:docs." } },
+    { "id": "docs-agents", "kind": "docs", "changelog": "docs(agents): machine contracts for autonomous agents", "waiver": { "kind": "DOCS", "reason": "Documentation of the engine repository. This repository's own documentation is held by verify:docs." } },
+    { "id": "docs-site-card", "kind": "docs", "changelog": "docs(site): typography / CMYK / PDF/X-4 card", "waiver": { "kind": "DOCS", "reason": "Documentation of the engine repository. This repository's own documentation is held by verify:docs." } },
+    { "id": "docs-site-og", "kind": "docs", "changelog": "docs(site): OG and social-preview images", "waiver": { "kind": "DOCS", "reason": "Documentation of the engine repository. This repository's own documentation is held by verify:docs." } },
+    { "id": "docs-instructions", "kind": "docs", "changelog": "docs(instructions): text-shaping rules", "waiver": { "kind": "DOCS", "reason": "Documentation of the engine repository. This repository's own documentation is held by verify:docs." } },
+    { "id": "docs-meta", "kind": "docs", "changelog": "docs(meta):", "waiver": { "kind": "DOCS", "reason": "Documentation of the engine repository. This repository's own documentation is held by verify:docs." } },
+    { "id": "docs-language", "kind": "docs", "changelog": "docs(language): English everywhere", "waiver": { "kind": "DOCS", "reason": "Documentation of the engine repository. This repository's own documentation is held by verify:docs." } },
+    { "id": "docs-alphabet-plates", "kind": "docs", "changelog": "docs(samples): alphabet plates", "waiver": { "kind": "DOCS", "reason": "Documentation of the engine repository. This repository's own documentation is held by verify:docs." } }
+  ],
+  "upstreamLimits": [
+    {
+      "id": "pdfx-single-target",
+      "summary": "PDF_X_CONFORMANCE_TARGETS holds one entry ('pdfx4'): PDF/X-1a and PDF/X-3 are not claimable, and the lint rule L_PDFX_TARGET names the one valid value.",
+      "pinnedBy": { "file": "tests/lint.test.tsx", "name": "L_PDFX_TARGET — an unknown target (reachable from JSON) names the valid ones" },
+      "roadmap": "PDF/X-1a"
+    },
+    {
+      "id": "no-bundled-hyphenation",
+      "summary": "The engine ships no hyphenation dictionary: typography.hyphenationLanguage is only a tag handed to a provider the consumer installs with setHyphenationProvider(); without one, no word is hyphenated.",
+      "pinnedBy": { "file": "tests/typography.test.tsx", "name": "accepts a hyphenation provider and hands it the document language" },
+      "roadmap": "hyphenation provider"
+    }
+  ]
+}

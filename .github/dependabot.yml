@@ -1,7 +1,8 @@
 version: 2
+
 updates:
   - package-ecosystem: npm
-    directory: '/'
+    directory: /
     schedule:
       interval: weekly
       day: monday
@@ -9,29 +10,39 @@ updates:
     labels:
       - dependencies
     commit-message:
-      prefix: 'chore(deps):'
+      prefix: "chore(deps):"
     ignore:
-      - dependency-name: typescript
-        update-types: ['version-update:semver-major']
-      - dependency-name: eslint
-        update-types: ['version-update:semver-major']
-      - dependency-name: vitest
-        update-types: ['version-update:semver-major']
-      - dependency-name: '@vitest/coverage-v8'
-        update-types: ['version-update:semver-major']
-      - dependency-name: typescript-eslint
-        update-types: ['version-update:semver-major']
-      - dependency-name: tsup
-        update-types: ['version-update:semver-major']
-      - dependency-name: react-reconciler
-        update-types: ['version-update:semver-major']
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "eslint"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "vitest"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@vitest/coverage-v8"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "typescript-eslint"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "tsup"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "tsx"
+        update-types: ["version-update:semver-major"]
+      # The reconciler is pinned to the React 19 contract (KNOWLEDGE_BASE §4):
+      # a major of react-reconciler is a reviewed change, never a bot PR.
+      - dependency-name: "react-reconciler"
+        update-types: ["version-update:semver-major"]
+      # engines.node is >= 22 and .nvmrc pins 22: the type definitions follow
+      # the Node line, not the newest major (rule node-pin-parity).
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
     groups:
       dev-dependencies:
         dependency-type: development
-        update-types: ['minor', 'patch']
+        update-types:
+          - minor
+          - patch
 
   - package-ecosystem: github-actions
-    directory: '/'
+    directory: /
     schedule:
       interval: weekly
       day: monday
@@ -40,4 +51,4 @@ updates:
       - dependencies
       - ci
     commit-message:
-      prefix: 'chore(ci):'
+      prefix: "chore(ci):"

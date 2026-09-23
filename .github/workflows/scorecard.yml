@@ -1,8 +1,10 @@
 name: Scorecard supply-chain security
 
 on:
+  # Run on a schedule to keep the public security posture report fresh.
   schedule:
     - cron: '27 3 * * 1'
+  # Run on changes to branch protection / workflows / security files.
   push:
     branches: [main, master]
 
@@ -18,12 +20,20 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
+      # Needed to upload the SARIF results to the Security tab.
       security-events: write
+      # Needed to publish signed results to the OpenSSF public dataset.
       id-token: write
+      # Optional: read repository metadata (branch protection, etc.).
       contents: read
       actions: read
 
     steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -34,6 +44,7 @@ jobs:
         with:
           results_file: results.sarif
           results_format: sarif
+          # Publish the results to the OpenSSF Scorecard public API.
           publish_results: true
 
       - name: Upload artifact

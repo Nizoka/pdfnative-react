@@ -29,6 +29,13 @@
     },
     "./package.json": "./package.json"
   },
+  "typesVersions": {
+    "*": {
+      "client": [
+        "./dist/client.d.ts"
+      ]
+    }
+  },
   "files": [
     "dist",
     "llms.txt",
@@ -42,15 +49,27 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "lint": "eslint src/",
-    "lint:fix": "eslint src/ --fix",
+    "gate": "npx tsx scripts/gate.ts",
+    "gate:fast": "npx tsx scripts/gate.ts --fast",
+    "lint": "eslint src --max-warnings 0",
+    "lint:fix": "eslint src --fix",
     "typecheck": "tsc --noEmit",
     "typecheck:tests": "tsc --project tsconfig.test.json --noEmit",
     "typecheck:samples": "tsc --project samples/tsconfig.json --noEmit",
-    "typecheck:all": "npm run typecheck && npm run typecheck:tests && npm run typecheck:samples",
+    "typecheck:scripts": "tsc --project tsconfig.scripts.json --noEmit",
+    "typecheck:compat": "tsc --project tests/regression/compat/tsconfig.json --noEmit",
+    "typecheck:all": "npm run typecheck && npm run typecheck:tests && npm run typecheck:samples && npm run typecheck:scripts && npm run typecheck:compat",
+    "test:generate": "npx tsx scripts/generate-samples.ts",
+    "verify:samples": "npx tsx scripts/verify-samples.ts",
+    "verify:docs": "npx tsx scripts/verify-docs.ts",
     "verify:issue": "node scripts/verify-issue.mjs",
-    "corpus:pdfa": "node scripts/generate-pdfa-corpus.mjs",
-    "validate:pdfa": "npm run build && npm run corpus:pdfa && node scripts/validate-pdfa.mjs",
+    "corpus:pdfa": "npx tsx scripts/generate-pdfa-corpus.ts",
+    "validate:pdfa": "npx tsx scripts/validate-pdfa.ts",
+    "validate:pdfx": "npx tsx scripts/validate-pdfx.ts",
+    "release:prepare": "npx tsx scripts/release-prepare.ts",
+    "agents:rules": "npx tsx scripts/build-claude-rules.ts",
+    "hooks:install": "node scripts/install-git-hooks.mjs",
+    "hooks:uninstall": "node scripts/install-git-hooks.mjs --uninstall",
     "prepublishOnly": "npm run build"
   },
   "keywords": [
@@ -121,7 +140,33 @@
     "agent-safety",
     "sbom",
     "supply-chain",
-    "invoice"
+    "invoice",
+    "typography",
+    "widows-orphans",
+    "justification",
+    "kerning",
+    "opentype-features",
+    "hyphenation",
+    "punctuation-spacing",
+    "cmyk",
+    "pdf-x",
+    "pdfx4",
+    "pdf-x-4",
+    "colour-bars",
+    "icc-profile",
+    "reproducible-builds",
+    "deterministic-pdf",
+    "reproducible-pdf",
+    "lao",
+    "indic",
+    "devanagari",
+    "cham",
+    "multilingual",
+    "noto-fonts",
+    "slsa",
+    "provenance",
+    "trusted-publishing",
+    "openssf-scorecard"
   ],
   "author": "Nizoka <hello@pdfnative.dev> (https://pdfnative.dev)",
   "license": "MIT",
@@ -158,7 +203,7 @@
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-reconciler": "^0.32.0",
-    "@vitest/coverage-v8": "^4.1.7",
+    "@vitest/coverage-v8": "^4.1.11",
     "esbuild": "^0.28.2",
     "eslint": "^9.0.0",
     "eslint-plugin-react-hooks": "^7.1.1",
@@ -171,11 +216,15 @@
     "tsx": "^4.23.15",
     "typescript": "^5.4.0",
     "typescript-eslint": "^8.59.2",
-    "vitest": "^4.1.7"
+    "vitest": "^4.1.11"
   },
   "overrides": {
     "esbuild": "^0.28.2",
-    "js-yaml": "^4.3.0",
-    "postcss": "^8.5.18"
-  }
+    "js-yaml": "4.3.2",
+    "postcss": "^8.5.18",
+    "nanoid": "^3.3.18",
+    "brace-expansion@1": "^1.1.18",
+    "brace-expansion@5": "^5.0.9"
+  },
+  "packageManager": "npm@10.9.2"
 }

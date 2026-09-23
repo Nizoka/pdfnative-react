@@ -1,0 +1,31 @@
+# Binary files must never go through EOL conversion. Without this file,
+# core.autocrlf=true (a common system-level default on Windows) classifies
+# small PDFs as text and rewrites their line endings at checkout — in
+# pdfnative the golden page-tree fixtures grew by 305-616 bytes each while
+# `git status` stayed clean, which is how the corruption went unnoticed. The
+# blobs in git were always intact; only the working copy was damaged.
+#
+# Text files are LF in the repository AND in every working copy (eol=lf), so
+# a Windows checkout produces the same bytes as CI and the sample baseline
+# (tests/regression/baselines/samples.sha256.json) does not depend on the OS.
+# The two blobs committed as CRLF before this line (both workflow files) were
+# replaced by the 1.3.0 hardening commit; `verify:docs` (rule eol-lf) fails
+# on any new one.
+* text=auto eol=lf
+
+*.pdf   binary
+*.icc   binary
+*.ttf   binary
+*.otf   binary
+*.woff  binary
+*.woff2 binary
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.ico   binary
+
+# Generated files: collapsed in GitHub diffs and excluded from language stats.
+.claude/rules/*.md                                  linguist-generated=true
+tests/regression/baselines/samples.sha256.json      linguist-generated=true -diff
+tests/__snapshots__/*.snap                          linguist-generated=true
+package-lock.json                                   linguist-generated=true

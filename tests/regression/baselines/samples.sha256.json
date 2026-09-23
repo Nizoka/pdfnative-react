@@ -1,0 +1,237 @@
+{
+  "$comment": "Fingerprints of every sample in test-output/samples/ (each sample run by scripts/generate-samples.ts in its own process with the creation instant pinned, in UTC). Regenerate deliberately with `npx tsx scripts/verify-samples.ts --update`, and say why in the release notes: a changed hash means existing output changed. Mode `bytes` is a SHA-256 of the file; mode `semantic` is a SHA-256 of a canonical projection of the document, reserved for encrypted samples (CSPRNG file key and IVs), of which this repository has none. Each entry's `since` names the release whose output the hash is: it is carried forward untouched while the sample is unchanged, and moves to the release doing the rebaseline when the hash changes, so the chain 1.3.0 -> 1.4.0 -> … stays auditable and every re-anchoring is visible in the diff.",
+  "baselineVersion": "1.3.0",
+  "provenance": "Chain origin: pdfnative-react 1.3.0 on pdfnative 1.8.0 — the first release with a pinned creation instant (creationDate / setDefaultCreationDate) and UTC dates, so every entry is anchored at 1.3.0 and there is no earlier reference to inherit. Captured on Windows 11 (Node 22) by running scripts/generate-samples.ts twice in a row under TZ=UTC: 38 of 38 samples byte-identical between the two runs, then held by the Linux, Windows and macOS runners of sample-regression.yml. The two-time-zone proof (Pacific/Kiritimati vs America/Los_Angeles, over dist/index.js) is tests/regression/reproducible-build.test.ts. fonts/fonts-prop.pdf and fonts/fonts-prop-sync.pdf are one document rendered through both entry points and are identical by design (IDENTICAL_SAMPLE_GROUPS).",
+  "creationDate": "2026-01-01T00:00:00.000Z",
+  "timezone": "UTC",
+  "entries": {
+    "agent/agent-loop.pdf": {
+      "mode": "bytes",
+      "hash": "98517a5129e5651143311498767af7351b080a2ea2b720a274545fd0b5ea32dd",
+      "size": 6241,
+      "since": "1.3.0"
+    },
+    "agent/compact-spec.pdf": {
+      "mode": "bytes",
+      "hash": "662d81ebbc43362791d81493d0c12fddd4ef5a3b389cfd1bb3dc64fbde0f5ce4",
+      "size": 19827,
+      "since": "1.3.0"
+    },
+    "agent/visual-verify.pdf": {
+      "mode": "bytes",
+      "hash": "13df0058894a19b237f7af4fd0092855c61c7a2bf9196495f0381e866c49e612",
+      "size": 6264,
+      "since": "1.3.0"
+    },
+    "charts/charts-v2.pdf": {
+      "mode": "bytes",
+      "hash": "3a2a023512f60843eeb2ebdf4116e5ebdee85b4a76c9776f22ca7b828f29c45f",
+      "size": 26432,
+      "since": "1.3.0"
+    },
+    "charts/charts.pdf": {
+      "mode": "bytes",
+      "hash": "87c5e0b26c968a39402bed1609344bec0017e075bd7b8201db46a6f07566a917",
+      "size": 15800,
+      "since": "1.3.0"
+    },
+    "fonts/custom-fonts.pdf": {
+      "mode": "bytes",
+      "hash": "7180a780b349ac8bc04ba54c8f07f936109dcb45f7d123a09378b6012372ce16",
+      "size": 4409,
+      "since": "1.3.0"
+    },
+    "fonts/fonts-prop-sync.pdf": {
+      "mode": "bytes",
+      "hash": "2f1e2203f952a4c1fd49ef69e20aadb8e563babc364251519b92b9e95b4a9ce8",
+      "size": 48994,
+      "since": "1.3.0"
+    },
+    "fonts/fonts-prop.pdf": {
+      "mode": "bytes",
+      "hash": "2f1e2203f952a4c1fd49ef69e20aadb8e563babc364251519b92b9e95b4a9ce8",
+      "size": 48994,
+      "since": "1.3.0"
+    },
+    "fonts/scripts-27.pdf": {
+      "mode": "bytes",
+      "hash": "6e11d04863585bdcbbba7fd024f8fe1f2be43adb042eb457ce8cc81a651ba057",
+      "size": 227911,
+      "since": "1.3.0"
+    },
+    "forms/form-fields.pdf": {
+      "mode": "bytes",
+      "hash": "c3d4bde091721e0792dd2fc7ad3743a8785acf378019afe18682b031dcd58af0",
+      "size": 8239,
+      "since": "1.3.0"
+    },
+    "invoice.pdf": {
+      "mode": "bytes",
+      "hash": "957d6ebd907b1bd745ae34c74422982c2722379705b026373030885709b38a30",
+      "size": 6792,
+      "since": "1.3.0"
+    },
+    "layout/cmyk.pdf": {
+      "mode": "bytes",
+      "hash": "128f44fd275ea07d102655982ecbecbbf27ac442e2e5a18f2a6a9d056c3f81d7",
+      "size": 10244,
+      "since": "1.3.0"
+    },
+    "layout/debug-overlay.pdf": {
+      "mode": "bytes",
+      "hash": "100037632c45d44c002423b7d17cb729c2bbdad89dff11e08528634bd4451032",
+      "size": 6571,
+      "since": "1.3.0"
+    },
+    "layout/page-setup.pdf": {
+      "mode": "bytes",
+      "hash": "c3f7b9692b226f42f12b5db7229ccec7a8ac48462c070739b1788763bebf5be4",
+      "size": 117331,
+      "since": "1.3.0"
+    },
+    "layout/print-pdfx4.pdf": {
+      "mode": "bytes",
+      "hash": "c5776ba7d2128b3e48fa3b7ff8f5ed7a1d0200b17c7803455ff918d860cb04a1",
+      "size": 130476,
+      "since": "1.3.0"
+    },
+    "layout/print-production.pdf": {
+      "mode": "bytes",
+      "hash": "81c641d47e63ba7171fd406ebdb4e347ba1f8387949fa8134df31a06c71297a5",
+      "size": 6583,
+      "since": "1.3.0"
+    },
+    "layout/viewer-preferences.pdf": {
+      "mode": "bytes",
+      "hash": "881e091428c5c3826c9636fc598327cc2c6512a3f7a29310b6604065de660753",
+      "size": 4907,
+      "since": "1.3.0"
+    },
+    "layout/watermark-header-footer.pdf": {
+      "mode": "bytes",
+      "hash": "a20bc8dabddd5813e4870138286e7a4f2a8b2bfa3975eef5c869bac36508b28f",
+      "size": 133852,
+      "since": "1.3.0"
+    },
+    "media/barcode.pdf": {
+      "mode": "bytes",
+      "hash": "243cbe3c71dce28e89b0413a5d565112928001b28ae83607be7ed70470c2792a",
+      "size": 35310,
+      "since": "1.3.0"
+    },
+    "media/image.pdf": {
+      "mode": "bytes",
+      "hash": "0cb613c0cac58f6b7c48717f5383245e9eae34c96b102b7c2379477e696b4afd",
+      "size": 4739,
+      "since": "1.3.0"
+    },
+    "media/link.pdf": {
+      "mode": "bytes",
+      "hash": "075fe6b201054ff39a4d011a180309705bedae8a1296bb1bd063666d84a20bb3",
+      "size": 5060,
+      "since": "1.3.0"
+    },
+    "media/svg-text.pdf": {
+      "mode": "bytes",
+      "hash": "237026b25814741b4113be6b6062bba197669b9cc1974d260e739ea2d99f5c28",
+      "size": 5060,
+      "since": "1.3.0"
+    },
+    "media/svg.pdf": {
+      "mode": "bytes",
+      "hash": "2877bab7d3a6b45fe07347b49644caa2035b76f11c76db0da73faaa60da2eb7e",
+      "size": 4510,
+      "since": "1.3.0"
+    },
+    "quality/diagnostics.pdf": {
+      "mode": "bytes",
+      "hash": "dfb4b8aefe8321786c7151f9a5fd54393b2e0092f599a79e51aaa865d609265c",
+      "size": 7662,
+      "since": "1.3.0"
+    },
+    "quality/reproducible.pdf": {
+      "mode": "bytes",
+      "hash": "edd9d471a9cabace12c35aab8bc20b6b94806f7b44c064d8b05bcb88a021feba",
+      "size": 4490,
+      "since": "1.3.0"
+    },
+    "report.pdf": {
+      "mode": "bytes",
+      "hash": "9286f6b43a7f32dd29d50ee9fbeb8a69615aba5606a6bd5c197e549396b9b61d",
+      "size": 8370,
+      "since": "1.3.0"
+    },
+    "structure/outline-auto.pdf": {
+      "mode": "bytes",
+      "hash": "cb135bda1f5ddefc9858dabc99ae36006214a6e70b4b3ca4c909096061541c9a",
+      "size": 4951,
+      "since": "1.3.0"
+    },
+    "structure/outline.pdf": {
+      "mode": "bytes",
+      "hash": "dbefeb738225c4e106124c743756e5baea19723ea05e845750c993edefc58031",
+      "size": 6163,
+      "since": "1.3.0"
+    },
+    "structure/section.pdf": {
+      "mode": "bytes",
+      "hash": "6d1f6f3abdc9d9ff52e709e582cf4d1755b641e87e016cee1eb8c90104b619c4",
+      "size": 7500,
+      "since": "1.3.0"
+    },
+    "structure/sections.pdf": {
+      "mode": "bytes",
+      "hash": "06d67945e5973392628ce7a656c9007dc9398b88401b6062463d827040810bf7",
+      "size": 8344,
+      "since": "1.3.0"
+    },
+    "structure/stream-to-file.pdf": {
+      "mode": "bytes",
+      "hash": "de0bb2498a276563911efdc4a1dd61dcde0b8d273e15f1e998425fe678e12160",
+      "size": 141727,
+      "since": "1.3.0"
+    },
+    "table/cell-borders.pdf": {
+      "mode": "bytes",
+      "hash": "8e72ed354e44fed76fc21f4dbf884233262b46a744674f119a414ff8f20d9cc3",
+      "size": 9289,
+      "since": "1.3.0"
+    },
+    "table/data-table.pdf": {
+      "mode": "bytes",
+      "hash": "89c29cc33bc1d7d41cae6c9b5b4d05dc1e5bcef8470dec74c66b57b68dc39e98",
+      "size": 5959,
+      "since": "1.3.0"
+    },
+    "text/math.pdf": {
+      "mode": "bytes",
+      "hash": "57a9a2b4797317d9a91a9e51e870ff1b654ab57405068198174d394e95ac7dfd",
+      "size": 143247,
+      "since": "1.3.0"
+    },
+    "text/nested-lists.pdf": {
+      "mode": "bytes",
+      "hash": "02de562ac1a916136ed007ff3e43469a92a312dd0095dea9909b4d3109be2096",
+      "size": 5777,
+      "since": "1.3.0"
+    },
+    "text/typography-engine.pdf": {
+      "mode": "bytes",
+      "hash": "9c1213798ef37400799bd0b0c3b7ba188489b5747899bb4e11d071328f46c29e",
+      "size": 152734,
+      "since": "1.3.0"
+    },
+    "text/typography-french.pdf": {
+      "mode": "bytes",
+      "hash": "b9c1c132086f320d593171a0ae05377a95b7119829a9d758965b15a66b00b1e6",
+      "size": 121764,
+      "since": "1.3.0"
+    },
+    "text/typography.pdf": {
+      "mode": "bytes",
+      "hash": "30491bd41faf03b65ec19562020e5834ff9a065d196b1a65cbc8e71a2306ad3c",
+      "size": 5034,
+      "since": "1.3.0"
+    }
+  }
+}

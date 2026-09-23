@@ -5,7 +5,8 @@
 > object and renders real PDF bytes — no DOM, no headless browser, no native
 > modules. It is a declarative block flow, not a CSS/flexbox layout engine.
 
-Version: 1.2.0 · pairs with pdfnative 1.7.0.
+Version: 1.3.0 · pairs with pdfnative 1.8.0. Current release: 1.3.0.
+Verified on 2026-09-22 against the source tree.
 
 This file is an LLM-facing capability summary. For the machine-readable JSON
 version, call `capabilityManifest()`; for schemas, call `schema(subject)`.
@@ -16,23 +17,24 @@ version, call `capabilityManifest()`; for schemas, call `schema(subject)`.
 npm install pdfnative-react pdfnative react
 ```
 
-Requires React 19, pdfnative >= 1.7, Node.js >= 22.
+Requires React 19, pdfnative >= 1.8, Node.js >= 22.
 
 ## Core idea
 
 JSX components map 1:1 onto pdfnative blocks. A custom react-reconciler compiles
 the tree synchronously (no DOM) into `DocumentParams`, which `pdfnative` renders
-to a `Uint8Array` PDF.
+to a `Uint8Array` PDF. 19 components, 14 block kinds, 18 DocSpec fields,
+37 lint rules, 6 error codes, 27 Unicode scripts.
 
 ## Components
 
-- Document (root: title, footerText, metadata, fontEntries, layout, outline, pageLabels, watermark, header, footer, attachments, tagged, print)
+- Document (root: title, footerText, metadata, fontEntries, layout, outline, pageLabels, watermark, header, footer, attachments, tagged, print, pdfx, outputIntent, typography, creationDate)
 - Page (explicit page boundary; auto-pagination otherwise)
 - Section (sugar: title + grouped content; level?, color?, break?)
-- Heading (level 1-3)
-- Paragraph / Text (alias)
+- Heading (level 1-3; keepWithNext?)
+- Paragraph / Text (alias) (fontSize?, lineHeight?, align?: 'left'|'center'|'right'|'justify', indent?, color?, keepWithNext?, splittable?)
 - List (ordered?) + Item (items may nest sub-lists: child <List>, nested <Item>, or items={{text,items}})
-- Table + Row (header?, variant, pointed) + Cell  — or pass headers/rows props; cellBorders?, cellVAlign?
+- Table + Row (header?, variant, pointed) + Cell  — or pass headers/rows props; cellBorders?, cellVAlign?, zebra?
 - Image (data: Uint8Array)
 - Link (url | href)
 - Spacer (height)
@@ -46,32 +48,63 @@ to a `Uint8Array` PDF.
   xValues required for scatter/positional axes. Native vector, PDF/A-safe.
 - FormField (fieldType, name) — interactive AcroForm widgets
 
+Colour (every `color`, chart colors/series color, cellBorders.color, zebra,
+watermark, header/footer color, layout.colors): '#rrggbb' | [r,g,b] (0-255) |
+'r g b' (0-1) | [c,m,y,k] (percent, 0-100) | 'c m y k' (0-1). Three values are
+DeviceRGB, four are DeviceCMYK.
+
 ## Document-level page furniture (props on <Document>, not components)
 
 - watermark: string | WatermarkOptions   (a string is shorthand for { text: { text } })
 - header / footer: PageTemplate { left?, center?, right?, fontSize?, color? }
   Placeholders resolved at render time: {page} {pages} {date} {title}
+  ({date} follows creationDate when pinned)
 - attachments: PdfAttachment[] { filename, data, mimeType, description?, relationship? }
   Requires tagged: 'pdfa3b' — the engine throws otherwise.
 - tagged: boolean | 'pdfa1b' | 'pdfa2b' | 'pdfa2u' | 'pdfa3b'
   PDF/A requires embedded fonts: pair with fontEntries.
 - print: PrintOptions { bleed? | trimBox?/bleedBox?/artBox?/cropBox? ([llx,lly,urx,ury]),
-  marks?: boolean | { crop?, registration?, length?, offset?, weight? }, userUnit? (1-75000) }
-  Print production (engine >= 1.7). bleed and trimBox are mutually exclusive; marks
-  need a TrimBox source; userUnit is rejected under 'pdfa1b'.
+  marks?: boolean | { crop?, registration?, colourBars?: boolean | { tints?, size? }, length?, offset?, weight? }, userUnit? (1-75000) }
+  Print production (engine >= 1.7; colourBars >= 1.8). bleed and trimBox are mutually
+  exclusive; marks need a TrimBox source; userUnit is rejected under 'pdfa1b';
+  colour bars want a 5 mm (14.17 pt) bleed.
+- pdfx: 'pdfx4'  — PDF/X-4 (ISO 15930-7). Needs outputIntent with a printer (prtr)
+  ICC profile, metadata.trapped 'True'|'False', fontEntries; exclusive with tagged
+  and layout.encryption; a TrimBox or an ArtBox per page, not both. Each constraint
+  is an L_PDFX_* lint rule before it is an E_INPUT throw. Check bytes with the
+  engine's validatePdfX() (not re-exported; docs/RECIPES.md).
+- outputIntent: { iccProfile: Uint8Array (RGB/CMYK/Gray), outputConditionIdentifier, registryName?, outputCondition?, info? }
+  Honoured under tagged, required under pdfx, ignored otherwise (lint warns).
+  The profile must be a real ICC file (acsp signature, size field) — L_OUTPUT_INTENT_PROFILE.
+  No press profile is bundled.
+- typography: TypographyOptions — all opt-in; unset => byte-identical to earlier releases:
+  splitParagraphs (boolean), orphans / widows (number >= 1, need splitParagraphs),
+  keepHeadingsWithNext (boolean | { minLines }), unitBinding (boolean | { units }),
+  bindShortWords (boolean | { words }), punctuationSpacing ('fr' | 'fr-CA' | [{ char, side, space }]),
+  opticalMargins (boolean), metrics ('approximate' | 'exact'), fontFeatures (['tnum','pnum','lnum','onum','zero','ordn','sups','subs','smcp','c2sc','case']),
+  kerning (boolean), hyphenationLanguage (BCP 47 tag for setHyphenationProvider).
+  Limits: kerning, fontFeatures and the 'fr' narrow space need fontEntries (base-14 has none — 'fr' degrades to 'fr-CA');
+  metrics 'exact' acts on base-14 text only; tnum/lnum are no-ops on Noto Sans (TYPOGRAPHY_FEATURE_INEFFECTIVE);
+  no hyphenation dictionary ships (soft hyphens U+00AD are honoured). Lint: L_TYPOGRAPHY_INEFFECTIVE.
+- creationDate: Date | ISO 8601 string — pins /CreationDate, /ModDate, XMP dates,
+  the {date} placeholder and the trailer /ID; dates are always UTC (+00'00'), so a
+  pinned document gives the same bytes on every host. An unparseable string is E_INPUT.
+  Process-wide: setDefaultCreationDate(date | null). The library reads NO environment
+  variable (not SOURCE_DATE_EPOCH). Not reproducible by design: layout.encryption.
 
-All six fold into `layout` under the engine's keys (watermark, headerTemplate,
-footerTemplate, attachments, tagged, print). An explicit `layout` prop wins.
+All ten fold into `layout` under the engine's keys (watermark, headerTemplate,
+footerTemplate, attachments, tagged, print, pdfx, outputIntent, typography,
+creationDate). An explicit `layout` prop wins (replaces whole, no deep merge).
 Document.outline: OutlineItem[] | 'auto'. Document.pageLabels: PageLabelRange[].
-metadata.trapped: 'True' | 'False' | 'Unknown' (prepress /Trapped + XMP).
+metadata.trapped: 'True' | 'False' | 'Unknown' (prepress /Trapped + XMP; PDF/X needs a known state).
 layout.viewerPreferences also takes duplex, pickTrayByPDFSize,
 printPageRange ([[first,last], ...] 1-based) and numCopies.
-layout.strict (boolean, JSON-safe) escalates the engine's PDF/A conformance
-diagnostics (PDFA_NO_FONT_ENTRIES, PDFA_UNEMBEDDED_FORM_FONT,
-PDFA_DEVICE_CMYK_IMAGE) to thrown errors; layout.onDiagnostic (function — not
-representable in JSON specs) receives them instead of the default console.warn.
-layout.outputIntent ({ iccProfile: Uint8Array (RGB), outputConditionIdentifier, ... })
-applies to tagged output only — it is silently ignored otherwise (lint warns).
+layout.strict (boolean, JSON-safe) escalates the engine's 9 diagnostic codes to
+thrown errors; layout.onDiagnostic (function — not representable in JSON specs)
+receives them instead of the default console.warn:
+PDFA_NO_FONT_ENTRIES, PDFA_UNEMBEDDED_FORM_FONT, PDFA_DEVICE_CMYK_IMAGE,
+PDFA_DEVICE_CMYK_CONTENT, PDFA_ICC_PROFILE_VERSION, PDFX_NO_FONT_ENTRIES,
+PDFX_DEVICE_CMYK, PDFX_ANNOTATIONS, TYPOGRAPHY_FEATURE_INEFFECTIVE.
 
 ## Rendering
 
@@ -92,13 +125,17 @@ applies to tagged output only — it is silently ignored otherwise (lint warns).
 `options`: { layout?: Partial<PdfLayoutOptions>, fontEntries?: FontEntry[], fonts?: FontsMap }.
 `renderToResponse` also takes { fileName?, disposition?: 'inline'|'attachment',
 buffered?, status?, cacheControl?, etag? (string verbatim | true = derive from
-bytes, implies buffering), headers? }. fonts (loader map) is honored only by async
-entries (renderToFile, renderToFileStream, renderToResponse, usePdf,
-usePdfStream); for sync entries do `fontEntries: await resolveFonts({...})`.
+bytes, implies buffering; stable across hosts only when creationDate is pinned),
+headers? }. fonts (loader map) is honored only by async entries (renderToFile,
+renderToFileStream, renderToResponse, usePdf, usePdfStream); for sync entries
+do `fontEntries: await resolveFonts({...})`.
 
 ## Fonts & assets
 
 - resolveFonts(map) -> Promise<FontEntry[]>  (map: { lang: () => import('pdfnative/fonts/…-data.js') })
+  27 Unicode scripts are bundled by the engine as font modules; 1.8.0 added
+  lo (Lao), nod (Tai Tham), khb (New Tai Lue), tdd (Tai Le), cjm (Cham), and
+  ha/yo/ig/sw (Hausa, Yoruba, Igbo, Swahili) as aliases of the latin module.
 - validateFontData(data) -> FontValidationResult { valid, errors, warnings }  (opt-in font check)
 - fromUrl(url, init?) -> Promise<Uint8Array>  (image bytes)
 - fromBase64(payload) -> Uint8Array           (base64 or data: URI)
@@ -116,7 +153,6 @@ createContext, which React's 'react-server' condition does not provide. Importin
 it from a Server Component or a 'use server' file fails at module load. Use a
 Route Handler (app/**/route.ts) instead — that is what renderToResponse is for.
 
-
 - usePdf(element, options?) -> { url, blob, bytes, loading, error, update }
 - usePdfStream(element, options?) -> { getStream() }
 - PDFViewer({ document, options?, className?, style?, width?, height?, title? }) — live iframe preview
@@ -126,9 +162,13 @@ Route Handler (app/**/route.ts) instead — that is what renderToResponse is for
 ## Font / environment helpers (re-exported from pdfnative)
 
 registerFonts, registerFont, loadFontData, downloadBlob, initNodeCompression,
-setDeflateImpl (inject a DEFLATE implementation so layout.compress produces
-real compression in browsers/workers; without it the engine falls back to
-stored blocks, which are slightly LARGER).
+setDeflateImpl (a zlib-wrapped DEFLATE implementation so layout.compress produces
+real compression in browsers/workers; rejects raw DEFLATE since engine 1.8.0),
+setDeflateRawImpl (a RAW deflate function; the engine adds the zlib framing),
+wrapZlib (wrap a raw deflater by hand), setDefaultCreationDate /
+getDefaultCreationDate (process-wide creation instant; null restores the clock),
+setHyphenationProvider / getHyphenationProvider ((word, lang?) => break offsets).
+Every one is the engine's own function, re-exported unchanged.
 
 ## Compact agent authoring (token-frugal DocSpec)
 
@@ -144,11 +184,13 @@ Prefer it when generating documents programmatically.
 - lintSpec(spec, options?) -> LintReport
 - validateSpec(spec: unknown) -> { ok, errors, warnings }   (no JSON-Schema engine needed)
 
-DocSpec = { title?, footerText?, metadata?, fontEntries?, layout?, outline?,
-pageLabels?, watermark?, header?, footer?, attachments?, tagged?, print?, blocks }.
+DocSpec fields (18): title, footerText, metadata, fontEntries, layout, outline,
+pageLabels, watermark, header, footer, attachments, tagged, print, pdfx,
+outputIntent, typography, creationDate (ISO string), blocks — every one optional
+but blocks.
 Block tuples (kind, ...payload, opts?):
-- ['h1'|'h2'|'h3', text, opts?]
-- ['p', text, opts?]
+- ['h1'|'h2'|'h3', text, opts?]   opts: color?, keepWithNext?
+- ['p', text, opts?]   opts: fontSize?, lineHeight?, align? (incl. 'justify'), indent?, color?, keepWithNext?, splittable?
 - ['ul'|'ol', items, opts?]   items entry = string | { text, items }  (nested sub-lists)
 - ['table', { h?, r, columns?, zebra?, caption?, cellBorders?, cellVAlign?, ... }]   r row = string[] | PdfRow
 - ['img', { data, ... }]
@@ -166,10 +208,11 @@ Block tuples (kind, ...payload, opts?):
 
 - doctor() -> { ok, checks: [{ name, status: 'ok'|'warn'|'error', value, detail }] }
   Environment pre-flight. NEVER throws, including when the pdfnative peer is
-  missing. Call this first in an unfamiliar environment.
+  missing. Engine probe newest-first: a 1.7.x engine is reported as needing >= 1.8.0.
+  Call this first in an unfamiliar environment.
 - capabilityManifest() -> everything the package can do, as plain JSON:
-  components, specBlocks (the whole grammar), entrypoints, errorCodes,
-  lintRules, schemaSubjects, and the contract invariants.
+  components, specBlocks (the whole grammar), specFields, entrypoints, errorCodes,
+  lintRules, schemaSubjects, and the contract invariants (engine '^1.8.0').
 - schema(subject?) -> Draft 2020-12 JSON Schema; schemaId(subject?) -> versioned $id.
   Subjects: doc-spec (default), render-options, lint-report, spec-validation,
   doctor, manifest, list. The $id embeds the package version, so a caching
@@ -189,16 +232,22 @@ Four dry-run tiers, cheapest first:
 
 Tier 5 — verify the RENDERED output (post-render):
   - extractText (engine, on the bytes): did text really render, or .notdef?
-  - validatePdfUA (engine) / veraPDF: is the conformance claim true?
+    Honours /ActualText since engine 1.8.0 (shaped scripts extract as source text).
+  - validatePdfUA (engine) / veraPDF: is the PDF/A or PDF/UA claim true?
     The repo itself gates on veraPDF: `npm run validate:pdfa` renders a
     PDF/A corpus (both authoring doors, 2 negative canaries) and validates
     it with the pinned reference validator; blocking in CI.
+  - validatePdfX (engine): is the PDF/X-4 claim structurally true? Not a
+    certified preflight. `npm run validate:pdfx` runs it over the repo's corpus.
   - VISION AGENTS: rasterize with a standard external tool and LOOK at it —
     `pdftoppm -png -r 144 out.pdf page` (poppler) or
     `mutool draw -o page-%d.png -r 144 out.pdf` (mupdf). Judge the PNG
     against your intent (layout, chart shape, clipping). No rasterizer is
     bundled (no new dependency, ever). Runnable with graceful degradation:
     samples/agent/visual-verify.tsx · recipe: docs/RECIPES.md.
+
+Reproducible output for agents: set creationDate in the spec (ISO string) and
+compare bytes across runs; the same spec gives the same SHA-256 on any host.
 
 ## Errors
 
@@ -208,38 +257,47 @@ Every error carries a stable code. Branch on the code, never the message.
   Accepts ES2022 ErrorOptions: new PdfReactError(msg, code, { cause }); the
   envelope deliberately omits the cause.
 - PdfStructureError extends PdfReactError — code 'E_STRUCTURE'
-- toErrorEnvelope(unknown) -> the same envelope for any thrown value
+- toErrorEnvelope(unknown) -> the same envelope for any thrown value; an engine
+  input error (PDF/X coherence, print geometry, output intent, chart) is E_INPUT.
 - ErrorCode: E_STRUCTURE, E_INPUT, E_UNSUPPORTED, E_ENV, E_POLICY, E_RUNTIME
 
 ## Lint rules (stable L_* codes)
 
-25 rules — 15 error, 9 warning, 1 info.
+37 lint rules — 23 error, 13 warning, 1 info.
 
 errors:   L_EMPTY_DOCUMENT, L_TAGGED_NO_FONTS, L_TAGGED_ENCRYPTED,
           L_ATTACHMENTS_NEED_PDFA3, L_MAX_BLOCKS_EXCEEDED, L_CHART_EMPTY,
           L_CHART_SERIES, L_CHART_CATEGORIES, L_CHART_VALUES, L_CHART_POINTS,
           L_CHART_LOG_SCALE, L_CHART_X_AXIS, L_CHART_LABELS, L_PRINT_BOXES,
-          L_VIEWER_PRINT_RANGE
+          L_VIEWER_PRINT_RANGE, L_OUTPUT_INTENT_PROFILE, L_PDFX_TARGET,
+          L_PDFX_TAGGED_CONFLICT, L_PDFX_ENCRYPTED, L_PDFX_OUTPUT_INTENT,
+          L_PDFX_TRAPPED_UNKNOWN, L_PDFX_BOXES, L_PDFX_NO_FONTS
 warnings: L_IMAGE_ALT, L_TABLE_HEADERS, L_HEADING_HIERARCHY, L_FIELD_LABEL,
           L_LINK_TEXT, L_MAX_BLOCKS, L_OUTPUT_INTENT_IGNORED,
-          L_TAGGED_FORM_FONTS, L_OVERFLOW
+          L_TAGGED_FORM_FONTS, L_OVERFLOW, L_PDFX_ANNOTATIONS,
+          L_TYPOGRAPHY_INEFFECTIVE, L_PRINT_COLOUR_BARS, L_CMYK_INTENT_MISMATCH
 info:     L_CHART_ALT
 
-THIRTEEN of them pre-empt an exception the engine raises mid-render: the eight
+TWENTY of them pre-empt an exception the engine raises at build time: the eight
 L_CHART_* errors, L_PRINT_BOXES (delegates to the engine's own
 validatePrintOptions, so its message is the engine's), L_VIEWER_PRINT_RANGE,
-L_ATTACHMENTS_NEED_PDFA3, L_TAGGED_ENCRYPTED and L_MAX_BLOCKS_EXCEEDED. The
-last fires against the engine default of 100 000 blocks even when
-layout.maxBlocks is unset. L_OVERFLOW requires { overflow: true }.
+L_ATTACHMENTS_NEED_PDFA3, L_TAGGED_ENCRYPTED, L_MAX_BLOCKS_EXCEEDED,
+L_OUTPUT_INTENT_PROFILE and the six PDF/X coherence rules (their message is the
+engine's message). Five mirror an engine diagnostic that throws under
+layout.strict. L_MAX_BLOCKS_EXCEEDED fires against the engine default of
+100 000 blocks even when layout.maxBlocks is unset. L_OVERFLOW requires
+{ overflow: true }. A 1.2.0 document trips none of the twelve 1.3.0 rules.
 
 ## Notes
 
 - No `<View>` / flexbox by design — pdfnative is a declarative block flow.
 - React 19 only (single react-reconciler version contract); React 18 is not planned.
 - Authoring only. For byte-level post-processing (merge/split, form fill/flatten,
-  text extraction, decryption, annotations, signing, font compilation) use the
-  pdfnative engine directly on the bytes this library produces — see docs/RECIPES.md.
-- No outbound network calls, no telemetry, no autonomous GitHub writes.
+  text extraction, decryption, annotations, signing, PDF/X or PDF/UA validation,
+  font compilation) use the pdfnative engine directly on the bytes this library
+  produces — see docs/RECIPES.md.
+- No outbound network calls, no telemetry, no autonomous GitHub writes, no
+  environment variables read.
 
 ## Links
 
@@ -247,4 +305,5 @@ layout.maxBlocks is unset. L_OVERFLOW requires { overflow: true }.
 - repo: https://github.com/Nizoka/pdfnative-react
 - engine: https://www.npmjs.com/package/pdfnative
 - agent contract: docs/AGENT_CONTRACT.md
+- guides: docs/TYPOGRAPHY.md · docs/PRINT.md · docs/REPRODUCIBLE.md · docs/CHARTS.md · docs/SERVER.md · docs/LINTING.md
 - recipes (post-processing): docs/RECIPES.md

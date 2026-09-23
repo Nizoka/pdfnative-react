@@ -61,7 +61,9 @@ for (const run of first.runs ?? []) {
 ```
 
 A `maxTextLength` cap (16 M characters by default) keeps this safe on untrusted
-input.
+input. Since engine 1.8.0, extraction honours `/ActualText`, so text shaped for
+Indic, Khmer, Myanmar or Tai Tham scripts under `tagged` output round-trips as
+its **source** code points rather than as glyph order.
 
 **Useful as a test assertion.** Extraction is the honest way to check that text
 really rendered, rather than falling back to `.notdef` boxes:
@@ -215,12 +217,33 @@ npm run validate:pdfa   # build → render the corpus → veraPDF each claiming 
 ```
 
 Without veraPDF installed the runner skips with exit 0 (a skip, not a pass —
-CI sets `VERAPDF_REQUIRED=1` to fail closed). Install hints and the pinned
-validator version live in [CONTRIBUTING.md](../CONTRIBUTING.md). To validate
-*your own* output the same way, render to a file and run
+the gate's `--require-all` flag, which CI and the publish workflow pass, turns
+that skip into a failure). Install hints and the pinned validator version live
+in [CONTRIBUTING.md](../CONTRIBUTING.md). To validate *your own* output the
+same way, render to a file and run
 `verapdf --format xml --flavour 2b yourfile.pdf`, or use the engine's
 `validatePdfUA(bytes)` in-process for the PDF/UA structural checks (see the
 signing recipe above and `tests/pdfua.test.tsx`).
+
+**PDF/X-4 (`validatePdfX`).** veraPDF does not cover PDF/X. The engine's
+structural validator does, in-process, and is one import away:
+
+```ts
+import { validatePdfX } from 'pdfnative';
+
+const { valid, errors, warnings } = validatePdfX(renderToBytes(<PressSheet />));
+if (!valid) throw new Error(errors.join('\n'));
+```
+
+It checks the header, the XMP identification, the `/GTS_PDFX` output intent,
+the boxes, `/Trapped`, embedded fonts (including inside Form XObjects, patterns
+and appearance streams), transfer functions, OPI, PostScript and reference
+XObjects, embedded files and annotations in the BleedBox. It is deliberately
+not re-exported from this package (golden rule 7). Before sending a file to
+press, confirm it with a certified preflight tool (callas pdfToolbox, Acrobat
+Preflight): a `valid` result means the structural prerequisites hold. The
+repository runs it over its own PDF/X corpus on every push
+(`npm run validate:pdfx`); see [PRINT.md](PRINT.md).
 
 **Appearance (vision-capable agents).** Nothing in the model tells you whether
 the page *looks* right. Rasterize with a standard external tool and look:
@@ -236,6 +259,47 @@ rasterizer (a runtime dependency for a verification concern would violate
 golden rule 1). Runnable, with graceful degradation to the geometry report
 when no rasterizer is installed:
 [`samples/agent/visual-verify.tsx`](../samples/agent/visual-verify.tsx).
+
+## Pin the creation date — reproducible bytes
+
+Not a post-processing recipe, but the question it answers ("why do two renders
+differ?") arrives with the others. Every date the engine writes is UTC since
+1.8.0; pin the instant and the bytes repeat on every host:
+
+```tsx
+<Document creationDate={new Date('2026-01-01T00:00:00Z')}>      // this document
+```
+
+```ts
+import { setDefaultCreationDate } from 'pdfnative-react';
+
+setDefaultCreationDate(new Date('2026-01-01T00:00:00Z'));       // every document in this process
+setDefaultCreationDate(null);                                   // back to the clock
+```
+
+The `{date}` header/footer placeholder and the trailer `/ID` follow the pin.
+Two things never repeat, by design: `layout.encryption` (fresh keys, salts,
+IVs) and anything applied to the bytes afterwards. The library reads no
+environment variable — a pipeline that exports `SOURCE_DATE_EPOCH` applies it
+in one line of its own. Full guide: [REPRODUCIBLE.md](REPRODUCIBLE.md).
+
+## Inject a compressor
+
+`layout.compress` needs a DEFLATE implementation. Node gets one from
+`initNodeCompression()`; a browser, a Worker, Bun or Deno injects its own:
+
+```ts
+import { setDeflateImpl, setDeflateRawImpl, wrapZlib } from 'pdfnative-react';
+
+setDeflateImpl((bytes) => pako.deflate(bytes));              // a zlib-wrapped compressor (RFC 1950)
+setDeflateRawImpl((bytes) => fflate.deflateSync(bytes));      // a RAW compressor (RFC 1951) — the engine adds the zlib framing
+setDeflateImpl(wrapZlib((bytes) => fflate.deflateSync(bytes))); // the same, spelled out
+```
+
+Since engine 1.8.0, `setDeflateImpl` rejects a raw-DEFLATE function at build
+time (pdfnative #78) instead of writing an unreadable file — a document built
+with `fflate.deflateSync` through `setDeflateImpl` was silently corrupt before.
+Pass zlib output to `setDeflateImpl`, or use `setDeflateRawImpl`.
 
 ## Compile a font at runtime
 
@@ -260,9 +324,13 @@ authoring, not after.
 |---|---|
 | Composing a document | `pdfnative-react` |
 | Fonts, images, assets | `pdfnative-react` (`resolveFonts`, `fromUrl`, `fromBase64`) |
-| Layout, watermark, header/footer, attachments, PDF/A | `pdfnative-react` (`<Document>` props, `layout`) |
+| Layout, watermark, header/footer, attachments, PDF/A, PDF/X-4, output intent | `pdfnative-react` (`<Document>` props, `layout`) |
+| Typography, page breaking, justification | `pdfnative-react` (`typography`, `align`, `keepWithNext`, `splittable`) |
+| A pinned creation date | `pdfnative-react` (`creationDate`, `setDefaultCreationDate`) |
+| A compressor or a hyphenation provider | `pdfnative-react` (`setDeflateImpl`, `setDeflateRawImpl`, `setHyphenationProvider`) |
 | Encryption **of a document you are authoring** | `pdfnative-react` (`layout.encryption`) |
 | Checking a document before rendering | `pdfnative-react` (`lintDocument`, `inspectDocument`) |
+| Checking the finished bytes (`validatePdfX`, `validatePdfUA`, `extractText`) | **`pdfnative`** |
 | Anything applied to bytes that already exist | **`pdfnative`** |
 
 ## See also
@@ -270,4 +338,5 @@ authoring, not after.
 - [pdfnative on npm](https://www.npmjs.com/package/pdfnative) — the engine's own
   guides cover each of these in depth.
 - [AGENTS.md](../AGENTS.md) — golden rule 7 and the rest of the contract.
-- [LINTING.md](LINTING.md) — catching PDF/A and chart problems before rendering.
+- [LINTING.md](LINTING.md) — catching PDF/A, PDF/X and chart problems before rendering.
+- [PRINT.md](PRINT.md), [REPRODUCIBLE.md](REPRODUCIBLE.md) — the guides behind the two new recipes.

@@ -104,7 +104,9 @@ error. `tests/governance.test.ts` exercises this CLI and asserts the repo's
 governance artifacts encode the HITL policy.
 
 A passing check is **necessary but not sufficient** — the human review gate
-always applies.
+always applies. `npm run verify:docs` (rule `governance-sources`) holds the
+policy file itself: every path its `capability_manifest` names exists, and the
+always-loaded `sources` stay under 16 KiB.
 
 ---
 
@@ -115,3 +117,25 @@ always applies.
 - Make any outbound network request or emit telemetry.
 
 The agent drafts. The human decides. That is the whole contract.
+
+---
+
+## 8. The Claude Code layer (since 1.3.0)
+
+The policy above is words. Inside a Claude Code session it is also enforced
+by files committed in this repository, shared verbatim with pdfnative,
+pdfnative-cli and pdfnative-mcp and described in the `claude_code` block of
+`.github/ai-governance.json`:
+
+| File | Role |
+|---|---|
+| `.claude/settings.json` | `attribution.commit: ""` (no `Co-Authored-By` trailer); `permissions.deny` on `Read` for `dist/`, `coverage/`, `test-output/`, `samples/output/`, `package-lock.json`, `node_modules/` and on the HITL commands for **both** the Bash and the PowerShell tool; `permissions.allow` for the gate, the tests, the scripts and read-only git; output and timeout limits |
+| `.claude/hooks/guard.mjs` | A `PreToolUse` hook on Bash and PowerShell that refuses `npm publish` / `unpublish` / `deprecate` / `dist-tag` / `version <bump>`, `gh pr` / `gh issue` writes, `gh release`, writing `gh api`, any `git push`, `git tag <name>` and `git add --renormalize` — in the whole command, every shell segment, `$( )` and backtick bodies, `sh -c` / `pwsh -Command` / `node -e` / `npx -c` payloads; it fails closed on unreadable input. `tests/tools/guard.test.ts` is its contract |
+| `.claude/rules/*.md` | Generated from `.github/instructions/*.instructions.md` by `npm run agents:rules`, scoped by `paths:`; never edited by hand (`verify:docs` rule `claude-rules-sync`) |
+| `.claude/skills/release-audit/` | The maintainer-invoked pre-release audit: two auditors, an adversarial verifier, an agent-autonomy pass and a GO / NO-GO ledger under `.audit/` (git-ignored). `disable-model-invocation: true` — the model never starts it on its own |
+| `CLAUDE.md` | `@AGENTS.md` plus a Claude-specific addendum, held to 120 lines |
+
+`npm run verify:docs` (rules `agent-config-parity`, `claude-rules-sync`,
+`claude-rules-budget`, `skills-shape`) fails when any of them drifts from
+this description. The maintainer's steps — push, PR, tag, release, publish,
+the LF renormalisation — are exactly the commands the guard refuses.

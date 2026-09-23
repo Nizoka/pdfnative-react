@@ -85,7 +85,7 @@ ASCII fallback and the encoded `filename*` — so every reader gets something
 sensible:
 
 ```
-inline; filename="facture-_crite.pdf"; filename*=UTF-8''facture-%C3%A9crite.pdf
+inline; filename="r_sum_-na_ve.pdf"; filename*=UTF-8''r%C3%A9sum%C3%A9-na%C3%AFve.pdf
 ```
 
 ## From a `DocSpec`
@@ -213,3 +213,10 @@ which is where the `Request` lives; only the header is set here. `etag: true`
 is for when no natural data version exists. Raw `headers` still work and are
 merged last, so they override the defaults — including `content-type` if you
 really mean to.
+
+`etag: true` hashes the rendered bytes, so it is only a *stable* validator
+when the document is reproducible: pin `creationDate` (or
+`setDefaultCreationDate` for the process) and the same data gives the same
+`ETag` on every host, restart and time zone — a CDN can revalidate against
+it. Unpinned, every render carries a fresh date and `/ID`, and `etag: true`
+only deduplicates within one response. See [REPRODUCIBLE.md](REPRODUCIBLE.md).

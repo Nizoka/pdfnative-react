@@ -191,7 +191,7 @@
   },
   "peerDependencies": {
     "pdfnative": "^1.8.0",
-    "react": "^19.0.0"
+    "react": "^19.3.0"
   },
   "dependencies": {
     "react-reconciler": "^0.31.0"
@@ -199,9 +199,9 @@
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.5",
     "@eslint/js": "^9.0.0",
-    "@testing-library/react": "^16.1.0",
-    "@types/node": "^22.0.0",
-    "@types/react": "^19.0.0",
+    "@testing-library/react": "^16.3.3",
+    "@types/node": "^22.20.4",
+    "@types/react": "^19.3.0",
     "@types/react-reconciler": "^0.32.0",
     "@vitest/coverage-v8": "^4.1.11",
     "esbuild": "^0.28.2",
@@ -210,12 +210,12 @@
     "jsdom": "^25.0.0",
     "pdfnative": "^1.8.0",
     "publint": "^0.3.24",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
     "tsup": "^8.0.0",
     "tsx": "^4.23.15",
     "typescript": "^5.4.0",
-    "typescript-eslint": "^8.59.2",
+    "typescript-eslint": "^8.70.1",
     "vitest": "^4.1.11"
   },
   "overrides": {

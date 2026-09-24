@@ -36,7 +36,7 @@ per-condition types.
 
 Counts (`docs/assets/ecosystem.json`): 19 components, 14 block kinds, 18 DocSpec fields (14 → 18),
 37 lint rules (25 → 37), 6 error codes (unchanged); samples in the baseline 0 → 38 (the baseline is
-created by this release); conformance corpus 11 → 16 files; tests 292 → 810 across 43 files.
+created by this release); conformance corpus 11 → 16 files; tests 292 → 811 across 43 files.
 
 ## What changed
 
@@ -90,8 +90,8 @@ Expected behavior: 14 steps PASS, 0 skipped, in about eight minutes.
 
 | Command | Result |
 |---|---|
-| `npx tsx scripts/gate.ts --publish --require-all` | 14 steps, every one PASS, 0 skipped (`typecheck:all` 46.9 s, `lint`, `build`, `dist-check`, `dist-probe`, `bundle-smoke`, `pack-check` 7.1 s, `test:generate` 58.3 s — 38 samples, `test:coverage` 102.6 s — 810 tests, `verify:docs`, `verify:samples`, `corpus:pdfa`, `validate:pdfx`, `validate:pdfa` 94.5 s) |
-| `npm run test:coverage` — tests | 810 / 810 passing across 43 files |
+| `npx tsx scripts/gate.ts --publish --require-all` | 14 steps, every one PASS, 0 skipped (`typecheck:all` 46.9 s, `lint`, `build`, `dist-check`, `dist-probe`, `bundle-smoke`, `pack-check` 7.1 s, `test:generate` 58.3 s — 38 samples, `test:coverage` 102.6 s — 811 tests, `verify:docs`, `verify:samples`, `corpus:pdfa`, `validate:pdfx`, `validate:pdfa` 94.5 s) |
+| `npm run test:coverage` — tests | 811 / 811 passing across 43 files |
 | `npm run test:coverage` — coverage | 96.24 % statements / 92.38 % branches / 98.05 % functions / 97.2 % lines (thresholds 90 / 84 / 92 / 90) |
 | `npm run build && npm run test:generate && npm run verify:samples` | 38 tracked samples match the baseline (38 byte-exact, 0 semantic); a second generation run was byte-identical |
 | `npm run corpus:pdfa && npm run validate:pdfa` | 11 PASS, 2 XFAIL, 0 FAIL, 0 XPASS, 0 INFRA, 3 SKIP (the PDF/X files) of 13 validated — veraPDF greenfield 1.30.2 |

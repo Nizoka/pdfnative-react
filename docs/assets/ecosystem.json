@@ -28,7 +28,7 @@
     }
   },
   "declared": {
-    "tests": 810,
+    "tests": 811,
     "coverageStatements": 90,
     "coverageMeasured": 96.24,
     "pdfaSamples": 13,

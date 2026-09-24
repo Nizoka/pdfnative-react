@@ -72,7 +72,7 @@ const bytes = renderToBytes(
   its tone-marked African languages, Arabic, Indic, Thai, Lao, Khmer, Myanmar,
   Tai Tham, Cham, CJK, colour emoji and more — through one `resolveFonts` call.
 - **Typed, tested, tree-shakeable.** Strict TypeScript, dual ESM + CJS with
-  per-condition types, source maps, provenance-signed publishes, 810 tests.
+  per-condition types, source maps, provenance-signed publishes, 811 tests.
 
 ## Install
 

@@ -90,7 +90,7 @@ A render succeeds with bytes or fails with a `PdfReactError` carrying one of the
 
 ## Counts and versions
 
-19 components, 3 client components, 14 block kinds, 18 DocSpec fields, 37 lint rules, 6 error codes, 7 schema subjects, 27 Unicode scripts, 810 tests, 38 samples in the baseline, 16 corpus files.
+19 components, 3 client components, 14 block kinds, 18 DocSpec fields, 37 lint rules, 6 error codes, 7 schema subjects, 27 Unicode scripts, 811 tests, 38 samples in the baseline, 16 corpus files.
 `docs/assets/ecosystem.json` is the source of every count and version quoted in the docs; run `npm run verify:docs` after touching any of them.
 Coverage thresholds live once in `vitest.config.ts` and are enforced by the gate. Engine: pdfnative 1.8.0 (peer `^1.8.0`); React 19; Node ≥ 22.
 

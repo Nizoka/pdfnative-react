@@ -194,7 +194,7 @@
     "react": "^19.0.0"
   },
   "dependencies": {
-    "react-reconciler": "^0.31.0"
+    "react-reconciler": "^0.34.0"
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.5",

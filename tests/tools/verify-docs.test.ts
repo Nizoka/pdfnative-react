@@ -6,6 +6,7 @@ import { basename, join, resolve } from 'node:path';
 import {
     MANIFEST_REL,
     OFFLINE_RULES,
+    escapeRegExpLiteral,
     isSuppressed,
     lineOf,
     semverLess,
@@ -36,6 +37,14 @@ describe('verify-docs — helpers', () => {
         expect(isSuppressed(lines, 2, 'count-tokens')).toBe(false);
         expect(isSuppressed(lines, 4, 'count-tokens')).toBe(true);
         expect(isSuppressed(lines, 3, 'stale-token')).toBe(false);
+    });
+
+    it('escapes every regular-expression metacharacter, backslash included, before embedding a value', () => {
+        expect(escapeRegExpLiteral('1.3.0')).toBe('1\\.3\\.0');
+        expect(escapeRegExpLiteral('a\\b')).toBe('a\\\\b');
+        expect(escapeRegExpLiteral('x*y+z?(1)[2]{3}|^$')).toBe('x\\*y\\+z\\?\\(1\\)\\[2\\]\\{3\\}\\|\\^\\$');
+        expect(new RegExp(`^## \\[${escapeRegExpLiteral('1.3.0')}\\]`, 'm').test('## [1.3.0] — x')).toBe(true);
+        expect(new RegExp(`^## \\[${escapeRegExpLiteral('1.3.0')}\\]`, 'm').test('## [1x3x0] — x')).toBe(false);
     });
 
     it('orders plain semver triples', () => {

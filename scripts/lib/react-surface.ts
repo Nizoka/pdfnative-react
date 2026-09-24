@@ -28,9 +28,14 @@ import { MODULE_SAMPLES, SAMPLE_PLAN } from './sample-plan.js';
 
 // ── Pure parsers over src/registry.ts ────────────────────────────────
 
+/** Escape every regular-expression metacharacter, backslash included. */
+function escapeRegExpLiteral(value: string): string {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 /** The text of one `export const NAME = [ … ] as const` / `{ … } as const` table, or null. */
 function tableBlock(source: string, name: string): string | null {
-    const start = source.search(new RegExp(`^export const ${name}\\s*=`, 'm'));
+    const start = source.search(new RegExp(`^export const ${escapeRegExpLiteral(name)}\\s*=`, 'm'));
     if (start === -1) return null;
     const rest = source.slice(start);
     const end = rest.search(/^[\]}] as const/m);

@@ -103,7 +103,31 @@ describe('doc-spec schema content', () => {
 
     it('defines the recursive and shared $defs', () => {
         const defs = doc['$defs'] as Record<string, unknown>;
-        expect(Object.keys(defs)).toEqual(['listItem', 'outlineItem', 'pageTemplate', 'block']);
+        expect(Object.keys(defs)).toEqual([
+            'color',
+            'listItem',
+            'outlineItem',
+            'pageTemplate',
+            'typography',
+            'outputIntent',
+            'block',
+        ]);
+    });
+
+    it('describes the 1.8.0 document-level sugar', () => {
+        const props = doc['properties'] as Record<string, Record<string, unknown>>;
+        expect(props['pdfx']?.['const']).toBe('pdfx4');
+        expect(props['outputIntent']?.['$ref']).toBe('#/$defs/outputIntent');
+        expect(props['typography']?.['$ref']).toBe('#/$defs/typography');
+        expect(props['creationDate']?.['format']).toBe('date-time');
+    });
+
+    it('routes every colour position through the shared $defs.color', () => {
+        // Every colour the grammar accepts must admit the CMYK forms the
+        // engine takes since 1.8.0 — one definition, referenced everywhere.
+        const text = JSON.stringify(doc);
+        expect(text.match(/#\/\$defs\/color/g)?.length).toBeGreaterThanOrEqual(8);
+        expect(text).not.toContain('"type":["string","array"]');
     });
 
     it('includes a chart branch with its own required fields', () => {

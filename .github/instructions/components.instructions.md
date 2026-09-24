@@ -1,4 +1,5 @@
 ---
+description: "Use when adding or changing a public component, its props, its JSDoc or the host tag it emits."
 applyTo: "src/components.tsx"
 ---
 
@@ -19,7 +20,21 @@ side-effect-free factory that emits a lowercase **host tag** via the typed
 - Container components (`Document`, `Heading`, `Paragraph`, `List`, `Table`,
   `Row`, `Link`) destructure `children` out of the rest props before forwarding.
 - Keep aliases intentional: `Text = Paragraph`, `Toc = TableOfContents`.
-- Every exported component and its props interface needs a TSDoc comment.
+- Every exported component and its props interface needs a TSDoc comment, and
+  the comment states the engine-side limits a consumer cannot guess (which
+  options need a registered font, which are no-ops on the bundled fonts, what
+  `pdfx` refuses) — each is a lint rule before it is an engine throw.
+- Document-level sugar (`watermark`, `header`, `footer`, `attachments`,
+  `tagged`, `print`, `pdfx`, `outputIntent`, `typography`, `creationDate`) is a
+  `<Document>` prop folded by `resolveLayout()` — never a component. A new
+  engine layout option follows the same pattern and gets a `DocSpec` twin.
+- Colour props are typed `Color` (hex, RGB tuple, CMYK tuple, operand string);
+  `ParagraphAlign` (`Align | 'justify'`) is for paragraphs only — `Align` is
+  shared by images, barcodes, SVG and charts and must stay three-valued.
+- Compile-time locks (`ChartPropsCoversChartBlock`,
+  `TypographyPropsCoverTypographyOptions`) make an engine key that is not
+  reachable from JSX a build error: extend them for every engine object a prop
+  mirrors.
 
 When you add a component:
 

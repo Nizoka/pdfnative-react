@@ -317,3 +317,100 @@ exports[`compileDocument — golden model > produces a stable DocumentParams for
   "title": "Everything",
 }
 `;
+
+exports[`compileDocument — golden model, 1.3.0 surface > produces a stable DocumentParams for the engine-1.8.0 props 1`] = `
+{
+  "blocks": [
+    {
+      "keepWithNext": true,
+      "level": 1,
+      "text": "Keep me with the paragraph",
+      "type": "heading",
+    },
+    {
+      "align": "justify",
+      "color": "0 1 1 0",
+      "keepWithNext": true,
+      "splittable": false,
+      "text": "Justified, kept with the next block, never split.",
+      "type": "paragraph",
+    },
+    {
+      "splittable": true,
+      "text": "May break across pages.",
+      "type": "paragraph",
+    },
+  ],
+  "layout": {
+    "colors": {
+      "title": [
+        0,
+        0,
+        0,
+        100,
+      ],
+    },
+    "creationDate": 2026-01-01T00:00:00.000Z,
+    "outputIntent": {
+      "iccProfile": Uint8Array [
+        97,
+        99,
+        115,
+        112,
+      ],
+      "outputConditionIdentifier": "Synthetic CMYK",
+    },
+    "pdfx": "pdfx4",
+    "print": {
+      "bleed": 14.17,
+      "marks": {
+        "colourBars": {
+          "size": 10,
+          "tints": true,
+        },
+        "crop": true,
+      },
+    },
+    "typography": {
+      "bindShortWords": {
+        "maxLength": 2,
+        "words": [
+          "a",
+          "w",
+        ],
+      },
+      "fontFeatures": [
+        "tnum",
+        "smcp",
+      ],
+      "hyphenationLanguage": "en-US",
+      "keepHeadingsWithNext": {
+        "minLines": 3,
+      },
+      "kerning": true,
+      "metrics": "exact",
+      "opticalMargins": true,
+      "orphans": 2,
+      "punctuationSpacing": [
+        {
+          "char": ";",
+          "side": "before",
+          "space": "narrow",
+        },
+      ],
+      "splitParagraphs": true,
+      "unitBinding": {
+        "units": [
+          "kg",
+          "€",
+        ],
+      },
+      "widows": 3,
+    },
+  },
+  "metadata": {
+    "trapped": "False",
+  },
+  "title": "Since 1.8.0",
+}
+`;

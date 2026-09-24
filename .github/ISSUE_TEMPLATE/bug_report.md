@@ -33,3 +33,8 @@ What actually happened (include the generated PDF symptoms, console errors, etc.
 - `react` / `react-dom` version:
 - Runtime (browser / Node / bundler):
 - OS:
+- `doctor()` report (`npx tsx -e "import('pdfnative-react').then(m => console.log(JSON.stringify(m.doctor(), null, 2)))"`):
+
+```json
+// ...
+```

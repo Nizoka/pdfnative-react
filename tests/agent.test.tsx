@@ -88,6 +88,25 @@ describe('error taxonomy', () => {
         });
     });
 
+    it("classifies the engine's build-time input errors as E_INPUT", () => {
+        // The prefixes are the engine's own (docs/data/errors.json, buildErrors);
+        // an agent reading only the envelope can tell "fix the document" from
+        // "something broke".
+        expect(barrel.ENGINE_INPUT_ERROR_PREFIXES).toContain('PDF/X');
+        expect(barrel.ENGINE_INPUT_ERROR_PREFIXES).toContain('layout.pdfx');
+        for (const message of [
+            'PDF/X forbids encryption (ISO 15930-7) — drop layout.encryption or layout.pdfx',
+            "layout.pdfx: unknown target 'pdfx3' — use one of pdfx4",
+            'print.marks requires a TrimBox — set print.bleed or print.trimBox',
+            'outputIntent.iccProfile is too short to be an ICC profile (128-byte header required)',
+            'PDF/A and encryption are mutually exclusive (ISO 19005-1 §6.3.2)',
+        ]) {
+            expect(toErrorEnvelope(new Error(message)).error.code, message).toBe('E_INPUT');
+        }
+        // A plain string carrying the same words is not an Error and stays E_RUNTIME.
+        expect(toErrorEnvelope('PDF/X forbids encryption').error.code).toBe('E_RUNTIME');
+    });
+
     it('is what a real structural failure throws', () => {
         try {
             compileDocument(<Document />);
@@ -109,7 +128,7 @@ describe('capabilityManifest', () => {
         expect(manifest.version).toBe(barrel.version);
         expect(manifest.contract.authoringOnly).toBe(true);
         expect(manifest.contract.layoutModel).toBe('block-flow');
-        expect(manifest.contract.engine).toBe('^1.7.0');
+        expect(manifest.contract.engine).toBe('^1.8.0');
         expect(manifest.contract.network).toBe('none');
     });
 
@@ -190,6 +209,16 @@ describe('capabilityManifest', () => {
         expect(manifest.lintRules.map((r) => r.code)).toEqual([...barrel.LINT_RULE_CODES]);
     });
 
+    it('lists every top-level DocSpec field, the 1.3.0 ones last', () => {
+        expect(manifest.specFields.slice(-4)).toEqual([
+            'pdfx',
+            'outputIntent',
+            'typography',
+            'creationDate',
+        ]);
+        expect(manifest.specFields).toContain('blocks');
+    });
+
     it('points at its own versioned schema', () => {
         expect(manifest.schemaId).toBe(
             `https://pdfnative.dev/schema/react/${barrel.version}/manifest.schema.json`,
@@ -222,10 +251,10 @@ describe('doctor', () => {
         expect(report.ok).toBe(true);
     });
 
-    it('detects the 1.7.0 engine through a capability probe', () => {
+    it('detects the 1.8.0 engine through a capability probe', () => {
         const engine = report.checks.find((c) => c.name === 'pdfnative');
         expect(engine?.status).toBe('ok');
-        expect(engine?.value).toBe('>= 1.7.0');
+        expect(engine?.value).toBe('>= 1.8.0');
     });
 
     it('reports the installed package version', () => {

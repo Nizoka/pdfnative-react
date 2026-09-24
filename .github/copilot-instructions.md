@@ -27,17 +27,31 @@ Read [docs/KNOWLEDGE_BASE.md](../docs/KNOWLEDGE_BASE.md) and
   a rule in those files. Compile-time `Assert<Equals<…>>` locks mean forgetting
   to register something fails `npm run typecheck`. See the 10-step checklist in
   [AGENTS.md](../AGENTS.md).
-- **`pdfnative` is a peer dependency** (`^1.7.0`; Node ≥ 22). Never move it back
-  to `dependencies`.
+- **`pdfnative` is a peer dependency** (`^1.8.0`; Node ≥ 22). Never move it back
+  to `dependencies`. The pin, `REQUIRED_ENGINE` in `src/doctor.ts`,
+  `contract.engine` in `src/manifest.ts` and `docs/assets/ecosystem.json` move
+  together (`verify:docs` rule `peer-pin-parity`), with the engine-surface
+  matrix `tests/regression/engine-surface.json`.
 - **Authoring only.** Do not re-export byte-level post-processing (merge/split,
   form fill/flatten, text extraction, decryption, annotations, signing, crypto,
   font compilation) — point to [docs/RECIPES.md](../docs/RECIPES.md) instead.
 - **Document-level props on `<Document>`**, not content blocks: `outline` and
   `pageLabels` (they reference post-layout pages), plus the layout sugar
-  `watermark`, `header`, `footer`, `attachments`, `tagged`, `print`. The sugar folds into
-  `layout` via `resolveLayout()`, where an explicit `layout` always wins — and
-  which must keep returning `undefined`, never `{}`, when nothing is set, or
-  every existing document changes bytes.
+  `watermark`, `header`, `footer`, `attachments`, `tagged`, `print`, `pdfx`,
+  `outputIntent`, `typography`, `creationDate`. The sugar folds into `layout`
+  via `resolveLayout()`, where an explicit `layout` always wins — and which
+  must keep returning `undefined`, never `{}`, when nothing is set, or every
+  existing document changes bytes. Typography is a layout option, never a
+  component.
+- **Colour props accept CMYK** (a four-element percent tuple or a four-operand
+  string) beside hex and RGB; `Color` admits the tuple. `Align` stays
+  three-valued; `ParagraphAlign` adds `'justify'` for paragraphs only.
+- **The library reads no environment variable.** A pinned date, a compressor or
+  a hyphenation provider is set through an exported helper by the host; the
+  repository scripts honour `SOURCE_DATE_EPOCH`, the package never will.
+- **JSDoc states the engine-side limits** a consumer cannot guess: which options
+  need a registered font, which are no-ops on the bundled fonts, what `pdfx`
+  refuses. Every such limit is a lint rule before it is an engine throw.
 - **Agent-facing surface must stay honest.** `doctor()` must never throw;
   `validateSpec()` must never throw and must bound its recursion; `schema()` must
   reject unknown subjects with `E_INPUT` (use `Object.hasOwn`, not a truthiness
@@ -68,10 +82,17 @@ Read [docs/KNOWLEDGE_BASE.md](../docs/KNOWLEDGE_BASE.md) and
 ## Validate every change
 
 ```bash
-npm run typecheck:all && npm run lint && npm test && npm run build
+npm run gate:fast      # typecheck:all, lint, test, verify:docs — while iterating
+npm run gate           # the CI profile: + build, dist checks, samples, coverage, corpus, PDF/X
 ```
 
-Add/adjust tests under `tests/` and update `CHANGELOG.md` under **[Unreleased]**.
+The gate (`scripts/gate.ts`) is the single definition of green; do not run the
+four commands by hand and call it done. Add/adjust tests under `tests/` and
+update `CHANGELOG.md` under **[Unreleased]**. Every count and version quoted in
+the docs comes from `docs/assets/ecosystem.json` (`npm run verify:docs`).
+`.claude/rules/*.md` are generated from `.github/instructions/` — edit the
+source and run `npm run agents:rules`. English everywhere (`verify:docs` rule
+`prose-language`); no `Co-Authored-By` trailer.
 
 ## Style
 

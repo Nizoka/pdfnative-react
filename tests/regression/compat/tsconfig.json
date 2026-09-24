@@ -1,0 +1,11 @@
+{
+  "extends": "../../../tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "../../..",
+    "noEmit": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false
+  },
+  "include": ["v1.2.0/**/*.ts", "v1.2.0/**/*.tsx"],
+  "exclude": []
+}

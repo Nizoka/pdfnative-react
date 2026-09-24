@@ -22,7 +22,7 @@
  * @packageDocumentation
  */
 
-import { BLOCK_REGISTRY, type BlockPayloadKind } from '../registry.js';
+import { BLOCK_REGISTRY, DOC_SPEC_FIELDS, type BlockPayloadKind } from '../registry.js';
 import type { DocSpec } from './types.js';
 
 /** Severity of a {@link SpecFinding}. */
@@ -85,37 +85,13 @@ export interface SpecValidation {
     readonly warnings: readonly SpecFinding[];
 }
 
-/** Every recognised top-level `DocSpec` field. */
-const KNOWN_FIELDS = [
-    'title',
-    'footerText',
-    'metadata',
-    'fontEntries',
-    'layout',
-    'outline',
-    'pageLabels',
-    'watermark',
-    'header',
-    'footer',
-    'attachments',
-    'tagged',
-    'print',
-    'blocks',
-] as const satisfies readonly (keyof DocSpec)[];
-
 /**
- * Compile-time lock: {@link KNOWN_FIELDS} must cover `DocSpec` exactly.
- *
- * Without this, adding a field to `DocSpec` would make every well-formed spec
- * using it emit a spurious `V_UNKNOWN_FIELD` warning — silently, since the
- * validator would still return `ok: true`.
+ * Every recognised top-level `DocSpec` field — the registry's table, so the
+ * validator, the schema and the manifest share one list. The compile-time lock
+ * that makes omission a build error lives beside the table in `../registry.ts`
+ * (`DocSpecFieldsAreExhaustive`).
  */
-type Equals<A, B> =
-    (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2 ? true : false;
-type Assert<T extends true> = T;
-export type KnownFieldsAreExhaustive = Assert<
-    Equals<(typeof KNOWN_FIELDS)[number], keyof DocSpec>
->;
+const KNOWN_FIELDS = DOC_SPEC_FIELDS;
 
 /** kind → descriptor, flattened from the registry once at module load. */
 const BY_KIND = /* @__PURE__ */ new Map(

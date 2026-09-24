@@ -1,0 +1,299 @@
+{
+  "title": "Everything",
+  "footerText": "Acme Inc",
+  "metadata": {
+    "author": "Acme Inc",
+    "subject": "Snapshot fixture",
+    "keywords": "test",
+    "trapped": "False"
+  },
+  "outline": "auto",
+  "pageLabels": [
+    {
+      "startPage": 0,
+      "style": "roman"
+    },
+    {
+      "startPage": 2,
+      "style": "decimal"
+    }
+  ],
+  "watermark": "DRAFT",
+  "header": {
+    "left": "Acme Inc",
+    "right": "{date}"
+  },
+  "footer": {
+    "left": "Confidential",
+    "center": "{title}",
+    "right": "Page {page} of {pages}"
+  },
+  "tagged": "pdfa2b",
+  "print": {
+    "trimBox": [
+      20,
+      20,
+      575,
+      822
+    ],
+    "marks": {
+      "crop": true,
+      "registration": true,
+      "length": 12,
+      "offset": 4,
+      "weight": 0.3
+    }
+  },
+  "layout": {
+    "pageWidth": 595,
+    "maxBlocks": 5000,
+    "viewerPreferences": {
+      "duplex": "duplexFlipLongEdge",
+      "pickTrayByPDFSize": true,
+      "printPageRange": [
+        [
+          1,
+          2
+        ]
+      ],
+      "numCopies": 1
+    }
+  },
+  "blocks": [
+    [
+      "h1",
+      "Everything"
+    ],
+    [
+      "toc",
+      {
+        "title": "Contents",
+        "maxLevel": 2
+      }
+    ],
+    [
+      "h2",
+      "Prose",
+      {
+        "color": "#334155"
+      }
+    ],
+    [
+      "p",
+      "Body text with every typographic prop set.",
+      {
+        "fontSize": 11,
+        "lineHeight": 1.4,
+        "align": "right",
+        "indent": 12,
+        "color": "#111827"
+      }
+    ],
+    [
+      "sp",
+      8
+    ],
+    [
+      "ol",
+      [
+        "First",
+        {
+          "text": "Second",
+          "items": [
+            "Nested A",
+            "Nested B"
+          ]
+        }
+      ],
+      {
+        "fontSize": 10
+      }
+    ],
+    [
+      "table",
+      {
+        "h": [
+          "Item",
+          "Qty",
+          "Total"
+        ],
+        "r": [
+          [
+            "Pro plan",
+            "1",
+            "€490.00"
+          ],
+          {
+            "cells": [
+              "Support",
+              "1",
+              "€99.00"
+            ],
+            "type": "total",
+            "pointed": true
+          }
+        ],
+        "zebra": "#f8fafc",
+        "caption": "Line items",
+        "cellVAlign": "middle",
+        "cellBorders": {
+          "all": true,
+          "color": "#e2e8f0",
+          "width": 0.5
+        },
+        "repeatHeader": true
+      }
+    ],
+    [
+      "chart",
+      {
+        "chartType": "bar",
+        "series": [
+          {
+            "label": "2025",
+            "values": [
+              12,
+              18,
+              24,
+              31
+            ]
+          },
+          {
+            "label": "Margin %",
+            "values": [
+              40,
+              42,
+              45,
+              47
+            ],
+            "yAxis": "right"
+          }
+        ],
+        "categories": [
+          "Q1",
+          "Q2",
+          "Q3",
+          "Q4"
+        ],
+        "title": "Revenue",
+        "axis": {
+          "yMin": 0,
+          "ticks": 5,
+          "grid": true
+        },
+        "axis2": {
+          "yMin": 0,
+          "yMax": 100,
+          "ticks": 5,
+          "scale": "linear"
+        },
+        "xAxis": {
+          "type": "category",
+          "grid": false
+        },
+        "dataLabels": {
+          "decimals": 0,
+          "prefix": "€",
+          "suffix": "k"
+        },
+        "labelStride": 1,
+        "labelRotation": 45,
+        "legend": "bottom",
+        "markers": true,
+        "colors": [
+          "#4e79a7",
+          "#f28e2b"
+        ],
+        "align": "center",
+        "altText": "Revenue rises each quarter."
+      }
+    ],
+    [
+      "chart",
+      {
+        "chartType": "scatter",
+        "series": [
+          {
+            "label": "Samples",
+            "values": [
+              3,
+              7,
+              4,
+              9
+            ],
+            "xValues": [
+              1,
+              2,
+              3,
+              5
+            ]
+          }
+        ],
+        "xAxis": {
+          "type": "linear",
+          "min": 0,
+          "max": 6,
+          "ticks": 3,
+          "grid": true
+        },
+        "height": 160,
+        "altText": "Four samples."
+      }
+    ],
+    [
+      "svg",
+      "M0 0 L10 10",
+      {
+        "width": 40,
+        "height": 40,
+        "viewBox": [
+          0,
+          0,
+          10,
+          10
+        ],
+        "alt": "A diagonal"
+      }
+    ],
+    [
+      "qr",
+      "https://acme.example/pay/2048",
+      {
+        "width": 96,
+        "align": "right"
+      }
+    ],
+    [
+      "link",
+      "Read the terms",
+      {
+        "url": "https://acme.example/terms",
+        "fontSize": 9,
+        "color": "#2563eb"
+      }
+    ],
+    [
+      "br"
+    ],
+    [
+      "page",
+      [
+        [
+          "h2",
+          "Appendix"
+        ],
+        [
+          "field",
+          {
+            "fieldType": "text",
+            "name": "applicant.email",
+            "label": "Email",
+            "placeholder": "you@example.com",
+            "required": true,
+            "maxLength": 120
+          }
+        ]
+      ]
+    ]
+  ]
+}

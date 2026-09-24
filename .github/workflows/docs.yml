@@ -1,0 +1,148 @@
+# Documentation consistency
+# =========================
+# ci.yml deliberately ignores `docs/**` and `**.md`, so a documentation-only
+# pull request triggers no workflow at all. That is how a release once shipped
+# quoting a lint-rule count two releases old, and how the ROADMAP kept a stale
+# figure until a reviewer counted by hand (AGENTS.md used to carry a manual
+# grep "drift gate" for exactly this reason).
+#
+# This workflow closes that gap: it runs scripts/verify-docs.ts against
+# docs/assets/ecosystem.json, the single source of truth for every version,
+# count and inventory quoted anywhere in the documentation and the agent
+# files (AGENTS.md, CLAUDE.md, llms.txt, .claude/), plus the React-specific
+# parity rules (lint rules ↔ docs/LINTING.md, error codes ↔ AGENT_CONTRACT,
+# samples ↔ samples/README.md, no stale engine-version token).
+#
+# The PR job is hermetic (no network). A weekly scheduled job adds --online,
+# which compares the manifest against the npm registry, so a published release
+# that the docs have not caught up with surfaces on its own rather than at the
+# next audit.
+
+name: Docs
+
+on:
+  pull_request:
+    branches: [main, master]
+    paths:
+      - 'docs/**'
+      - '**.md'
+      - 'llms.txt'
+      - 'samples/**'
+      - 'release-notes/**'
+      - '.claude/**'
+      - '.github/**'
+      - 'scripts/verify-docs.ts'
+      - 'scripts/lib/**'
+      - 'scripts/build-claude-rules.ts'
+      # The parity rules cross-check documented lint rules, error codes and
+      # DocSpec fields against src/, so a change there can break the docs
+      # without touching them.
+      - 'src/**'
+      - 'package.json'
+  push:
+    branches: [main, master]
+    paths:
+      - 'docs/**'
+      - '**.md'
+      - 'llms.txt'
+      - 'samples/**'
+      - 'release-notes/**'
+      - '.claude/**'
+      - '.github/**'
+      - 'scripts/verify-docs.ts'
+      - 'scripts/lib/**'
+      - 'scripts/build-claude-rules.ts'
+      - 'src/**'
+      - 'package.json'
+  schedule:
+    # Mondays 06:00 UTC — catch npm drift without blocking anyone's PR.
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docs-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Verify documentation consistency
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Type check scripts
+        run: npm run typecheck:scripts
+
+      - name: Verify documentation
+        run: npm run verify:docs
+
+      # `.github/ai-governance.json` declares `advisory_in_ci: true`: any
+      # AI-authored draft staged for human review is validated here. Advisory —
+      # it reports, never blocks — and it lives with the docs workflow because
+      # a draft is documentation until a human submits it.
+      - name: Verify AI-authored drafts (advisory)
+        continue-on-error: true
+        run: |
+          shopt -s nullglob
+          drafts=(.github/drafts/issue-*.md release-notes/draft/*.md)
+          if [ ${#drafts[@]} -eq 0 ]; then
+            echo "No drafts staged; nothing to verify."
+            exit 0
+          fi
+          for draft in "${drafts[@]}"; do
+            echo "── $draft"
+            node scripts/verify-issue.mjs "$draft" || echo "   (advisory failure)"
+          done
+
+  npm-drift:
+    name: Check the manifest against npm
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Only on the schedule and on manual runs: a package published between a
+    # PR opening and merging should not turn someone else's docs change red.
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Verify documentation against the npm registry
+        run: npx tsx scripts/verify-docs.ts --online --strict

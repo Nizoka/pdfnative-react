@@ -4,7 +4,10 @@ title: pdfnative-react
 abstract: >-
   A declarative React renderer for the pdfnative PDF engine. JSX is compiled by
   a custom React reconciler into a pdfnative DocumentParams object and rendered
-  to PDF bytes — no DOM, no headless browser, no native dependencies.
+  to PDF bytes — no DOM, no headless browser, no native dependencies. Fine
+  typography, CMYK and PDF/X-4 print output, tagged PDF/A, native vector
+  charts, byte-reproducible rendering, and a token-frugal DocSpec grammar with
+  versioned JSON Schemas for autonomous agents.
 type: software
 authors:
   - name: Nizoka
@@ -26,7 +29,13 @@ keywords:
   - json-schema
   - charts
   - accessibility
+  - typography
+  - cmyk
+  - pdf-x
+  - print-production
+  - reproducible-builds
+  - unicode
   - sbom
   - supply-chain
-version: 1.2.0
-date-released: 2026-08-26
+version: 1.3.0
+date-released: 2026-09-22

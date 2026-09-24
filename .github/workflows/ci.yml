@@ -1,5 +1,22 @@
 name: CI
 
+# The `ci` job runs `scripts/gate.ts --ci`, the single definition of "green":
+# the step list lives in that file's STEPS table (typecheck:all, lint, build,
+# dist-check, dist-probe, bundle-smoke, pack-check, test:generate,
+# test:coverage, verify:docs, verify:samples, compat-1.2.0, corpus:pdfa,
+# validate:pdfx) and is not repeated here, so CI and the contributor loop
+# cannot drift apart. `--require-all` turns any SKIP into a FAIL: a runner
+# missing a tool goes red instead of quietly passing.
+#
+# `npm audit` runs outside the gate on purpose: the gate is hermetic (no
+# network) so its verdict is the same on a laptop and on a runner.
+#
+# The `dist-probe`, `bundle-smoke` and `pack-check` steps hold the BUILT
+# package: the `'use client'` directive on the client entry only, a browser
+# bundle of both entries, and the `exports` map resolved the way ESM and CJS
+# consumers resolve it (publint, @arethetypeswrong/cli) — source tests import
+# src/ directly and cannot catch any of that.
+
 on:
   push:
     branches: [main, master]
@@ -32,10 +49,12 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # The job ids and the matrices are load-bearing: the main ruleset requires the
+  # status checks `ci (22)`, `ci (24)`, `os (windows-latest)` and
+  # `os (macos-latest)` (.github/rulesets/main.json).
   ci:
-    name: Lint · Typecheck · Test · Build
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     strategy:
       fail-fast: false
@@ -44,7 +63,14 @@ jobs:
         node-version: [22, 24]
 
     steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
 
       - name: Setup Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
@@ -52,73 +78,77 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: npm
 
+      # No lifecycle script of any dependency runs on the runner; the
+      # repository's own .npmrc says the same for every developer machine.
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
 
-      # Blocking on what actually ships. The runtime tree is a single dependency
-      # (react-reconciler); anything high-severity in there is a real
-      # supply-chain problem and must stop the build.
-      - name: Audit runtime dependencies (blocking)
-        run: npm audit --omit=dev --audit-level=high
-
-      # Advisory on the dev tree. It is dominated by transitive pins we do not
-      # control — eslint still ships minimatch@3 — so a blocking gate here would
-      # sit red on an issue no consumer is exposed to. Reported, not enforced.
-      - name: Audit dev dependencies (advisory)
-        continue-on-error: true
+      - name: Audit dependencies
         run: npm audit --audit-level=high
 
-      - name: Type check
-        run: npm run typecheck:all
+      - name: Run the quality gate (CI profile)
+        run: npx tsx scripts/gate.ts --ci --require-all
 
-      - name: Lint
-        run: npm run lint
+      - name: Upload the gate logs on failure
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: gate-logs-node${{ matrix.node-version }}
+          path: test-output/.gate/
+          retention-days: 7
+          if-no-files-found: ignore
 
-      - name: Test with coverage
-        run: npm run test:coverage
+  # The renderer is consumed on Windows and macOS hosts too — Next.js dev
+  # servers, Electron, CI runners — so the same gate runs there, on the pinned
+  # Node line: jsdom under `pool: 'forks'`, the child-process sample generator
+  # (path rules, the npm.cmd shim), the coverage run, and the sample byte
+  # baseline — which is how the "byte-identical on every host" promise is
+  # proven on three operating systems rather than asserted on one. Both
+  # matrix entries are required status checks (.github/rulesets/main.json).
+  #
+  # harden-runner supports Windows runners in audit mode only, so this job
+  # can never move to `egress-policy: block`; the action does not support
+  # macOS at all, so the step is skipped there (`if: runner.os != 'macOS'`) —
+  # the one documented exemption to "every job starts with harden-runner".
+  os:
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
 
-      # Also runs scripts/postbuild.mjs, which repairs and then verifies the
-      # published artifacts: the `node:` prefix on the dynamic fs import, the
-      # `'use client'` directive on the client entry only, and that importing
-      # pure data does not drag in the React reconciler.
-      - name: Build
-        run: npm run build
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
 
-      - name: Verify dist output
-        run: |
-          test -f dist/index.js
-          test -f dist/index.cjs
-          test -f dist/index.d.ts
-          test -f dist/index.d.cts
-          test -f dist/client.js
-          test -f dist/client.cjs
-          test -f dist/client.d.ts
-          test -f dist/client.d.cts
+    steps:
+      - name: Harden the runner
+        if: runner.os != 'macOS'
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
 
-      # `renderToResponse` advertises Deno, Bun, Edge and Cloudflare Workers.
-      # A Node `require` cannot catch a specifier a non-Node bundler refuses to
-      # resolve, so bundle the artifacts the way those runtimes would.
-      - name: Bundler resolution smoke test
-        run: |
-          npx --yes esbuild --bundle --platform=browser --format=esm --outfile=/dev/null \
-            --external:react --external:react-dom --external:react-reconciler \
-            --external:pdfnative --external:node:fs/promises dist/index.js
-          npx --yes esbuild --bundle --platform=browser --format=esm --outfile=/dev/null \
-            --external:react --external:react-dom --external:react-reconciler \
-            --external:pdfnative dist/client.js
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
 
-      # `.github/ai-governance.json` declares `advisory_in_ci: true`. Validate any
-      # AI-authored draft staged for human review. Advisory: it reports, never blocks.
-      - name: Verify AI-authored drafts (advisory)
-        continue-on-error: true
-        run: |
-          shopt -s nullglob
-          drafts=(.github/drafts/issue-*.md .github/drafts/pr-*.md release-notes/draft/*.md)
-          if [ ${#drafts[@]} -eq 0 ]; then
-            echo "No drafts staged; nothing to verify."
-            exit 0
-          fi
-          for draft in "${drafts[@]}"; do
-            echo "── $draft"
-            node scripts/verify-issue.mjs "$draft" || echo "   (advisory failure)"
-          done
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      # The same gate as the Linux matrix; `npm audit` stays on Linux (network,
+      # once is enough). The gate builds before the suites that need dist/.
+      - name: Run the quality gate (CI profile)
+        run: npx tsx scripts/gate.ts --ci --require-all
+
+      - name: Upload the gate logs on failure
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: gate-logs-${{ matrix.os }}
+          path: test-output/.gate/
+          retention-days: 7
+          if-no-files-found: ignore

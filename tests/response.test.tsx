@@ -54,10 +54,10 @@ describe('renderToResponse', () => {
     });
 
     it('adds filename* for a non-ASCII filename', async () => {
-        const response = await renderToResponse(DOC, { fileName: 'facture-écrite.pdf' });
+        const response = await renderToResponse(DOC, { fileName: 'résumé-naïve.pdf' });
         const disposition = response.headers.get('content-disposition') ?? '';
-        expect(disposition).toContain('filename="facture-_crite.pdf"');
-        expect(disposition).toContain("filename*=UTF-8''facture-%C3%A9crite.pdf");
+        expect(disposition).toContain('filename="r_sum_-na_ve.pdf"');
+        expect(disposition).toContain("filename*=UTF-8''r%C3%A9sum%C3%A9-na%C3%AFve.pdf");
     });
 
     it('percent-escapes characters that are not RFC 8187 attr-char', async () => {

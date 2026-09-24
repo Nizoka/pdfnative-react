@@ -10,87 +10,111 @@ on:
 #   The OIDC id-token permission mints a short-lived token that:
 #     1. Authorises the `npm publish` HTTP request
 #     2. Signs the provenance attestation (SLSA Level 2+ via Sigstore)
-#   Configure at npmjs.com → package settings → "Configure Trusted Publishing".
+#   Configure at npmjs.com → package settings → "Configure Trusted Publishing",
+#   bound to this file AND to the `npm-publish` environment below.
+#
+# Human-in-the-loop: the maintainer creates the GitHub release (the trigger)
+# and approves the `npm-publish` environment; nothing here opens or edits a
+# release, the attest job only attaches files to one that already exists.
 permissions:
   contents: read
-  id-token: write
+
+# One release at a time, and a running publish is never cancelled half-way.
+concurrency:
+  group: publish
+  cancel-in-progress: false
 
 jobs:
   publish:
-    name: Publish to npm (OIDC Trusted Publishing)
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-    # `id-token: write` mints the OIDC token for Trusted Publishing + provenance.
-    # `contents: write` lets the workflow attach the generated SBOM to the release.
+    timeout-minutes: 30
+    # A protected environment (required reviewer) gates the OIDC token: the
+    # job cannot mint one before the maintainer approves the run.
+    environment: npm-publish
     permissions:
-      contents: write
+      contents: read
       id-token: write
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+
     steps:
+      # Audit mode for the first two weeks, then switch to `egress-policy: block`
+      # with the endpoints this job actually reaches:
+      #   allowed-endpoints: >
+      #     api.github.com:443
+      #     registry.npmjs.org:443
+      #     software.verapdf.org:443
+      #     api.adoptium.net:443
+      #     fulcio.sigstore.dev:443
+      #     rekor.sigstore.dev:443
+      #     tuf-repo-cdn.sigstore.dev:443
+      - name: Harden the runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
 
       - name: Setup Node.js
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
-          node-version: '22'
+          # The release is built on the Node line .nvmrc names — the same one
+          # contributors develop on — not on whatever ">= floor" resolves to.
+          node-version-file: .nvmrc
           registry-url: https://registry.npmjs.org
           cache: npm
 
-      # Trusted Publishing needs npm >= 11.5.1 — that is where the OIDC token
-      # exchange landed. Node 22 bundles npm 10.9.x, which has no OIDC support
-      # at all: it signs the provenance statement (that uses the GitHub OIDC
-      # token directly, via Sigstore), then sends an **unauthenticated** PUT and
-      # the registry answers `404 Not Found` rather than 403, because npm does
-      # not disclose whether a package exists to an anonymous caller.
-      #
-      # That 404 is why pinning `node-version` here is a trap: it looks like a
-      # policy declaration, but it also selects the npm that does the publish.
-      # Upgrading npm explicitly decouples the two, so the Node we support and
-      # the npm that can authenticate are no longer the same decision.
-      - name: Upgrade npm for Trusted Publishing
-        run: npm install -g npm@latest
-
-      - name: Verify npm supports Trusted Publishing
+      - name: Read the version and check it against the tag
+        id: version
         run: |
           set -euo pipefail
-          MAJOR=$(npm --version | cut -d. -f1)
-          echo "npm $(npm --version) on node $(node --version)"
-          if [ "$MAJOR" -lt 11 ]; then
-            echo "::error::npm $(npm --version) cannot use Trusted Publishing (OIDC); npm >= 11.5.1 is required."
-            echo "Publishing would fail with a misleading '404 Not Found' after the whole job has run."
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          if [ "${GITHUB_REF_TYPE}" = "tag" ] && [ "${GITHUB_REF_NAME}" != "v${VERSION}" ]; then
+            echo "::error::Tag ${GITHUB_REF_NAME} does not match package.json version ${VERSION}"
             exit 1
           fi
+          echo "Publishing pdfnative-react ${VERSION} from ${GITHUB_REF_TYPE} ${GITHUB_REF_NAME}"
+
+      # Node 22 ships npm 10.9; Trusted Publishing (OIDC, provenance) needs
+      # npm ≥ 11.5.1 — with 10.9 the registry answers a misleading 404 after
+      # the whole job has run. The client is pinned to one exact release so
+      # the bytes that publish are the same on every run — the package itself
+      # is still built and tested on the .nvmrc line.
+      - name: Install the pinned npm client
+        run: |
+          set -euo pipefail
+          npm install -g npm@11.19.1
+          test "$(npm --version)" = "11.19.1"
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
 
-      - name: Typecheck (src + tests + samples)
-        run: npm run typecheck:all
+      # PDF/A gate: the release must never publish conformance claims that the
+      # reference validator rejects. Same pinned, checksummed veraPDF as
+      # verapdf.yml.
+      - name: Setup veraPDF
+        uses: ./.github/actions/setup-verapdf
 
-      - name: Lint
-        run: npm run lint
+      # Every gate step — typecheck, lint, build, the built package's probes,
+      # the browser bundle, publint and attw over the exports map, coverage,
+      # docs, samples against the baseline chain, the 1.2.0 compatibility
+      # check, the conformance corpus through validatePdfX() and veraPDF.
+      # --require-all: a missing tool fails the release instead of skipping.
+      - name: Run the quality gate (publish profile)
+        run: npx tsx scripts/gate.ts --publish --require-all
 
-      - name: Test with coverage
-        run: npm run test:coverage
+      - name: Show the package contents
+        run: npm pack --dry-run
 
-      - name: Build
-        run: npm run build
-
-      - name: Verify dist output
-        run: |
-          test -f dist/index.cjs
-          test -f dist/index.js
-          test -f dist/index.d.ts
-          test -f dist/index.d.cts
-          test -f dist/client.cjs
-          test -f dist/client.js
-          test -f dist/client.d.ts
-          test -f dist/client.d.cts
-
-      # Resolve through the packed tarball and the `exports` map, not by file
-      # path. Importing `./dist/index.js` directly proves the file parses; it
-      # proves nothing about the `exports` map, so a wrong `types` target or a
-      # dropped condition would ship unnoticed. This is the last gate before
-      # `npm publish`, so it exercises what a consumer will actually resolve.
+      # Resolve through the packed tarball and the `exports` map, the way a
+      # consumer will: CJS and ESM roots, the /client subpath, and a real
+      # render from the installed package. The gate's pack-check proves the
+      # map statically (publint, attw); this is the dynamic complement, and
+      # the one step that legitimately needs the network (react, react-dom
+      # and pdfnative from the registry).
       - name: Consumer resolution smoke test
         run: |
           set -euo pipefail
@@ -98,12 +122,12 @@ jobs:
           TARBALL=$(ls /tmp/pdfnative-react-*.tgz)
           mkdir -p /tmp/consumer && cd /tmp/consumer
           npm init -y > /dev/null
-          npm install --no-audit --no-fund "$TARBALL" react react-dom pdfnative
+          npm install --no-audit --no-fund --ignore-scripts "$TARBALL" react react-dom pdfnative
 
           node -e "
             const root = require('pdfnative-react');
             const client = require('pdfnative-react/client');
-            for (const n of ['renderToBytes','renderSpecToBytes','renderToResponse','capabilityManifest','doctor']) {
+            for (const n of ['renderToBytes','renderSpecToBytes','renderToResponse','capabilityManifest','doctor','setDefaultCreationDate']) {
               if (typeof root[n] !== 'function') throw new Error('CJS root missing ' + n);
             }
             for (const n of ['usePdf','PDFViewer','BlobProvider']) {
@@ -128,91 +152,80 @@ jobs:
           node --input-type=module -e "
             const { renderSpecToFile } = await import('pdfnative-react');
             const { readFile } = await import('node:fs/promises');
-            await renderSpecToFile({ blocks: [['h1','Release smoke test']] }, 'out.pdf');
+            await renderSpecToFile({ blocks: [['h1','Release smoke test']], creationDate: '2026-01-01T00:00:00Z' }, 'out.pdf');
             const bytes = await readFile('out.pdf');
             if (!bytes.subarray(0, 5).toString('latin1').startsWith('%PDF-')) throw new Error('not a PDF');
             console.log('rendered', bytes.length, 'bytes');
           "
 
-      # PDF/A conformance is a release-blocking property: the corpus (both
-      # authoring doors, all four conformance targets, two negative canaries)
-      # is validated with the pinned veraPDF reference validator before
-      # anything is published. Fail-closed: a broken veraPDF install is an
-      # INFRA failure, never a silent skip. Mirrors .github/workflows/verapdf.yml.
-      - name: Setup Java (Temurin 17 LTS)
-        uses: actions/setup-java@d7793b545071e98d581d3bf084a51c3213318a07 # v4.9.0
-        with:
-          distribution: temurin
-          java-version: '17'
+      - name: Publish
+        run: npm publish --provenance --access public
 
-      - name: Install veraPDF CLI
-        env:
-          # Same pinned release + installer SHA-256 as verapdf.yml — the
-          # archive is executed with `java -jar`, so it is integrity-checked.
-          VERAPDF_INSTALL_URL: 'https://software.verapdf.org/rel/1.30/verapdf-greenfield-1.30.2-installer.zip'
-          VERAPDF_INSTALL_SHA256: '6cc6341cb1af644044054b81f00a6590a7918abb18f762243de115258bcad838'
+  # Attests the tarball and a CycloneDX SBOM built from the same commit, and
+  # attaches both to the GitHub release when the maintainer has created it.
+  attest:
+    needs: publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    env:
+      VERSION: ${{ needs.publish.outputs.version }}
+
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      # .npmrc sets ignore-scripts, so prepublishOnly does not run for
+      # `npm pack`: build explicitly, as the gate did in the publish job.
+      - name: Build
+        run: npm run build
+
+      # One runtime dependency (react-reconciler) and its tree; pdfnative and
+      # react are peers and belong to the consumer's SBOM.
+      - name: Generate the SBOM (CycloneDX, runtime dependencies only)
+        run: npm sbom --sbom-format cyclonedx --omit dev --package-lock-only > "pdfnative-react-${VERSION}.cdx.json"
+
+      - name: Pack the tarball
         run: |
           set -euo pipefail
-          mkdir -p "$HOME/verapdf-installer"
-          curl -fsSL -o "$HOME/verapdf-installer/installer.zip" "${VERAPDF_INSTALL_URL}"
-          echo "${VERAPDF_INSTALL_SHA256}  $HOME/verapdf-installer/installer.zip" | sha256sum --check --strict
-          unzip -q "$HOME/verapdf-installer/installer.zip" -d "$HOME/verapdf-installer"
-          INSTALLER_JAR=$(find "$HOME/verapdf-installer" -name 'verapdf-izpack-installer-*.jar' | head -n1)
-          if [ -z "${INSTALLER_JAR}" ]; then
-            echo "veraPDF installer jar not found"; exit 1
-          fi
-          mkdir -p "$HOME/verapdf"
-          cat > "$HOME/verapdf/auto-install.xml" <<XML
-          <?xml version="1.0" encoding="UTF-8" standalone="no"?>
-          <AutomatedInstallation langpack="eng">
-            <com.izforge.izpack.panels.htmlhello.HTMLHelloPanel id="welcome"/>
-            <com.izforge.izpack.panels.target.TargetPanel id="install_dir"><installpath>$HOME/verapdf</installpath></com.izforge.izpack.panels.target.TargetPanel>
-            <com.izforge.izpack.panels.packs.PacksPanel id="sdk_pack_select"><pack index="0" name="veraPDF GUI" selected="true"/><pack index="1" name="veraPDF Mac and *nix Scripts" selected="true"/><pack index="2" name="veraPDF Documentation" selected="false"/><pack index="3" name="veraPDF Sample Plugins" selected="false"/></com.izforge.izpack.panels.packs.PacksPanel>
-            <com.izforge.izpack.panels.install.InstallPanel id="install"/>
-            <com.izforge.izpack.panels.finish.FinishPanel id="finish"/>
-          </AutomatedInstallation>
-          XML
-          java -jar "${INSTALLER_JAR}" "$HOME/verapdf/auto-install.xml"
-          echo "VERAPDF_HOME=$HOME/verapdf" >> "$GITHUB_ENV"
-          echo "$HOME/verapdf" >> "$GITHUB_PATH"
+          npm pack
+          test -f "pdfnative-react-${VERSION}.tgz"
 
-      - name: Generate PDF/A corpus
-        # dist/ is already built by the Build step above.
-        run: npm run corpus:pdfa
-
-      - name: Validate PDF/A corpus (blocking, fail-closed)
-        env:
-          VERAPDF_REQUIRED: '1'
-          VERAPDF_REPORT_DIR: test-output/pdfa/reports
-        run: node scripts/validate-pdfa.mjs
-
-      - name: Generate SBOM (CycloneDX)
-        # Software Bill of Materials for supply-chain transparency. Uses the
-        # CycloneDX generator via npx (build-time only — adds ZERO runtime
-        # dependencies to the published package).
-        run: npx --yes @cyclonedx/cyclonedx-npm@^1 --output-format JSON --output-file sbom.cdx.json
-
-      - name: Upload SBOM artifact
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
-          name: sbom-cyclonedx
-          path: sbom.cdx.json
-          retention-days: 90
+          subject-path: |
+            pdfnative-react-${{ env.VERSION }}.tgz
+            pdfnative-react-${{ env.VERSION }}.cdx.json
 
-      # Works for both triggers. Deriving the tag from package.json rather than
-      # from `github.event.release` means a `workflow_dispatch` recovery run —
-      # the way you republish after a failed release — still attaches the SBOM
-      # instead of silently skipping it.
-      - name: Attach SBOM to release
+      # The release is created by the maintainer (human-in-the-loop); on a
+      # workflow_dispatch without one, the artefacts stay in the attestation
+      # store and nothing is created here.
+      - name: Attach the tarball and SBOM to the GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG="v$(node -p "require('./package.json').version")"
-          if gh release view "$TAG" > /dev/null 2>&1; then
-            gh release upload "$TAG" sbom.cdx.json --clobber
+          set -euo pipefail
+          if gh release view "v${VERSION}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            gh release upload "v${VERSION}" "pdfnative-react-${VERSION}.tgz" "pdfnative-react-${VERSION}.cdx.json" --clobber --repo "${GITHUB_REPOSITORY}"
           else
-            echo "No release $TAG exists yet; the SBOM remains available as a build artifact."
+            echo "::notice::No GitHub release v${VERSION} exists; the tarball and SBOM were attested but not attached."
           fi
-
-      - name: Publish (provenance via OIDC)
-        run: npm publish --provenance --access public

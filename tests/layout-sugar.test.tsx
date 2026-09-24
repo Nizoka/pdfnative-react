@@ -10,11 +10,16 @@ import { describe, expect, it } from 'vitest';
 import {
     Document,
     Paragraph,
+    PdfReactError,
     compileDocument,
     compileSpec,
     renderToBytes,
 } from '../src/index.js';
-import type { DocSpec, PageTemplate, PdfAttachment } from '../src/index.js';
+import type { DocSpec, PageTemplate, PdfAttachment, TypographyOptions } from '../src/index.js';
+
+const TYPOGRAPHY: TypographyOptions = { splitParagraphs: true, kerning: true };
+const ICC = new Uint8Array([0x61, 0x63, 0x73, 0x70]);
+const INTENT = { iccProfile: ICC, outputConditionIdentifier: 'x' };
 
 const FOOTER: PageTemplate = {
     left: 'Confidential',
@@ -64,6 +69,9 @@ describe('layout sugar folding', () => {
                 attachments={[ATTACHMENT]}
                 tagged="pdfa2b"
                 print={{ bleed: 9 }}
+                outputIntent={INTENT}
+                typography={TYPOGRAPHY}
+                creationDate={new Date('2026-01-01T00:00:00Z')}
             >
                 <Paragraph>x</Paragraph>
             </Document>,
@@ -76,7 +84,53 @@ describe('layout sugar folding', () => {
             attachments: [ATTACHMENT],
             tagged: 'pdfa2b',
             print: { bleed: 9 },
+            outputIntent: INTENT,
+            typography: TYPOGRAPHY,
+            creationDate: new Date('2026-01-01T00:00:00Z'),
         });
+    });
+
+    it('folds pdfx on its own (it is exclusive with tagged, so it gets its own case)', () => {
+        const model = compileDocument(
+            <Document pdfx="pdfx4">
+                <Paragraph>x</Paragraph>
+            </Document>,
+        );
+        expect(model.layout).toEqual({ pdfx: 'pdfx4' });
+    });
+
+    it('replaces typography whole when an explicit layout.typography is set — no deep merge', () => {
+        const model = compileDocument(
+            <Document typography={TYPOGRAPHY} layout={{ typography: { opticalMargins: true } }}>
+                <Paragraph>x</Paragraph>
+            </Document>,
+        );
+        expect(model.layout).toEqual({ typography: { opticalMargins: true } });
+    });
+
+    it('parses an ISO 8601 creationDate string into a Date', () => {
+        const model = compileDocument(
+            <Document creationDate="2026-01-01T00:00:00Z">
+                <Paragraph>x</Paragraph>
+            </Document>,
+        );
+        expect(model.layout?.creationDate).toBeInstanceOf(Date);
+        expect(model.layout?.creationDate?.toISOString()).toBe('2026-01-01T00:00:00.000Z');
+    });
+
+    it('rejects an unparseable creationDate with E_INPUT — never a silent wall-clock fallback', () => {
+        try {
+            compileDocument(
+                <Document creationDate="yesterday">
+                    <Paragraph>x</Paragraph>
+                </Document>,
+            );
+            expect.unreachable('should have thrown');
+        } catch (err) {
+            expect(err).toBeInstanceOf(PdfReactError);
+            expect((err as PdfReactError).code).toBe('E_INPUT');
+            expect((err as PdfReactError).message).toContain('creationDate');
+        }
     });
 
     it('folds the print prop into layout.print on its own', () => {
@@ -183,6 +237,33 @@ describe('layout sugar DocSpec parity', () => {
         expect(compileSpec(spec)).toEqual(compileDocument(jsx));
         expect(compileSpec(spec).layout).toEqual({
             print: { trimBox: [20, 20, 575, 822], marks: true },
+        });
+    });
+
+    it('folds the 1.3.0 fields (pdfx, outputIntent, typography, creationDate) identically', () => {
+        const spec: DocSpec = {
+            pdfx: 'pdfx4',
+            outputIntent: INTENT,
+            typography: TYPOGRAPHY,
+            creationDate: '2026-01-01T00:00:00Z',
+            blocks: [['p', 'Body text.']],
+        };
+        const jsx = (
+            <Document
+                pdfx="pdfx4"
+                outputIntent={INTENT}
+                typography={TYPOGRAPHY}
+                creationDate={new Date('2026-01-01T00:00:00Z')}
+            >
+                <Paragraph>Body text.</Paragraph>
+            </Document>
+        );
+        expect(compileSpec(spec)).toEqual(compileDocument(jsx));
+        expect(compileSpec(spec).layout).toEqual({
+            pdfx: 'pdfx4',
+            outputIntent: INTENT,
+            typography: TYPOGRAPHY,
+            creationDate: new Date('2026-01-01T00:00:00Z'),
         });
     });
 });

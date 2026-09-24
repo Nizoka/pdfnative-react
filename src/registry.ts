@@ -22,7 +22,7 @@
  * @packageDocumentation
  */
 
-import type { BlockSpecKind } from './spec/types.js';
+import type { BlockSpecKind, DocSpec } from './spec/types.js';
 import type { HostTag } from './reconciler/nodes.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -193,8 +193,7 @@ export const BLOCK_REGISTRY = [
         tuple: "['chart', body]",
         summary:
             'Native vector chart (bar, barH, line, pie, donut, stackedBar, stackedBarH, '
-            + 'area, scatter) drawn with PDF path operators. Requires the pdfnative '
-            + 'engine >= 1.7.0.',
+            + 'area, scatter) drawn with PDF path operators.',
         component: 'Chart',
     },
     {
@@ -214,6 +213,48 @@ export type BlockGroupId = (typeof BLOCK_REGISTRY)[number]['id'];
 
 /** A read-only view of a {@link BLOCK_REGISTRY} entry. */
 export type BlockDescriptor = (typeof BLOCK_REGISTRY)[number];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DocSpec top-level field registry
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Every recognised top-level `DocSpec` field, in schema order.
+ *
+ * Feeds `spec/validate.ts` (the `V_UNKNOWN_FIELD` gate), the capability
+ * manifest (`specFields`) and `tests/registry.test.ts`, which also holds the
+ * JSON Schema's `properties` to this list. Order is part of the contract: the
+ * 1.2.0 fields come first, and every later release appends.
+ *
+ * The compile-time lock at the bottom of this file makes omission a build
+ * error: add a field to `DocSpec` without listing it here and `npm run
+ * typecheck` fails — otherwise every well-formed spec using the new field
+ * would emit a spurious warning while the validator still returned `ok`.
+ */
+export const DOC_SPEC_FIELDS = [
+    'title',
+    'footerText',
+    'metadata',
+    'fontEntries',
+    'layout',
+    'outline',
+    'pageLabels',
+    'watermark',
+    'header',
+    'footer',
+    'attachments',
+    'tagged',
+    'print',
+    'blocks',
+    // 1.3.0 (engine 1.8.0)
+    'pdfx',
+    'outputIntent',
+    'typography',
+    'creationDate',
+] as const satisfies readonly (keyof DocSpec)[];
+
+/** A top-level `DocSpec` field name. */
+export type DocSpecField = (typeof DOC_SPEC_FIELDS)[number];
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Component registry — the JSX surface
@@ -238,7 +279,8 @@ export const COMPONENT_REGISTRY = [
         tag: 'document',
         summary:
             'Required root. Carries title, metadata, fonts, outline, page labels and '
-            + 'the layout sugar (watermark, header, footer, attachments, tagged).',
+            + 'the layout sugar (watermark, header, footer, attachments, tagged, print, '
+            + 'pdfx, outputIntent, typography, creationDate).',
     },
     { name: 'Page', tag: 'page', summary: 'Explicit page boundary.' },
     {
@@ -452,6 +494,85 @@ export const LINT_RULES = {
         severity: 'warning',
         description: 'A block overflows the page content box (requires `overflow: true`).',
     },
+    // ── 1.3.0 (engine 1.8.0): output intents, PDF/X-4, typography, CMYK ──
+    L_OUTPUT_INTENT_PROFILE: {
+        severity: 'error',
+        description:
+            'layout.outputIntent.iccProfile is not a usable ICC profile: shorter than '
+            + 'the 128-byte header, no `acsp` signature, a size field outside the '
+            + 'buffer, or a data colour space other than RGB, CMYK or Gray — the '
+            + 'engine rejects it at build time.',
+    },
+    L_PDFX_TARGET: {
+        severity: 'error',
+        description:
+            "pdfx names a conformance target the engine does not know (only 'pdfx4' "
+            + 'exists) — the engine would throw before writing.',
+    },
+    L_PDFX_TAGGED_CONFLICT: {
+        severity: 'error',
+        description:
+            'pdfx and tagged are both set — the engine writes one conformance claim '
+            + 'per file and throws on the combination.',
+    },
+    L_PDFX_ENCRYPTED: {
+        severity: 'error',
+        description: 'PDF/X forbids encryption (ISO 15930-7) — pdfx and layout.encryption cannot be combined.',
+    },
+    L_PDFX_OUTPUT_INTENT: {
+        severity: 'error',
+        description:
+            'PDF/X-4 needs an outputIntent carrying the printer’s output profile (ICC '
+            + "device class 'prtr'); it is missing, or the profile is a monitor "
+            + 'profile such as sRGB — the engine would throw.',
+    },
+    L_PDFX_TRAPPED_UNKNOWN: {
+        severity: 'error',
+        description:
+            "PDF/X requires the trapping state to be known, but metadata.trapped is "
+            + "'Unknown' — the engine would throw.",
+    },
+    L_PDFX_BOXES: {
+        severity: 'error',
+        description:
+            'PDF/X pages carry a TrimBox or an ArtBox, not both — print.artBox is set '
+            + 'together with print.trimBox or print.bleed.',
+    },
+    L_PDFX_NO_FONTS: {
+        severity: 'error',
+        description:
+            'pdfx is requested but no fontEntries are supplied. PDF/X-4 requires every '
+            + 'font to be embedded; the engine reports PDFX_NO_FONT_ENTRIES (and throws '
+            + 'under layout.strict).',
+    },
+    L_PDFX_ANNOTATIONS: {
+        severity: 'warning',
+        description:
+            'A PDF/X-4 document contains a link or a form field; ISO 15930-7 forbids '
+            + 'those annotations inside the BleedBox and the engine reports '
+            + 'PDFX_ANNOTATIONS (and throws under layout.strict).',
+    },
+    L_TYPOGRAPHY_INEFFECTIVE: {
+        severity: 'warning',
+        description:
+            'A typography option can have no effect as written: orphans/widows without '
+            + "splitParagraphs, an unknown fontFeatures tag, kerning or fontFeatures "
+            + "or the 'fr' preset without a registered font, or a line quota below 1.",
+    },
+    L_PRINT_COLOUR_BARS: {
+        severity: 'warning',
+        description:
+            'print.marks.colourBars is set but the bottom bleed strip is too thin: '
+            + 'under 4 pt the engine skips the bars silently, under 5 mm (14.17 pt) '
+            + 'the patches fall below a densitometer aperture.',
+    },
+    L_CMYK_INTENT_MISMATCH: {
+        severity: 'warning',
+        description:
+            'A CMYK colour is used under a PDF/A or PDF/X claim whose output intent '
+            + 'is not CMYK; the engine reports PDFA_DEVICE_CMYK_CONTENT / '
+            + 'PDFX_DEVICE_CMYK (and throws under layout.strict).',
+    },
 } as const satisfies Record<
     string,
     { readonly severity: LintSeverity; readonly description: string }
@@ -491,3 +612,6 @@ export type BlockRegistryIsExhaustive = Assert<Equals<RegisteredBlockKind, Block
 
 /** Locks {@link COMPONENT_REGISTRY} to the `HostTag` union. */
 export type ComponentRegistryIsExhaustive = Assert<Equals<RegisteredTag, HostTag>>;
+
+/** Locks {@link DOC_SPEC_FIELDS} to the keys of `DocSpec`, both directions. */
+export type DocSpecFieldsAreExhaustive = Assert<Equals<DocSpecField, keyof DocSpec>>;

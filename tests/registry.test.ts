@@ -15,10 +15,11 @@ import { describe, expect, it } from 'vitest';
 import {
     BLOCK_REGISTRY,
     COMPONENT_REGISTRY,
+    DOC_SPEC_FIELDS,
     LINT_RULES,
     LINT_RULE_CODES,
 } from '../src/registry.js';
-import { docSpecSchema } from '../src/index.js';
+import { capabilityManifest, docSpecSchema, validateSpec } from '../src/index.js';
 
 describe('BLOCK_REGISTRY', () => {
     it('lists every DocSpec tuple kind, in schema order', () => {
@@ -109,6 +110,44 @@ describe('BLOCK_REGISTRY', () => {
     });
 });
 
+describe('DOC_SPEC_FIELDS', () => {
+    it('lists every top-level DocSpec field, 1.2.0 order first then appended', () => {
+        expect(DOC_SPEC_FIELDS).toEqual([
+            'title',
+            'footerText',
+            'metadata',
+            'fontEntries',
+            'layout',
+            'outline',
+            'pageLabels',
+            'watermark',
+            'header',
+            'footer',
+            'attachments',
+            'tagged',
+            'print',
+            'blocks',
+            'pdfx',
+            'outputIntent',
+            'typography',
+            'creationDate',
+        ]);
+    });
+
+    it('is exactly the property set the JSON Schema describes', () => {
+        // A field validateSpec accepts but the schema does not describe is
+        // invisible to an agent that discovers the grammar through the schema.
+        const props = Object.keys(docSpecSchema()['properties'] as Record<string, unknown>);
+        expect([...props].sort()).toEqual([...DOC_SPEC_FIELDS].sort());
+    });
+
+    it('is what validateSpec and the capability manifest derive from', () => {
+        const spec = Object.fromEntries(DOC_SPEC_FIELDS.map((f) => [f, f === 'blocks' ? [] : undefined]));
+        expect(validateSpec(spec).warnings).toEqual([]);
+        expect(capabilityManifest().specFields).toEqual([...DOC_SPEC_FIELDS]);
+    });
+});
+
 describe('COMPONENT_REGISTRY', () => {
     it('lists every public component, in barrel order', () => {
         expect(COMPONENT_REGISTRY.map((c) => c.name)).toEqual([
@@ -174,6 +213,19 @@ describe('LINT_RULES', () => {
             'L_OUTPUT_INTENT_IGNORED',
             'L_TAGGED_FORM_FONTS',
             'L_OVERFLOW',
+            // 1.3.0 — appended, never reordered
+            'L_OUTPUT_INTENT_PROFILE',
+            'L_PDFX_TARGET',
+            'L_PDFX_TAGGED_CONFLICT',
+            'L_PDFX_ENCRYPTED',
+            'L_PDFX_OUTPUT_INTENT',
+            'L_PDFX_TRAPPED_UNKNOWN',
+            'L_PDFX_BOXES',
+            'L_PDFX_NO_FONTS',
+            'L_PDFX_ANNOTATIONS',
+            'L_TYPOGRAPHY_INEFFECTIVE',
+            'L_PRINT_COLOUR_BARS',
+            'L_CMYK_INTENT_MISMATCH',
         ]);
     });
 

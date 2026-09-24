@@ -2,8 +2,8 @@
  * Visual verification for vision-capable AI agents (dry-run tier 5).
  *
  * Run with: npx tsx samples/agent/visual-verify.tsx
- * Writes `samples/output/visual-verify.pdf` and, when a rasterizer is
- * available, `samples/output/visual-verify-<page>.png`.
+ * Writes `visual-verify.pdf` to the current directory and, when a rasterizer
+ * is available, `visual-verify-<page>.png` beside it.
  *
  * Tiers 1–4 (validateSpec → compileSpec → lintSpec → inspectSpec) check the
  * document MODEL. This sample closes the loop on APPEARANCE: it renders a
@@ -23,7 +23,7 @@
 
 import React from 'react';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readdirSync } from 'node:fs';
+import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import {
     Chart,
@@ -35,9 +35,10 @@ import {
     renderToFile,
 } from '../../src/index.js';
 
-const OUT_DIR = join('samples', 'output');
-mkdirSync(OUT_DIR, { recursive: true });
-const pdfPath = join(OUT_DIR, 'visual-verify.pdf');
+// Like every sample: the current directory. (The sample generator sets it
+// under test-output/samples/ so the PDF joins the byte baseline.)
+const OUT_DIR = '.';
+const pdfPath = 'visual-verify.pdf';
 
 // A document with enough visual structure to judge: heading, table, chart.
 const doc = (

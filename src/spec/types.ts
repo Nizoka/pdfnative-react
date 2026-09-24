@@ -62,7 +62,7 @@ import type {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** Options for a heading block (`['h1' | 'h2' | 'h3', text, opts?]`). */
-export type HeadingSpecOpts = Pick<HeadingProps, 'color'>;
+export type HeadingSpecOpts = Pick<HeadingProps, 'color' | 'keepWithNext'>;
 
 /** Options for a paragraph block (`['p', text, opts?]`). */
 export type ParagraphSpecOpts = Omit<ParagraphProps, 'text' | 'children'>;
@@ -237,6 +237,14 @@ export interface DocSpec {
     readonly tagged?: DocumentProps['tagged'];
     /** Print-production page geometry (bleed/trim boxes, printer's marks, `/UserUnit`). */
     readonly print?: DocumentProps['print'];
+    /** PDF/X-4 conformance claim (`'pdfx4'`). Sugar over `layout.pdfx`; exclusive with `tagged`. */
+    readonly pdfx?: DocumentProps['pdfx'];
+    /** Custom output intent (ICC profile bytes). Sugar over `layout.outputIntent`. */
+    readonly outputIntent?: DocumentProps['outputIntent'];
+    /** Fine typography (page breaking, justification, kerning, features…). Sugar over `layout.typography`. */
+    readonly typography?: DocumentProps['typography'];
+    /** Pinned creation instant (ISO 8601 string in JSON, or a `Date`). Sugar over `layout.creationDate`. */
+    readonly creationDate?: DocumentProps['creationDate'];
     /** Ordered document blocks. */
     readonly blocks: readonly BlockSpec[];
 }

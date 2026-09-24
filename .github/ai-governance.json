@@ -1,9 +1,9 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "pdfnative-react AI Governance Configuration",
-  "description": "Machine-readable contract governing how AI coding agents may propose issues, contributions, and changes for pdfnative-react. Agents that scan repository configuration on initialization MUST honour this file. See .github/AGENT_RULES.md for the human-and-agent-readable protocol and docs/AI_GOVERNANCE.md for the narrative walk-through. The library ships NO code path that can write to GitHub or make an outbound network call; the shipped guardrail is the local `npm run verify:issue` CLI.",
+  "description": "Machine-readable contract governing how AI coding agents may propose issues, contributions, and changes for pdfnative-react. Agents that scan repository configuration on initialization MUST honour this file. See .github/AGENT_RULES.md for the human-and-agent-readable protocol and docs/AI_GOVERNANCE.md for the narrative walk-through. The library ships NO code path that can write to GitHub or make an outbound network call; the shipped guardrail is the local `npm run verify:issue` CLI and its runtime twin `validateIssueDraft()`.",
   "version": "1.1.0",
-  "spec_updated": "2026-07-25",
+  "spec_updated": "2026-09-22",
   "applies_to": [
     "pdfnative",
     "pdfnative-cli",
@@ -51,11 +51,15 @@
     "description": "Authoritative project context an agent SHOULD load before proposing changes.",
     "sources": [
       "AGENTS.md",
-      "CLAUDE.md",
-      ".github/copilot-instructions.md",
-      ".github/AGENT_RULES.md",
-      "docs/AI_GOVERNANCE.md",
+      ".github/AGENT_RULES.md"
+    ],
+    "$comment": "on_demand: load lazily by topic. sources are loaded on every task and verify-docs (governance-sources) holds their total under 16 KiB; ecosystem.json is the counts manifest, needed only when a figure or version is touched; docs/AGENT_CONTRACT.md is the consumer-facing agent contract (the loop, the tiers, the DocSpec grammar, the error codes); docs/KNOWLEDGE_BASE.md and docs/RECIPES.md are the deep reference.",
+    "on_demand": [
+      "docs/assets/ecosystem.json",
       "docs/AGENT_CONTRACT.md",
+      ".github/copilot-instructions.md",
+      ".github/instructions/",
+      "docs/AI_GOVERNANCE.md",
       "docs/KNOWLEDGE_BASE.md",
       "docs/RECIPES.md",
       "ROADMAP.md",
@@ -69,6 +73,69 @@
       "validate": "validateIssueDraft(markdown)",
       "capabilities": "capabilityManifest()",
       "preflight": "doctor()"
+    },
+    "claude_code": {
+      "description": "How the policy is enforced inside a Claude Code session (settings, hook, rules, skills); verify-docs rules agent-config-parity, claude-rules-sync, claude-rules-budget and skills-shape keep these files consistent.",
+      "settings": ".claude/settings.json",
+      "$comment": "The session shell of this repository is PowerShell on Windows and Bash elsewhere, so the same guard is wired to both tool matchers; guard.mjs itself is identical to the sibling repositories.",
+      "hooks": [
+        {
+          "event": "PreToolUse",
+          "matcher": "Bash",
+          "command": "node .claude/hooks/guard.mjs",
+          "denies": [
+            "npm publish|unpublish|deprecate|dist-tag|version <bump>",
+            "npx npm publish",
+            "gh pr create|edit|close|merge|comment",
+            "gh issue create|edit|close|comment",
+            "gh release *",
+            "gh api with --method POST|PUT|PATCH|DELETE, --input, -f/-F",
+            "git push (any form)",
+            "git add --renormalize",
+            "git tag (except list forms)"
+          ],
+          "scope": "whole command, every shell segment, $( ) and backtick bodies, sh/bash/zsh -c, pwsh/powershell -Command, node -e and npx -c payloads; fails closed on unreadable input",
+          "tests": "tests/tools/guard.test.ts"
+        },
+        {
+          "event": "PreToolUse",
+          "matcher": "PowerShell",
+          "command": "node .claude/hooks/guard.mjs",
+          "denies": [
+            "npm publish|unpublish|deprecate|dist-tag|version <bump>",
+            "npx npm publish",
+            "gh pr create|edit|close|merge|comment",
+            "gh issue create|edit|close|comment",
+            "gh release *",
+            "gh api with --method POST|PUT|PATCH|DELETE, --input, -f/-F",
+            "git push (any form)",
+            "git add --renormalize",
+            "git tag (except list forms)"
+          ],
+          "scope": "whole command, every shell segment, $( ) and backtick bodies, sh/bash/zsh -c, pwsh/powershell -Command, node -e and npx -c payloads; fails closed on unreadable input",
+          "tests": "tests/tools/guard.test.ts"
+        }
+      ],
+      "permissions_deny": "Read on generated and bulk files (dist/**, coverage/**, test-output/**, samples/output/**, package-lock.json, node_modules/**) and Bash + PowerShell on the HITL commands above",
+      "env_limits": {
+        "BASH_MAX_OUTPUT_LENGTH": "16000",
+        "BASH_DEFAULT_TIMEOUT_MS": "300000",
+        "BASH_MAX_TIMEOUT_MS": "1800000",
+        "NO_COLOR": "1"
+      },
+      "rules": {
+        "directory": ".claude/rules/",
+        "generated_from": ".github/instructions/*.instructions.md",
+        "generator": "npm run agents:rules",
+        "scoped": "every rule carries paths: (the source applyTo); none loads unconditionally"
+      },
+      "skills": [
+        {
+          "name": "release-audit",
+          "path": ".claude/skills/release-audit/SKILL.md",
+          "model_invocable": false
+        }
+      ]
     }
   },
   "verification": {

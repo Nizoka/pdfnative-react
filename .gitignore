@@ -29,13 +29,22 @@ Thumbs.db
 *.swo
 .vscode/settings.json
 
-# npm
+# npm (the committed .npmrc carries only ignore-scripts/fund/audit-level —
+# never a token; a registry token belongs in ~/.npmrc)
 *.tgz
-.npmrc
+
+# Tooling output
+dist-scripts/
+*.tsbuildinfo
+
+# Release-audit ledgers (.claude/skills/release-audit) are local working
+# notes; the release note carries the outcome.
+.audit/
 
 # AI-governance issue drafts are local work-in-progress; never commit ad-hoc
-# proposals. The staging-area README and release artifacts are kept.
+# proposals. The staging-area README, the issue template and the submitted
+# issue drafts are kept; release PR drafts live under release-notes/draft/.
 .github/drafts/*
 !.github/drafts/README.md
-!.github/drafts/pr-*.md
+!.github/drafts/TEMPLATE.md
 !.github/drafts/issue-*.md

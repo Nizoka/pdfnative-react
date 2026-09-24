@@ -1,0 +1,99 @@
+{
+  "$comment": "Single source of every count and version quoted in the docs, the agent files and the release notes. `npm run verify:docs` holds every document to it; `npm run release:prepare` bumps `packages.pdfnative-react.version` and `verifiedOn`. `declared` holds figures no filesystem walk can derive (measured at release, or an inventory of the engine); `derived` holds figures verify:docs recomputes from the source tree (the registry tables of src/registry.ts, the ErrorCode table, SCHEMA_SUBJECTS, the sample plan, tests/, the sample baseline, the corpus table) and fails when they drift. `assertions` are the prose tokens each listed file must carry verbatim.",
+  "verifiedOn": "2026-09-22",
+  "packages": {
+    "pdfnative-react": {
+      "version": "1.3.0",
+      "pinField": null,
+      "pin": null,
+      "repo": "https://github.com/Nizoka/pdfnative-react"
+    },
+    "pdfnative": {
+      "version": "1.8.0",
+      "pinField": "peerDependencies",
+      "pin": "^1.8.0",
+      "repo": "https://github.com/Nizoka/pdfnative"
+    },
+    "pdfnative-cli": {
+      "version": "1.5.0",
+      "pinField": null,
+      "pin": null,
+      "repo": "https://github.com/Nizoka/pdfnative-cli"
+    },
+    "pdfnative-mcp": {
+      "version": "1.7.0",
+      "pinField": null,
+      "pin": null,
+      "repo": "https://github.com/Nizoka/pdfnative-mcp"
+    }
+  },
+  "declared": {
+    "tests": 811,
+    "coverageStatements": 90,
+    "coverageMeasured": 96.24,
+    "pdfaSamples": 13,
+    "pdfxSamples": 3,
+    "unicodeScripts": 27,
+    "chartTypes": 9,
+    "diagnosticCodes": 9
+  },
+  "derived": {
+    "$comment": "blocks counts the BLOCK_REGISTRY groups of the DocSpec grammar (14: the engine's 13 block kinds, with heading levels, lists and the page break as their own groups) — not the engine's own count.",
+    "components": 19,
+    "clientComponents": 3,
+    "blocks": 14,
+    "specFields": 18,
+    "lintRules": 37,
+    "errorCodes": 6,
+    "schemaSubjects": 7,
+    "testFiles": 43,
+    "sampleFiles": 44,
+    "samples": 38,
+    "corpusFiles": 16
+  },
+  "assertions": [
+    {
+      "id": "lint-rule-count",
+      "canonical": "{derived.lintRules} lint rules",
+      "match": "\\b(\\d+)\\s+lint rules\\b",
+      "expectFrom": "derived.lintRules",
+      "requireIn": [
+        "README.md",
+        "llms.txt",
+        "AGENTS.md",
+        "docs/LINTING.md"
+      ]
+    },
+    {
+      "id": "component-count",
+      "canonical": "{derived.components} components",
+      "match": "\\b(\\d+)\\s+components\\b",
+      "expectFrom": "derived.components",
+      "requireIn": [
+        "README.md",
+        "AGENTS.md"
+      ]
+    },
+    {
+      "id": "error-code-count",
+      "canonical": "{derived.errorCodes} error codes",
+      "match": "\\b(\\d+)\\s+error codes\\b",
+      "expectFrom": "derived.errorCodes",
+      "requireIn": [
+        "AGENTS.md",
+        "docs/KNOWLEDGE_BASE.md"
+      ]
+    },
+    {
+      "id": "unicode-script-count",
+      "canonical": "{declared.unicodeScripts} Unicode scripts",
+      "match": "\\b(\\d+)\\s+Unicode scripts\\b",
+      "expectFrom": "declared.unicodeScripts",
+      "requireIn": [
+        "README.md",
+        "package.json",
+        "AGENTS.md"
+      ]
+    }
+  ]
+}

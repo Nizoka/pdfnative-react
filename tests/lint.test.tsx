@@ -20,6 +20,19 @@ import {
 } from '../src/index.js';
 import { EMITTED_LINT_RULES } from '../src/lint.js';
 import type { ChartSeries, LintReport, LintRuleCode } from '../src/index.js';
+import {
+    buildMinimalRgbIccProfile,
+    buildSyntheticCmykProfile,
+    buildSyntheticGrayProfile,
+} from './helpers/synthetic-icc.js';
+
+/** A display (`mntr`) RGB profile — fine under PDF/A, wrong class under PDF/X. */
+const RGB_INTENT = { iccProfile: buildMinimalRgbIccProfile(), outputConditionIdentifier: 'Synthetic RGB' };
+/** An output (`prtr`) CMYK profile — what PDF/X-4 wants. */
+const CMYK_INTENT = { iccProfile: buildSyntheticCmykProfile(), outputConditionIdentifier: 'Synthetic CMYK' };
+/** An output (`prtr`) Gray profile — PDF/X-4 accepts it; CMYK content under it is a diagnostic. */
+const GRAY_INTENT = { iccProfile: buildSyntheticGrayProfile(), outputConditionIdentifier: 'Synthetic Gray' };
+const LATIN = [{ lang: 'latin' } as never];
 
 const PIXEL = new Uint8Array([0x89, 0x50, 0x4e, 0x47]);
 const SERIES: readonly ChartSeries[] = [{ label: 'Revenue', values: [1, 2, 3] }];
@@ -692,14 +705,7 @@ describe('print-production and viewer rules', () => {
 
     it('L_OUTPUT_INTENT_IGNORED — an outputIntent without tagged is silently dropped', () => {
         const report = lintDocument(
-            <Document
-                layout={{
-                    outputIntent: {
-                        iccProfile: new Uint8Array([1, 2, 3]),
-                        outputConditionIdentifier: 'sRGB IEC61966-2.1',
-                    },
-                }}
-            >
+            <Document layout={{ outputIntent: RGB_INTENT }}>
                 <Paragraph>x</Paragraph>
             </Document>,
         );
@@ -711,16 +717,16 @@ describe('print-production and viewer rules', () => {
 
     it('L_OUTPUT_INTENT_IGNORED — an outputIntent WITH tagged is honoured, not flagged', () => {
         const report = lintDocument(
-            <Document
-                tagged="pdfa2b"
-                fontEntries={FONTS}
-                layout={{
-                    outputIntent: {
-                        iccProfile: new Uint8Array([1, 2, 3]),
-                        outputConditionIdentifier: 'sRGB IEC61966-2.1',
-                    },
-                }}
-            >
+            <Document tagged="pdfa2b" fontEntries={FONTS} layout={{ outputIntent: RGB_INTENT }}>
+                <Paragraph>x</Paragraph>
+            </Document>,
+        );
+        expect(codes(report)).not.toContain('L_OUTPUT_INTENT_IGNORED');
+    });
+
+    it('L_OUTPUT_INTENT_IGNORED — under pdfx the intent is mandatory, not ignored', () => {
+        const report = lintDocument(
+            <Document pdfx="pdfx4" outputIntent={CMYK_INTENT} fontEntries={FONTS} metadata={{ trapped: 'False' }}>
                 <Paragraph>x</Paragraph>
             </Document>,
         );
@@ -745,6 +751,357 @@ describe('print-production and viewer rules', () => {
             </Document>,
         );
         expect(codes(report)).not.toContain('L_TAGGED_FORM_FONTS');
+    });
+});
+
+describe('output-intent profile rule (engine 1.8.0)', () => {
+    const intentOf = (iccProfile: Uint8Array) => ({ iccProfile, outputConditionIdentifier: 'x' });
+
+    it('L_OUTPUT_INTENT_PROFILE — a hand-made stub is rejected with the engine’s message', () => {
+        const stub = new Uint8Array(200);
+        stub.set([0x43, 0x4d, 0x59, 0x4b], 16); // spells CMYK at byte 16, nothing else
+        const report = lintDocument(
+            <Document tagged="pdfa2b" fontEntries={LATIN} layout={{ outputIntent: intentOf(stub) }}>
+                <Paragraph>x</Paragraph>
+            </Document>,
+        );
+        const f = report.findings.find((x) => x.code === 'L_OUTPUT_INTENT_PROFILE');
+        expect(f?.message).toBe('outputIntent.iccProfile is not an ICC profile (no `acsp` signature at byte 36)');
+        expect(report.ok).toBe(false);
+    });
+
+    it('L_OUTPUT_INTENT_PROFILE — too short, truncated, and a non-RGB/CMYK/Gray space', () => {
+        const short = lintDocument(
+            <Document tagged layout={{ outputIntent: intentOf(new Uint8Array(3)) }}>
+                <Paragraph>x</Paragraph>
+            </Document>,
+        );
+        expect(short.findings.find((x) => x.code === 'L_OUTPUT_INTENT_PROFILE')?.message).toContain('too short');
+
+        const truncated = buildSyntheticCmykProfile().slice(0, 500);
+        const trunc = lintDocument(
+            <Document tagged layout={{ outputIntent: intentOf(truncated) }}>
+                <Paragraph>x</Paragraph>
+            </Document>,
+        );
+        expect(trunc.findings.find((x) => x.code === 'L_OUTPUT_INTENT_PROFILE')?.message).toContain('truncated or corrupt');
+
+        const lab = new Uint8Array(buildSyntheticGrayProfile());
+        lab.set([0x4c, 0x61, 0x62, 0x20], 16); // 'Lab '
+        const space = lintDocument(
+            <Document tagged layout={{ outputIntent: intentOf(lab) }}>
+                <Paragraph>x</Paragraph>
+            </Document>,
+        );
+        expect(space.findings.find((x) => x.code === 'L_OUTPUT_INTENT_PROFILE')?.message).toContain("'Lab'");
+    });
+
+    it('L_OUTPUT_INTENT_PROFILE — the three synthetic profiles pass', () => {
+        for (const intent of [RGB_INTENT, CMYK_INTENT, GRAY_INTENT]) {
+            const report = lintDocument(
+                <Document tagged="pdfa2b" fontEntries={LATIN} layout={{ outputIntent: intent }}>
+                    <Paragraph>x</Paragraph>
+                </Document>,
+            );
+            expect(codes(report), intent.outputConditionIdentifier).not.toContain('L_OUTPUT_INTENT_PROFILE');
+        }
+    });
+});
+
+describe('PDF/X-4 rules (engine 1.8.0)', () => {
+    /** A PDF/X-4 document that lints clean. */
+    const clean = (
+        <Document
+            pdfx="pdfx4"
+            fontEntries={LATIN}
+            metadata={{ trapped: 'False' }}
+            outputIntent={CMYK_INTENT}
+            print={{ bleed: 14.17, marks: { crop: true, colourBars: true } }}
+        >
+            <Heading level={1}>Press</Heading>
+            <Paragraph color={[0, 0, 0, 100]}>Body</Paragraph>
+        </Document>
+    );
+
+    it('a coherent PDF/X-4 document has no findings', () => {
+        expect(lintDocument(clean).findings).toEqual([]);
+    });
+
+    it('L_PDFX_TARGET — an unknown target (reachable from JSON) names the valid ones', () => {
+        const report = lintSpec({
+            pdfx: 'pdfx3' as never,
+            outputIntent: CMYK_INTENT,
+            fontEntries: LATIN,
+            metadata: { trapped: 'False' },
+            blocks: [['p', 'x']],
+        });
+        const f = report.findings.find((x) => x.code === 'L_PDFX_TARGET');
+        expect(f?.message).toContain("unknown target 'pdfx3'");
+        expect(f?.message).toContain('pdfx4');
+        expect(report.ok).toBe(false);
+    });
+
+    it('L_PDFX_TAGGED_CONFLICT — pdfx and tagged together', () => {
+        const report = lintDocument(
+            <Document pdfx="pdfx4" tagged="pdfa2b" fontEntries={LATIN} outputIntent={CMYK_INTENT} metadata={{ trapped: 'False' }}>
+                <Paragraph>x</Paragraph>
+            </Document>,
+        );
+        expect(report.findings.find((x) => x.code === 'L_PDFX_TAGGED_CONFLICT')?.message).toBe(
+            'layout.pdfx and layout.tagged cannot be combined — pdfnative writes one conformance claim per file; drop one of them',
+        );
+    });
+
+    it('L_PDFX_ENCRYPTED — pdfx and encryption together', () => {
+        const report = lintDocument(
+            <Document
+                pdfx="pdfx4"
+                fontEntries={LATIN}
+                outputIntent={CMYK_INTENT}
+                metadata={{ trapped: 'False' }}
+                layout={{ encryption: { ownerPassword: 'secret' } }}
+            >
+                <Paragraph>x</Paragraph>
+            </Document>,
+        );
+        expect(report.findings.find((x) => x.code === 'L_PDFX_ENCRYPTED')?.message).toBe(
+            'PDF/X forbids encryption (ISO 15930-7) — drop layout.encryption or layout.pdfx',
+        );
+    });
+
+    it('L_PDFX_OUTPUT_INTENT — missing, and a monitor (mntr) profile', () => {
+        const missing = lintDocument(
+            <Document pdfx="pdfx4" fontEntries={LATIN} metadata={{ trapped: 'False' }}>
+                <Paragraph>x</Paragraph>
+            </Document>,
+        );
+        expect(missing.findings.find((x) => x.code === 'L_PDFX_OUTPUT_INTENT')?.message).toContain(
+            'PDF/X-4 requires layout.outputIntent',
+        );
+
+        const monitor = lintDocument(
+            <Document pdfx="pdfx4" fontEntries={LATIN} metadata={{ trapped: 'False' }} outputIntent={RGB_INTENT}>
+                <Paragraph>x</Paragraph>
+            </Document>,
+        );
+        expect(monitor.findings.find((x) => x.code === 'L_PDFX_OUTPUT_INTENT')?.message).toBe(
+            "PDF/X-4 requires an output (printer) profile as layout.outputIntent — the supplied profile's class is 'mntr'",
+        );
+        // A Gray output profile is a printer profile too.
+        const gray = lintDocument(
+            <Document pdfx="pdfx4" fontEntries={LATIN} metadata={{ trapped: 'False' }} outputIntent={GRAY_INTENT}>
+                <Paragraph>x</Paragraph>
+            </Document>,
+        );
+        expect(codes(gray)).not.toContain('L_PDFX_OUTPUT_INTENT');
+    });
+
+    it("L_PDFX_TRAPPED_UNKNOWN — trapped 'Unknown' under PDF/X", () => {
+        const report = lintDocument(
+            <Document pdfx="pdfx4" fontEntries={LATIN} outputIntent={CMYK_INTENT} metadata={{ trapped: 'Unknown' }}>
+                <Paragraph>x</Paragraph>
+            </Document>,
+        );
+        expect(codes(report)).toContain('L_PDFX_TRAPPED_UNKNOWN');
+        // Omitted trapped is 'False' to the engine — clean.
+        const omitted = lintDocument(
+            <Document pdfx="pdfx4" fontEntries={LATIN} outputIntent={CMYK_INTENT}>
+                <Paragraph>x</Paragraph>
+            </Document>,
+        );
+        expect(codes(omitted)).not.toContain('L_PDFX_TRAPPED_UNKNOWN');
+    });
+
+    it('L_PDFX_BOXES — an ArtBox beside a TrimBox source', () => {
+        for (const print of [
+            { artBox: [30, 30, 560, 800] as const, bleed: 9 },
+            { artBox: [30, 30, 560, 800] as const, trimBox: [20, 20, 575, 822] as const },
+        ]) {
+            const report = lintDocument(
+                <Document pdfx="pdfx4" fontEntries={LATIN} outputIntent={CMYK_INTENT} print={print}>
+                    <Paragraph>x</Paragraph>
+                </Document>,
+            );
+            expect(codes(report), JSON.stringify(print)).toContain('L_PDFX_BOXES');
+        }
+        const artOnly = lintDocument(
+            <Document pdfx="pdfx4" fontEntries={LATIN} outputIntent={CMYK_INTENT} print={{ artBox: [30, 30, 560, 800] }}>
+                <Paragraph>x</Paragraph>
+            </Document>,
+        );
+        expect(codes(artOnly)).not.toContain('L_PDFX_BOXES');
+    });
+
+    it('L_PDFX_NO_FONTS — PDF/X-4 without embedded fonts is an error', () => {
+        const report = lintDocument(
+            <Document pdfx="pdfx4" outputIntent={CMYK_INTENT}>
+                <Paragraph>x</Paragraph>
+            </Document>,
+        );
+        expect(codes(report)).toContain('L_PDFX_NO_FONTS');
+        expect(report.ok).toBe(false);
+    });
+
+    it('L_PDFX_ANNOTATIONS — links and form fields warn, with a block index', () => {
+        const report = lintDocument(
+            <Document pdfx="pdfx4" fontEntries={LATIN} outputIntent={CMYK_INTENT}>
+                <Paragraph>x</Paragraph>
+                <Link url="https://pdfnative.dev">Read the docs</Link>
+                <FormField fieldType="text" name="email" label="Email" />
+            </Document>,
+        );
+        const found = report.findings.filter((x) => x.code === 'L_PDFX_ANNOTATIONS');
+        expect(found.map((x) => x.blockIndex)).toEqual([1, 2]);
+        expect(found.every((x) => x.severity === 'warning')).toBe(true);
+    });
+
+    it('none of the PDF/X rules fire on a document without pdfx', () => {
+        const report = lintDocument(
+            <Document tagged="pdfa3b" fontEntries={LATIN} metadata={{ trapped: 'Unknown' }} print={{ artBox: [30, 30, 560, 800], bleed: 9 }}>
+                <Link url="https://pdfnative.dev">Read the docs</Link>
+            </Document>,
+        );
+        expect(codes(report).filter((c) => c.startsWith('L_PDFX_'))).toEqual([]);
+    });
+});
+
+describe('typography and colour rules (engine 1.8.0)', () => {
+    it('L_TYPOGRAPHY_INEFFECTIVE — orphans/widows without splitParagraphs', () => {
+        const report = lintDocument(
+            <Document typography={{ orphans: 3 }}>
+                <Paragraph>x</Paragraph>
+            </Document>,
+        );
+        expect(codes(report)).toContain('L_TYPOGRAPHY_INEFFECTIVE');
+        expect(report.ok).toBe(true); // a warning
+    });
+
+    it('L_TYPOGRAPHY_INEFFECTIVE — unknown feature tags, and features/kerning/fr without fonts', () => {
+        const unknown = lintDocument(
+            <Document fontEntries={LATIN} typography={{ fontFeatures: ['tnum', 'liga'] }}>
+                <Paragraph>x</Paragraph>
+            </Document>,
+        );
+        expect(unknown.findings.find((x) => x.code === 'L_TYPOGRAPHY_INEFFECTIVE')?.message).toContain('liga');
+
+        const noFonts = lintDocument(
+            <Document typography={{ kerning: true, fontFeatures: ['tnum'], punctuationSpacing: 'fr' }}>
+                <Paragraph>x</Paragraph>
+            </Document>,
+        );
+        const f = noFonts.findings.find((x) => x.code === 'L_TYPOGRAPHY_INEFFECTIVE');
+        expect(f?.message).toContain('kerning');
+        expect(f?.message).toContain("'fr'");
+    });
+
+    it('L_TYPOGRAPHY_INEFFECTIVE — line quotas below 1', () => {
+        const report = lintDocument(
+            <Document typography={{ splitParagraphs: true, widows: 0, keepHeadingsWithNext: { minLines: 0 } }}>
+                <Paragraph>x</Paragraph>
+            </Document>,
+        );
+        expect(codes(report).filter((c) => c === 'L_TYPOGRAPHY_INEFFECTIVE')).toHaveLength(2);
+    });
+
+    it('L_TYPOGRAPHY_INEFFECTIVE — a well-formed typography block with fonts is clean', () => {
+        const report = lintDocument(
+            <Document
+                fontEntries={LATIN}
+                typography={{
+                    splitParagraphs: true,
+                    orphans: 2,
+                    widows: 2,
+                    keepHeadingsWithNext: { minLines: 3 },
+                    unitBinding: true,
+                    bindShortWords: { words: ['a', 'w'] },
+                    punctuationSpacing: 'fr',
+                    opticalMargins: true,
+                    metrics: 'exact',
+                    fontFeatures: ['tnum'],
+                    kerning: true,
+                    hyphenationLanguage: 'en',
+                }}
+            >
+                <Paragraph align="justify">x</Paragraph>
+            </Document>,
+        );
+        expect(report.findings).toEqual([]);
+    });
+
+    it('L_PRINT_COLOUR_BARS — a thin bleed strip clamps or skips the bars', () => {
+        const skipped = lintDocument(
+            <Document print={{ bleed: 3, marks: { colourBars: true } }}>
+                <Paragraph>x</Paragraph>
+            </Document>,
+        );
+        expect(skipped.findings.find((x) => x.code === 'L_PRINT_COLOUR_BARS')?.message).toContain('skips');
+
+        const clamped = lintDocument(
+            <Document print={{ bleed: 8.5, marks: { colourBars: { tints: false, size: 12 } } }}>
+                <Paragraph>x</Paragraph>
+            </Document>,
+        );
+        expect(clamped.findings.find((x) => x.code === 'L_PRINT_COLOUR_BARS')?.message).toContain('clamped');
+
+        const fine = lintDocument(
+            <Document print={{ bleed: 14.17, marks: { colourBars: true } }}>
+                <Paragraph>x</Paragraph>
+            </Document>,
+        );
+        expect(codes(fine)).not.toContain('L_PRINT_COLOUR_BARS');
+
+        const explicit = lintDocument(
+            <Document print={{ trimBox: [20, 20, 575, 822], marks: { colourBars: true } }}>
+                <Paragraph>x</Paragraph>
+            </Document>,
+        );
+        expect(codes(explicit)).not.toContain('L_PRINT_COLOUR_BARS');
+    });
+
+    it('L_CMYK_INTENT_MISMATCH — CMYK colours under an RGB or Gray intent', () => {
+        const pdfa = lintDocument(
+            <Document tagged="pdfa2b" fontEntries={LATIN}>
+                <Heading level={1} color={[0, 0, 0, 100]}>Ink</Heading>
+                <Paragraph color="0 1 1 0">Body</Paragraph>
+            </Document>,
+        );
+        const f = pdfa.findings.find((x) => x.code === 'L_CMYK_INTENT_MISMATCH');
+        expect(f?.message).toContain('2 CMYK colour(s)');
+        expect(f?.message).toContain('PDFA_DEVICE_CMYK_CONTENT');
+        expect(f?.severity).toBe('warning');
+
+        const pdfxGray = lintDocument(
+            <Document pdfx="pdfx4" fontEntries={LATIN} outputIntent={GRAY_INTENT}>
+                <Chart chartType="bar" series={[{ label: 'A', values: [1], color: [100, 0, 0, 0] }]} altText="x" />
+            </Document>,
+        );
+        expect(pdfxGray.findings.find((x) => x.code === 'L_CMYK_INTENT_MISMATCH')?.message).toContain('PDFX_DEVICE_CMYK');
+    });
+
+    it('L_CMYK_INTENT_MISMATCH — clean under a CMYK intent, and without any claim', () => {
+        const cmyk = lintDocument(
+            <Document pdfx="pdfx4" fontEntries={LATIN} outputIntent={CMYK_INTENT}>
+                <Paragraph color={[0, 0, 0, 100]}>Body</Paragraph>
+            </Document>,
+        );
+        expect(codes(cmyk)).not.toContain('L_CMYK_INTENT_MISMATCH');
+
+        const plain = lintDocument(
+            <Document>
+                <Paragraph color={[0, 0, 0, 100]}>Body</Paragraph>
+            </Document>,
+        );
+        expect(codes(plain)).not.toContain('L_CMYK_INTENT_MISMATCH');
+
+        // An RGB tuple and an RGB operand string are never mistaken for CMYK.
+        const rgb = lintDocument(
+            <Document tagged="pdfa2b" fontEntries={LATIN}>
+                <Paragraph color={[30, 41, 59]}>Body</Paragraph>
+                <Paragraph color="0.1 0.2 0.3">Body</Paragraph>
+                <Paragraph color="#abcd">Body</Paragraph>
+            </Document>,
+        );
+        expect(codes(rgb)).not.toContain('L_CMYK_INTENT_MISMATCH');
     });
 });
 

@@ -4,8 +4,8 @@ Native vector charts, drawn with PDF path operators. No rasterisation, no chart
 library, no new runtime dependency — and the output is real vector art that
 stays sharp at any zoom and passes PDF/A.
 
-Requires the `pdfnative` engine ≥ 1.7.0, which is the peer floor as of
-pdfnative-react 1.2.0.
+Charts v2 shipped with engine 1.7.0; the peer floor as of pdfnative-react 1.3.0
+is engine ≥ 1.8.0, which adds CMYK palettes (see Colours below).
 
 Runnable: [`samples/charts/charts.tsx`](../samples/charts/charts.tsx) (the
 basics) and [`samples/charts/charts-v2.tsx`](../samples/charts/charts-v2.tsx)
@@ -161,9 +161,12 @@ The default palette is an eight-colour categorical set. Override per chart:
 series={[{ label: 'Net margin', values: [-4.2, 1.8, 6.5, 11.3], color: '#e15759' }]}
 ```
 
-Colours accept any `PdfColor`: a hex string, an RGB tuple, or a PDF operator
-string. They are injection-safe — the engine validates them before emitting
-operators.
+Colours accept any `PdfColor`: a hex string, an RGB tuple, a CMYK tuple in
+percent (`[0, 60, 100, 0]`), or a PDF operator string (RGB `'0.1 0.45 0.91'`
+or CMYK `'0 0.6 1 0'` — the component count picks the colour space). They are
+injection-safe — the engine validates them before emitting operators. Under a
+CMYK palette the tints of a stacked or area chart remove ink rather than
+mixing toward white; see [PRINT.md](PRINT.md).
 
 ## PDF/A
 
@@ -188,7 +191,7 @@ const fontEntries = await resolveFonts({
 Until 1.1.0 this page tracked stacked bars, area, scatter, secondary/log/time
 axes and per-point data labels as "Charts v2" on the engine's roadmap, and
 promised that "when they land there, they reach this package as new
-`ChartProps` fields". Engine 1.7.0 shipped them; pdfnative-react 1.2.0 exposes
+`ChartProps` fields". Engine 1.7.0 shipped them; pdfnative-react 1.2.0 exposes <!-- verify-docs:allow version-token -->
 every one of them, with full `DocSpec` and schema parity — and the
 compile-time `ChartPropsCoversChartBlock` lock is what enforced it: the peer
 bump was a build error until the surfaces matched.

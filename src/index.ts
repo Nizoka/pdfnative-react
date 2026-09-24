@@ -135,10 +135,23 @@ export {
     downloadBlob,
     initNodeCompression,
     setDeflateImpl,
+    // Engine ≥ 1.8.0: raw-DEFLATE injection, reproducible output, hyphenation
+    setDeflateRawImpl,
+    wrapZlib,
+    setDefaultCreationDate,
+    getDefaultCreationDate,
+    setHyphenationProvider,
+    getHyphenationProvider,
 } from './core-bridge/index.js';
 
 // Errors — stable, machine-readable taxonomy
-export { PdfStructureError, PdfReactError, ErrorCode, toErrorEnvelope } from './errors.js';
+export {
+    PdfStructureError,
+    PdfReactError,
+    ErrorCode,
+    toErrorEnvelope,
+    ENGINE_INPUT_ERROR_PREFIXES,
+} from './errors.js';
 export type { ErrorCodeValue, ErrorEnvelope } from './errors.js';
 
 // Agent surface: discovery, pre-flight, governance
@@ -161,6 +174,7 @@ export { version } from './version.js';
 // Public types
 export type {
     Align,
+    ParagraphAlign,
     Color,
     RenderOptions,
     FontsMap,
@@ -209,4 +223,15 @@ export type {
     PdfDiagnosticCode,
     PdfDiagnosticHandler,
     PdfColors,
+    // Engine ≥ 1.8.0: typography, CMYK, colour bars, PDF/X-4
+    TypographyOptions,
+    UnitBindingOptions,
+    PunctuationSpacingRule,
+    PunctuationSpacingPreset,
+    Base14Metrics,
+    HyphenationProvider,
+    ColourBarOptions,
+    PdfCmykTuple,
+    PdfCmykString,
+    PdfXConformanceTarget,
 } from './types.js';

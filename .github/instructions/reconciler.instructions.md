@@ -1,4 +1,5 @@
 ---
+description: "Use when touching the react-reconciler host config, the host tree, serialization or the layout sugar folding."
 applyTo: "src/reconciler/**"
 ---
 
@@ -25,6 +26,15 @@ sensitive part of the codebase.
     **non**-`item`/`list` children only (do not reuse `elementText`, which would
     swallow sub-item text), and returns a plain `string` when it has no
     sub-items so flat lists stay byte-identical.
+  - **Layout sugar** (`resolveLayout`): every `<Document>` sugar prop folds
+    whole into `layout` under the engine's key — no deep merge — and an
+    explicit `layout` prop wins. When no sugar is set and no `layout` is given
+    the result is `undefined`, never `{}`: an empty object changes the bytes of
+    every existing document (`tests/layout-sugar.test.tsx` pins it).
+    `creationDate` accepts a `Date` or an ISO string (`toCreationDate()`); an
+    unparseable string is an `E_INPUT` `PdfReactError`, never a silent
+    fallback to the clock. `keepWithNext` / `splittable` reach a block only
+    when set.
 - `nodes.ts` defines the in-memory host tree (`ElementNode`/`TextNode`).
 
 When changing any of these, run `npm test` — the compile/render tests assert the

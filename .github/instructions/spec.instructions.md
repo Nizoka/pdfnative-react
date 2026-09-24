@@ -1,4 +1,5 @@
 ---
+description: "Use when touching the compact DocSpec grammar, its compiler, the JSON Schema, validateSpec or the registry tables."
 applyTo: "src/spec/**"
 ---
 
@@ -15,9 +16,15 @@ with far fewer tokens than JSX. It is pure, isomorphic, and side-effect-free.
   not add layout primitives, and do not introduce props the components lack.
   Pure JSX sugar with no new capability (e.g. `<Section>`) is deliberately
   **not** given a tuple — agents emit the underlying blocks. Document-level
-  `outline`, `pageLabels`, `watermark`, `header`, `footer`, `attachments` and
-  `tagged` are top-level `DocSpec` fields (not tuples), mirroring `<Document>`.
-  Nested list items use `{ text, items }` in the `ul`/`ol` grammar.
+  `outline`, `pageLabels`, `watermark`, `header`, `footer`, `attachments`,
+  `tagged`, `print`, `pdfx`, `outputIntent`, `typography` and `creationDate`
+  are top-level `DocSpec` fields (not tuples), mirroring `<Document>`; a new
+  field is appended to `DOC_SPEC_FIELDS` in `src/registry.ts` (locked to
+  `keyof DocSpec`), forwarded by `specToElement`, and described in
+  `schema.ts` with its bounds (`typography` keys, the `pdfx` enum,
+  `creationDate` as `format: date-time`, colours as `$defs.color` — hex, RGB
+  tuple, CMYK tuple or operand string). Nested list items use `{ text, items }`
+  in the `ul`/`ol` grammar.
 - **`src/registry.ts` is the single source of truth.** `schema.ts` derives
   `$defs.block.oneOf` — including each tuple's kind discriminator, arity and
   description — from `BLOCK_REGISTRY`, and `validate.ts` derives its arity and
@@ -59,5 +66,9 @@ When you add a block kind, all ten steps are required. Steps **1, 3, 4, 5, 6 and
 
 The same discipline applies to a lint rule: add it to `LINT_RULES` in
 `src/registry.ts`, implement it in `src/lint.ts`, list it in
-`EMITTED_LINT_RULES`, and add a test — the registry alone cannot catch a rule
-that is declared but never emitted.
+`EMITTED_LINT_RULES`, add a test (one `it` per rule plus its clean case), and a
+row to `docs/LINTING.md` under the right severity (`verify:docs` rule
+`lint-rule-parity`) — the registry alone cannot catch a rule that is declared
+but never emitted. A rule that pre-empts an engine throw carries the engine's
+message verbatim, and the throw's prefix is in `ENGINE_INPUT_ERROR_PREFIXES`
+(`src/errors.ts`) so `toErrorEnvelope` classifies it as `E_INPUT`.

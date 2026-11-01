@@ -30,7 +30,8 @@ name: PDF/A Validation (veraPDF)
 # dependency (react-reconciler), and the validator is never bundled or
 # linked. The pinned release, its checksum and the install steps live in the
 # composite action .github/actions/setup-verapdf, shared with publish.yml, so
-# the URL/SHA-256 bump happens in one place.
+# the URL/SHA-256 bump happens in one place; the action hands the install
+# directory back as an output that the validate step passes as VERAPDF_HOME.
 
 on:
   push:
@@ -80,14 +81,14 @@ jobs:
       - name: Harden the runner
         uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
-          egress-policy: audit
+          egress-policy: audit # 2026-10-31: the veraPDF release server and Adoptium are not baselined yet
 
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - name: Setup Node.js
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .nvmrc
           cache: npm
@@ -97,6 +98,7 @@ jobs:
       # a floating "latest" URL can silently change the rule set between two
       # runs of the same commit. Bump deliberately in the action's default.
       - name: Setup veraPDF
+        id: verapdf
         uses: ./.github/actions/setup-verapdf
 
       - name: Install dependencies
@@ -111,9 +113,12 @@ jobs:
 
       # BLOCKING (see header). The exit code drives the step outcome — the
       # step fails naturally on a non-zero exit — and the summary step below
-      # surfaces the verdict.
+      # surfaces the verdict. The validator finds veraPDF through
+      # VERAPDF_HOME, scoped to this step (the action writes no GITHUB_ENV).
       - name: Validate PDF/A corpus (blocking)
         id: validate
+        env:
+          VERAPDF_HOME: ${{ steps.verapdf.outputs.home }}
         run: |
           set +e
           npm run validate:pdfa --silent -- --verbose 2> >(tee verapdf-stderr.txt >&2) | tee verapdf-report.txt

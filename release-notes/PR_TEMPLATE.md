@@ -102,7 +102,7 @@ Agents stop at this draft; everything below is done by the maintainer (`.github/
 
 - [ ] `npm run gate` passes — the CI profile in one command (`npm run gate:fast` for a quick loop while iterating; PowerShell swallows a bare `--`, so call `npx tsx scripts/gate.ts --fast` there)
 - [ ] All tests pass (`npm run test`)
-- [ ] Type check passes (`npm run typecheck:all` — src, tests, samples, scripts and the v1.2.0 compatibility snapshot)
+- [ ] Type check passes (`npm run typecheck:all` — src, tests, samples, scripts and the v1.2.0 and v1.3.0 compatibility snapshots)
 - [ ] Lint passes (`npm run lint`)
 - [ ] New code has tests (coverage thresholds in `vitest.config.ts` must not regress)
 - [ ] No `any` types introduced
@@ -112,7 +112,7 @@ Agents stop at this draft; everything below is done by the maintainer (`.github/
 - [ ] If docs, README, llms.txt, AGENTS.md, CLAUDE.md or `.claude/` changed: `npm run verify:docs` passes
 - [ ] No breaking change (`tests/api-surface.test.ts`, `tests/schema-superset.test.ts`, `tests/manifest-superset.test.ts` and `npm run typecheck:compat` are green), or documented and versioned accordingly
 - [ ] `CHANGELOG.md` updated (Unreleased section) if user-facing changes
-- [ ] For releases: `release-notes/vX.Y.Z.md` and this draft written, and `npx tsx scripts/gate.ts --publish --require-all` passes locally, which runs every individual gate: `typecheck:all`, `lint`, `build`, `dist-check`, `dist-probe`, `bundle-smoke`, `pack-check`, `test:generate`, `test:coverage`, `verify:docs`, `verify:samples`, `corpus:pdfa`, `validate:pdfx`, `validate:pdfa`
+- [ ] For releases: `release-notes/vX.Y.Z.md` and this draft written, and `npx tsx scripts/gate.ts --publish --require-all` passes locally, which runs every individual gate: `typecheck:all`, `lint`, `build`, `dist-check`, `dist-probe`, `bundle-smoke`, `pack-check`, `test:generate`, `test:coverage`, `compat:previous`, `verify:docs`, `verify:samples`, `corpus:pdfa`, `validate:pdfx`, `validate:pdfa`
 - [ ] Every figure above was produced by a command on this branch, not typed from memory
 - [ ] `release-notes/vX.Y.Z.md` and the CHANGELOG entry for X.Y.Z say the same things as this body
 - [ ] No `Co-Authored-By` trailer and no "generated with" footer anywhere on the branch

@@ -306,6 +306,9 @@ describe('release-prepare: main() over a sandbox tree', () => {
         put('llms.txt', '# pdfnative-react\n\nCurrent release: 1.2.0. Verified on 2026-07-25.\n');
         put('docs/KNOWLEDGE_BASE.md', '# KB\n\n> pdfnative-react **v1.2.0** reference. Verified on 2026-07-25.\n');
         put('docs/AGENT_CONTRACT.md', '# Contract\n\nVerified on 2026-07-25.\n');
+        put('docs/PRINT.md', '# Print\n\n_Applies to pdfnative-react v1.2.0. Verified on 2026-07-25 against the source tree._\n');
+        put('docs/REPRODUCIBLE.md', '# Reproducible\n\n_Verified on 2026-07-25._\n');
+        put('docs/TYPOGRAPHY.md', '# Typography\n\n_Verified on 2026-07-25._\n');
         put('CITATION.cff', 'cff-version: 1.2.0\nversion: 1.2.0\ndate-released: "2026-07-25"\n');
         put('SECURITY.md', '| `1.2.x` | :white_check_mark: |\n| `1.1.x` | security fixes only |\n| `< 1.1` | :x: |\n');
         put('README.md', '[![pdfnative](https://img.shields.io/badge/pdfnative-1.7-0a7e8c.svg)](x)\n');
@@ -322,7 +325,10 @@ describe('release-prepare: main() over a sandbox tree', () => {
         expect(read('package-lock.json').match(/"version": "1\.3\.0"/g)).toHaveLength(2);
         expect(read('src/version.ts')).toContain("'1.3.0'");
         expect(read('docs/assets/ecosystem.json')).toContain('"verifiedOn": "2026-09-22"');
-        for (const stamped of ['llms.txt', 'docs/KNOWLEDGE_BASE.md', 'docs/AGENT_CONTRACT.md']) expect(read(stamped)).toContain('Verified on 2026-09-22');
+        // Every stamped guide moves — the same list verify:docs holds to the manifest.
+        for (const stamped of ['llms.txt', 'docs/KNOWLEDGE_BASE.md', 'docs/AGENT_CONTRACT.md', 'docs/PRINT.md', 'docs/REPRODUCIBLE.md', 'docs/TYPOGRAPHY.md']) {
+            expect(read(stamped), stamped).toContain('Verified on 2026-09-22');
+        }
         expect(read('llms.txt')).toContain('Current release: 1.3.0');
         expect(read('docs/KNOWLEDGE_BASE.md')).toContain('**v1.3.0**');
         expect(read('CITATION.cff')).toContain('version: 1.3.0\ndate-released: "2026-09-22"');

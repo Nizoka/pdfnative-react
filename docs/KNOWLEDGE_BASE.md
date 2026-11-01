@@ -3,7 +3,7 @@
 This document explains how pdfnative-react is built and why. It is the reference
 for contributors and for AI agents working in this repository.
 
-> pdfnative-react **v1.3.0** on pdfnative 1.8.0. _Verified on 2026-09-22 against the source tree._
+> pdfnative-react **v1.4.0** on pdfnative 1.9.0. _Verified on 2026-11-01 against the source tree._
 
 ## 1. What this package is
 
@@ -66,8 +66,8 @@ Key properties:
 | `src/spec/validate.ts` | `validateSpec` — structural validation with no JSON-Schema engine. |
 | `src/types.ts` | Public types + type-only re-exports of the pdfnative model. |
 | `src/index.ts` | Public barrel. |
-| `scripts/` | The gate (`gate.ts`), the sample generator (`generate-samples.ts`, one child process per sample with the creation instant pinned), the baseline verifier (`verify-samples.ts`), the conformance corpus and its two validators (`generate-pdfa-corpus.ts`, `validate-pdfx.ts`, `validate-pdfa.ts`), the documentation verifier (`verify-docs.ts` over `lib/react-surface.ts`), `release-prepare.ts`, `build-claude-rules.ts`; `helpers/hermetic.ts` + `helpers/tz.ts` pin `TZ=UTC` and scrub operator variables first. See `scripts/README.md`. |
-| `tests/regression/` | The frozen 1.2.0 captures (`baselines/*.v1.2.0.json`), the sample byte baseline, the v1.2.0 samples compatibility snapshot (`compat/`), the engine-surface matrix. |
+| `scripts/` | The gate (`gate.ts`), the sample generator (`generate-samples.ts`, one child process per sample with the creation instant pinned), the baseline verifier (`verify-samples.ts`), the conformance corpus and its two validators (`generate-pdfa-corpus.ts`, `validate-pdfx.ts`, `validate-pdfa.ts`), the documentation verifier (`verify-docs.ts` over `lib/react-surface.ts`), the previous-release replay (`run-compat.ts`, see §6), `release-prepare.ts`, `build-claude-rules.ts`; `lib/jpx-fixture.ts` builds the JPEG 2000 fixtures the tests, the sample and the corpus share; `helpers/hermetic.ts` + `helpers/tz.ts` pin `TZ=UTC` and scrub operator variables first. See `scripts/README.md`. |
+| `tests/regression/` | The frozen 1.2.0 and 1.3.0 captures (`baselines/*.v1.2.0.json`, `baselines/*.v1.3.0.json`), the sample byte baseline, the v1.2.0 and v1.3.0 samples compatibility snapshots (`compat/`), the engine-surface matrix. |
 | `tests/tools/` | Tests of the repository tooling (gate, workflows, verify-docs, release-prepare, guard hook, agent config). |
 | `docs/assets/ecosystem.json` | Every count and version the docs quote; `verify:docs` derives what it can from the tree and holds the rest. |
 
@@ -78,16 +78,19 @@ Two import-graph invariants worth preserving:
   therefore without dragging the engine into the schema path. Emitting a schema
   stays a pure, dependency-free operation. (It is also why `LINT_RULES` lives in
   the registry and is merely *re-exported* from `lint.ts`.)
-- **`core-bridge` imports `setDefaultCreationDate`, `validatePrintOptions` and
-  `estimateChartHeight` as capability probes** for `doctor()` — a 1.8.0, a
-  1.7.0 and a 1.6.0 marker, probed newest-first for graded messaging (a 1.7.x
-  engine is reported as needing >= 1.8.0). Probing beats parsing a version
-  string out of `package.json` — it survives bundling into a browser build,
-  which the CLI learned the hard way when tsup flattened its `require` away.
-  `validatePrintOptions` doubles as the implementation of the `L_PRINT_BOXES`
-  lint rule (the engine's own validator, called in a try/catch, so the finding
-  carries the engine's message and can never drift). Together with `PG_W`/`PG_H`
-  (the engine's default page size, imported for the same rule) and
+- **`core-bridge` imports `resolveBidiLevels`, `setDefaultCreationDate`,
+  `validatePrintOptions` and `estimateChartHeight` as capability probes** for
+  `doctor()` — a 1.9.0, a 1.8.0, a 1.7.0 and a 1.6.0 marker, probed
+  newest-first for graded messaging (a 1.8.x engine is reported as needing
+  >= 1.9.0). Probing beats parsing a version string out of `package.json` —
+  it survives bundling into a browser build, which the CLI learned the hard
+  way when tsup flattened its `require` away. `validatePrintOptions` doubles
+  as the implementation of the `L_PRINT_BOXES` lint rule (the engine's own
+  validator, called in a try/catch, so the finding carries the engine's
+  message and can never drift — since engine 1.9.0 it covers the
+  `print.spotColours` declarations too), and `parseJPX` is the delegate of
+  `L_PDFA_JPX_IMAGE` on the same principle. Together with `PG_W`/`PG_H` (the
+  engine's default page size, imported for the same rule) and
   `PDF_X_CONFORMANCE_TARGETS` (the `L_PDFX_TARGET` rule), none of these are
   re-exported from the public barrel. The six environment helpers that ARE
   re-exported (`setDeflateRawImpl`, `wrapZlib`, `setDefaultCreationDate`,
@@ -146,7 +149,8 @@ Notes learned the hard way:
 - **Document-level** `outline` and `pageLabels` are `<Document>` props (not
   content blocks) — they reference post-layout page indexes, like `metadata`.
 - **Layout sugar** (`watermark`, `header`, `footer`, `attachments`, `tagged`,
-  `print`, and since 1.3.0 `pdfx`, `outputIntent`, `typography`, `creationDate`) is
+  `print`, since 1.3.0 `pdfx`, `outputIntent`, `typography`, `creationDate`,
+  and since 1.4.0 `direction`) is
   likewise `<Document>` props: page furniture, not blocks in the flow. Making
   them components would mean host tags with no corresponding pdfnative block,
   which golden rule 2 forbids. `resolveLayout()` folds them into `layout` under
@@ -158,11 +162,26 @@ Notes learned the hard way:
   pins this. `creationDate` accepts a `Date` or an ISO 8601 string (the
   `DocSpec` form): `toCreationDate()` converts, and an unparseable string is an
   `E_INPUT` `PdfReactError` — never a silent fallback to the clock. `typography`
-  is folded whole (no deep merge), like `print`.
+  is folded whole (no deep merge), like `print`; `direction`
+  (`'auto' | 'ltr' | 'rtl'`, engine 1.9.0) folds to `layout.direction`.
 - **`ParagraphAlign`** (`Align | 'justify'`) is a separate type because `Align`
   is shared by images, barcodes, SVG and charts, which the engine does not
-  justify; `keepWithNext` / `splittable` reach the heading and paragraph blocks
-  only when set (`compact()`), so an unchanged document keeps its bytes.
+  justify; `keepWithNext` / `splittable` / `direction` reach the heading and
+  paragraph blocks only when set (`compact()`), so an unchanged document keeps
+  its bytes.
+- **Images pass through.** `image.data` is handed to the engine as-is: JPEG,
+  PNG without an alpha channel (colour types 0, 2 and 3 — the engine's
+  `parsePNG` refuses 4 and 6 rather than split an `/SMask`, an `E_INPUT`
+  envelope; flatten first) or — since engine 1.9.0 — JPEG 2000 (a JP2 file or
+  a raw J2K codestream), which the engine writes as `/JPXDecode` under a
+  `%PDF-1.5` header; the format comes from the magic bytes, never from a prop. The
+  serializer never parses image bytes; `L_PDFA_JPX_IMAGE` (the engine's
+  `parseJPX`, for the channel count under a PDF/A claim) is the one place the
+  authoring side looks inside them.
+- **Colour values** pass through too, including the 1.9.0 spot forms
+  (`{ spot, tint? }`, `{ inks }`): the serializer carries them to every colour
+  position unchanged, and the lint rules `L_SPOT_UNDECLARED` / `L_SPOT_INK_MIX`
+  resolve them against `print.spotColours` the way the engine will.
 - `<Section>` is a **composite** component: React resolves it to a `<Heading>`
   (optionally preceded by `<PageBreak>`) plus its children *before* the
   reconciler runs, so the serializer never sees a `section` host tag.
@@ -224,30 +243,50 @@ Notes learned the hard way:
   `pdfnative/fonts/*` data subpaths are a documented consumer pattern and
   fair game anywhere).
 - `tests/typography.test.tsx`, `tests/color.test.tsx`, `tests/pdfx.test.tsx`,
-  `tests/reproducible.test.tsx`, `tests/fonts-27.test.tsx`, `tests/doctor.test.ts` —
+  `tests/reproducible.test.tsx`, `tests/fonts-32.test.tsx`, `tests/doctor.test.ts` —
   the 1.3.0 surface: the twelve typography keys through both doors, CMYK on
   every colour position, a real PDF/X-4 file accepted by the engine's
   `validatePdfX` plus every negative, the creation-date pin and its
-  precedence, the five new font modules, the doctor probe order.
+  precedence, the font modules of the bundled Unicode scripts (twenty-seven
+  in 1.3.0, thirty-two in 1.4.0 — hence the rename from `fonts-27`), the
+  doctor probe order (`resolveBidiLevels` first since 1.4.0). The 1.4.0
+  surface — `direction`, spot colours, the dual PDF/A-2 + PDF/X-4 claim,
+  per-value chart colours, JPEG 2000 — lands in the same suites plus
+  `tests/lint.test.tsx` (one assertion per new rule, the engine's message
+  held to the throw it pre-empts).
+- `tests/property-validate.test.ts` — the fast-check property tier beside the
+  seeded fuzz: for every generated input, `validateSpec` and `toErrorEnvelope`
+  never throw and return their documented shapes (one of the six codes),
+  `lintSpec` never throws on a spec `validateSpec` accepts and reports
+  registry codes only, and `doctor()` never throws; a failure prints the
+  shrunk counter-example and the seed to replay it.
 - `tests/api-surface.test.ts`, `tests/schema-superset.test.ts`,
   `tests/manifest-superset.test.ts` — the zero-breaking-change proofs against
-  the frozen 1.2.0 captures under `tests/regression/baselines/`; the fourth
-  proof is `npm run typecheck:compat`, which compiles the frozen v1.2.0 samples
-  (`tests/regression/compat/`) against the current `src/`.
+  the frozen 1.2.0 **and** 1.3.0 captures under `tests/regression/baselines/`
+  (`*.v1.2.0.json`, `*.v1.3.0.json`); the fourth proof is
+  `npm run typecheck:compat`, which compiles the frozen v1.2.0 and v1.3.0
+  samples (`tests/regression/compat/`) against the current `src/`; the fifth
+  is `npm run compat:previous` (`scripts/run-compat.ts`): the v1.3.0 test
+  suite replayed against the current sources, with
+  `tests/regression/compat/allow-v1.3.0.json` naming each assertion a
+  declared behaviour change retires — a publish-profile gate step and the
+  required CI check `compat-previous`.
 - `tests/regression/samples.test.ts`, `tests/regression/reproducible-build.test.ts`,
   `tests/regression/engine-surface.test.ts` — the byte baseline, the two-time-zone
-  proof over `dist/index.js`, and the engine-surface matrix (every 1.8.0
-  changelog bullet mapped to a test or a waiver).
-- `tests/tools/*` — the gate table, the nine workflows, the guard hook, the
-  agent configuration, `verify-docs` (run on the real tree and on a corrupted
+  proof over `dist/index.js`, and the engine-surface matrix (every 1.8.0 and
+  1.9.0 changelog bullet mapped to a test or a waiver).
+- `tests/tools/*` — the gate table, the ten workflows (`node-current.yml`
+  since 1.4.0) and the seven required checks, the guard hook, the agent
+  configuration, `verify-docs` (run on the real tree and on a corrupted
   sandbox), `release-prepare`, the hermetic environment.
 - jsdom lacks `URL.createObjectURL`; `tests/setup.ts` stubs it. vitest runs
   under `TZ=UTC` with `pool: 'forks'`; node-only suites carry
   `// @vitest-environment node`.
 
 Beyond vitest sits the **conformance tier**: `scripts/generate-pdfa-corpus.ts`
-renders a 16-file corpus through the *built* package (both authoring doors,
-all four PDF/A targets, PDF/X-4, typography and CMYK under a claim) into
+renders a 20-file corpus through the *built* package (both authoring doors,
+all four PDF/A targets, PDF/X-4, the dual PDF/A-2b + PDF/X-4 file, spot
+colours, JPEG 2000, typography and CMYK under a claim) into
 `test-output/pdfa/`; `scripts/validate-pdfx.ts` checks the PDF/X files with
 the engine's `validatePdfX()` in-process (never skipped, a `ci` gate step), and
 `scripts/validate-pdfa.ts` validates every PDF/A-claiming file with the pinned
@@ -279,7 +318,11 @@ bytes; precedence prop > default > clock), `tests/regression/reproducible-build.
 `2026-01-01T00:00:00Z`) and held by `npm run verify:samples` on Linux, Windows
 and macOS. The baseline is a chain: each entry carries `since`, the release
 whose output it is, carried forward while the sample is unchanged; a
-rebaseline is a declared decision in the release note. `IDENTICAL_SAMPLE_GROUPS`
+rebaseline is a declared decision in the release note. 1.4.0 declares one:
+engine 1.9.0 changes the bytes of every sample that embeds a font (lean,
+compact subsets, the six-letter subset tag — deterministic from the glyph
+set, so the promise holds — one text object per line, `/ActualText` spans),
+while the base-14-only samples keep `since: 1.3.0`. `IDENTICAL_SAMPLE_GROUPS`
 lists the one pair rendered twice on purpose; `ENCRYPTED_SAMPLES` is empty —
 no sample of this repository encrypts, and the semantic fingerprint mode
 exists only to fail loudly if one ever does.
@@ -419,11 +462,14 @@ output rather than guessing. Unknown top-level fields are a *warning*, not an
 error, which preserves forward compatibility when a newer spec meets an older
 package.
 
-Tier 3 is where the real leverage is: twenty of the 37 lint rules — the eight
-`L_CHART_*` errors, `L_PRINT_BOXES`, `L_VIEWER_PRINT_RANGE`,
+Tier 3 is where the real leverage is: twenty-three of the 41 lint rules — the
+nine `L_CHART_*` errors, `L_PRINT_BOXES`, `L_VIEWER_PRINT_RANGE`,
 `L_ATTACHMENTS_NEED_PDFA3`, `L_TAGGED_ENCRYPTED`, `L_MAX_BLOCKS_EXCEEDED`,
-`L_OUTPUT_INTENT_PROFILE` and the six PDF/X coherence rules — mirror
-validation the engine performs by **throwing at build time**.
+`L_OUTPUT_INTENT_PROFILE`, the two spot-colour rules (`L_SPOT_UNDECLARED`,
+`L_SPOT_INK_MIX`) and the six PDF/X coherence rules — mirror validation the
+engine performs by **throwing at build time**; six more mirror a diagnostic
+that throws under `layout.strict`, and two catch output that renders but is
+wrong.
 `L_ATTACHMENTS_NEED_PDFA3` exists because writing
 `samples/layout/watermark-header-footer.tsx` hit exactly that throw;
 `L_CHART_EMPTY` and `L_MAX_BLOCKS_EXCEEDED` because later review rounds found
@@ -434,9 +480,12 @@ finding is the engine's own message; the six PDF/X rules of 1.3.0 restate the
 engine's throws in the same order and with the same wording (a parity test
 holds each message to the throw it pre-empts), and `ENGINE_INPUT_ERROR_PREFIXES`
 in `errors.ts` classifies the same throws as `E_INPUT` for callers who skip the
-linter. Since engine 1.7.0 there is also a render-time diagnostics channel
-(`layout.strict` / `layout.onDiagnostic`) for the conformance problems only a
-render can see — 9 diagnostic codes as of 1.8.0; see `docs/LINTING.md`.
+linter — the 1.4.0 rules follow the pattern: `L_SPOT_UNDECLARED`,
+`L_SPOT_INK_MIX` and `L_CHART_SERIES_COLORS` restate the engine's messages,
+and the `Spot colour` / `Ink mix` prefixes joined the table. Since engine
+1.7.0 there is also a render-time diagnostics channel (`layout.strict` /
+`layout.onDiagnostic`) for the conformance problems only a render can see —
+13 diagnostic codes as of 1.9.0; see `docs/LINTING.md`.
 
 ### Error taxonomy
 
@@ -449,15 +498,19 @@ identical `instanceof` — `tests/agent.test.tsx` asserts the object identity, n
 just the behaviour.
 
 `toErrorEnvelope(unknown)` normalises *any* thrown value, so a caller only ever
-handles one shape.
+handles one shape. Since 1.4.0 it is total in the strict sense: a thrown value
+that refuses primitive conversion (a `Symbol.toPrimitive` that throws, a
+null-prototype object) is described by its object tag instead of re-throwing
+from inside the normaliser.
 
 ### `doctor()` must never throw
 
 Every check is wrapped: `doctor()` reports rather than raises, which is what
 makes it safe to call before anything else. The engine check is a **capability
-probe** (`typeof setDefaultCreationDate === 'function'`, falling back to
-`validatePrintOptions` and then `estimateChartHeight` to tell a 1.7.x or a
-1.6.x engine apart) rather than a
+probe** (`typeof resolveBidiLevels === 'function'` for the 1.9.0 floor,
+falling back to `setDefaultCreationDate`, `validatePrintOptions` and then
+`estimateChartHeight` to tell a 1.8.x, a 1.7.x or a 1.6.x engine apart)
+rather than a
 version-string parse: it works after bundling, in the browser, and it tests the
 capability we actually need instead of a number that claims it.
 
@@ -467,9 +520,10 @@ so a *completely absent* peer fails at module resolution — `doctor()` is never
 called. That failure is already unambiguous (`ERR_MODULE_NOT_FOUND`), and
 routing it through `doctor()` would mean giving up the static bridge that golden
 rule 1 rests on. What the probes do catch is an engine that resolves but is
-older than 1.8.0 — reported as `1.7.x` or `1.6.x` with an upgrade hint when
-the corresponding marker is present, and as missing-or-older otherwise; under a bundler or CJS
-interop an absent export yields `undefined` rather than a link error.
+older than 1.9.0 — reported as `1.8.x`, `1.7.x` or `1.6.x` with an upgrade
+hint when the corresponding marker is present, and as missing-or-older
+otherwise; under a bundler or CJS interop an absent export yields `undefined`
+rather than a link error.
 
 ### Governance duplication is deliberate
 

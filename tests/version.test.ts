@@ -23,6 +23,20 @@ describe('version', () => {
         expect(Number.isNaN(new Date(`${match?.[1] ?? ''}T00:00:00Z`).getTime())).toBe(false);
     });
 
+    it('dates the release once: CITATION.cff, the ecosystem manifest and the release note agree', async () => {
+        // The 1.4.0 audit found the release date typed in ten files and held by
+        // no check; verify:docs holds the "Verified on" stamps to the manifest,
+        // this test holds the three release-date fields to each other.
+        const cff = await readFile(join(process.cwd(), 'CITATION.cff'), 'utf8');
+        const released = /^date-released:\s*"?(\d{4}-\d{2}-\d{2})"?$/m.exec(cff)?.[1];
+        const manifest = JSON.parse(await readFile(join(process.cwd(), 'docs', 'assets', 'ecosystem.json'), 'utf8')) as { verifiedOn: string };
+        const note = await readFile(join(process.cwd(), 'release-notes', `v${version}.md`), 'utf8');
+        const noteDate = /^_Released (\d{4}-\d{2}-\d{2})_/m.exec(note)?.[1];
+        expect(released, 'CITATION.cff date-released').toBeDefined();
+        expect(manifest.verifiedOn, 'ecosystem.json verifiedOn').toBe(released);
+        expect(noteDate, `release-notes/v${version}.md _Released_`).toBe(released);
+    });
+
     it('stays in sync with both version fields of package-lock.json', async () => {
         // The 1.2.0 release review found the lockfile one bump behind; the
         // maintainer's one-liner check is now a test.
@@ -45,7 +59,7 @@ describe('version', () => {
 });
 
 describe('engine contract', () => {
-    it('declares pdfnative as a peer at ^1.8.0, never a dependency', async () => {
+    it('declares pdfnative as a peer at ^1.9.0, never a dependency', async () => {
         const pkg = JSON.parse(
             await readFile(join(process.cwd(), 'package.json'), 'utf8'),
         ) as {
@@ -55,7 +69,7 @@ describe('engine contract', () => {
             engines: { node: string };
         };
 
-        expect(pkg.peerDependencies['pdfnative']).toBe('^1.8.0');
+        expect(pkg.peerDependencies['pdfnative']).toBe('^1.9.0');
         // The engine we test against is the engine we declare.
         expect(pkg.devDependencies['pdfnative']).toBe(pkg.peerDependencies['pdfnative']);
         expect(pkg.dependencies).not.toHaveProperty('pdfnative');

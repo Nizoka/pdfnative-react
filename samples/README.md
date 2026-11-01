@@ -29,6 +29,7 @@ npx tsx samples/agent/compact-spec.ts # writes compact-spec.pdf
 | [text/typography-french.tsx](text/typography-french.tsx) | The `punctuationSpacing` presets (`'fr'`, `'fr-CA'`) and explicit rules; the one sample with a `demo-language: fr` line. |
 | [table/data-table.tsx](table/data-table.tsx) | `<Row>`/`<Cell>` authoring, header row, typed rows, zebra, caption. |
 | [media/image.tsx](media/image.tsx) | Embedding raw PNG/JPEG bytes with `<Image>`. |
+| [media/image-jpx.tsx](media/image-jpx.tsx) | JPEG 2000 (engine 1.9.0): a JP2 file and a raw J2K codestream through `<Image>`, a JPEG 2000 watermark, and the `L_PDFA_JPX_IMAGE` rule under PDF/A-1. |
 | [media/link.tsx](media/link.tsx) | Clickable hyperlinks. |
 | [media/barcode.tsx](media/barcode.tsx) | All formats: QR, Code 128, EAN-13, PDF417, Data Matrix. |
 | [media/svg.tsx](media/svg.tsx) | Inline vector graphics with fill/stroke/viewBox. |
@@ -41,10 +42,11 @@ npx tsx samples/agent/compact-spec.ts # writes compact-spec.pdf
 | [structure/stream-to-file.tsx](structure/stream-to-file.tsx) | `renderToFileStream` — constant-memory output for large documents. |
 | [text/nested-lists.tsx](text/nested-lists.tsx) | Nested lists in all three authoring forms. |
 | [text/math.tsx](text/math.tsx) | Unicode math via the bundled Noto Sans Math font (`resolveFonts`). |
+| [text/rtl-direction.tsx](text/rtl-direction.tsx) | Right-to-left documents (engine 1.9.0): `direction="auto"` on `<Document>`, per-paragraph `direction` overrides, Arabic and Hebrew through `resolveFonts`; the one sample with a `demo-language: ar, he` line. |
 | [table/cell-borders.tsx](table/cell-borders.tsx) | Cell borders, vertical alignment, and `kind: 'amount'` columns. |
 | [fonts/custom-fonts.tsx](fonts/custom-fonts.tsx) | Registering a TTF for non-Latin scripts via `fontEntries`. |
 | [fonts/fonts-prop.tsx](fonts/fonts-prop.tsx) | `resolveFonts` and the async `options.fonts` shortcut (renders the same document twice — the pair is identical by design). |
-| [fonts/scripts-27.tsx](fonts/scripts-27.tsx) | The five scripts engine 1.8.0 adds (Lao, Tai Tham, New Tai Lue, Tai Le, Cham) and the Hausa/Yoruba/Igbo/Swahili Latin aliases through `resolveFonts`. |
+| [fonts/scripts-32.tsx](fonts/scripts-32.tsx) | The ten scripts engines 1.8.0 and 1.9.0 add (Lao, Tai Tham, New Tai Lue, Tai Le, Cham; Gujarati, Gurmukhi, Kannada, Malayalam, Odia) and the Hausa/Yoruba/Igbo/Swahili Latin aliases through `resolveFonts`. |
 | [layout/page-setup.tsx](layout/page-setup.tsx) | Page size, margins, and PDF/A-2b archival mode via `layout`. |
 | [layout/viewer-preferences.tsx](layout/viewer-preferences.tsx) | `layout.viewerPreferences` — control how a reader opens the PDF. |
 | [layout/debug-inspect.tsx](layout/debug-inspect.tsx) | `layout.debug` overlay + `inspectDocument` layout report. |
@@ -52,8 +54,10 @@ npx tsx samples/agent/compact-spec.ts # writes compact-spec.pdf
 | [layout/print-production.tsx](layout/print-production.tsx) | `print` — bleed + printer's marks, `trapped` metadata, and duplex/copies Print-dialog defaults. |
 | [layout/print-pdfx4.tsx](layout/print-pdfx4.tsx) | A press-ready PDF/X-4 sheet: `pdfx="pdfx4"`, a CMYK output intent, CMYK colours, crop marks and colour bars in a 5 mm bleed; linted first, checked with the engine's `validatePdfX` afterwards. |
 | [layout/cmyk.tsx](layout/cmyk.tsx) | CMYK colour on every colour position — text, links, table borders and zebra, chart palettes, watermark, header and footer. |
+| [layout/print-spot-colours.tsx](layout/print-spot-colours.tsx) | Spot colours (engine 1.9.0): `print.spotColours` declarations, `{ spot, tint }` and `{ inks }` on headings, table zebra and borders, and one ink per bar through `ChartSeries.colors`, on a PDF/X-4 sheet checked with `validatePdfX`. |
+| [layout/print-dual-pdfa2b-pdfx4.tsx](layout/print-dual-pdfa2b-pdfx4.tsx) | One file, both claims (engine 1.9.0): `tagged="pdfa2b"` and `pdfx="pdfx4"` together, linted clean and checked with `validatePdfX`. |
 | [charts/charts.tsx](charts/charts.tsx) | All five chart types: bar, horizontal bar, line, pie, donut — with axes, legends, palettes and negative values. |
-| [charts/charts-v2.tsx](charts/charts-v2.tsx) | Charts v2 (engine 1.7.0): stacked bars, area, scatter, time and dual axes, log scale, data labels, label rotation. | <!-- verify-docs:allow version-token -->
+| [charts/charts-v2.tsx](charts/charts-v2.tsx) | Charts v2 (engine 1.7.0): stacked bars, area, scatter, time and dual axes, log scale, data labels, label rotation; per-value bar colours and an unlabelled series (engine 1.9.0). | <!-- verify-docs:allow version-token -->
 
 ## Generate all, and the byte baseline
 
@@ -87,7 +91,7 @@ covers Next.js, Remix, Hono, Deno, Bun and Cloudflare Workers.
 | Sample | Shows |
 |---|---|
 | [quality/lint.tsx](quality/lint.tsx) | `lintDocument` — accessibility findings, rule filtering, the opt-in overflow check, and a CI gate. |
-| [quality/diagnostics.tsx](quality/diagnostics.tsx) | The conformance diagnostics channel (9 codes as of engine 1.8.0): `layout.onDiagnostic` sink, `layout.strict` escalation, and a `TYPOGRAPHY_FEATURE_INEFFECTIVE` example. |
+| [quality/diagnostics.tsx](quality/diagnostics.tsx) | The conformance diagnostics channel (13 codes as of engine 1.9.0): `layout.onDiagnostic` sink, `layout.strict` escalation, a `TYPOGRAPHY_FEATURE_INEFFECTIVE` example and a `TEXT_GLYPH_NOT_COVERED` one. |
 | [quality/reproducible.tsx](quality/reproducible.tsx) | Byte-reproducible output: `creationDate`, `setDefaultCreationDate`, UTC dates, the same SHA-256 twice, and how a pipeline applies `SOURCE_DATE_EPOCH` itself. |
 
 ## Agent samples — autonomous usage

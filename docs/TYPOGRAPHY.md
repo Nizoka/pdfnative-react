@@ -5,12 +5,16 @@ words — the `pdfnative` engine's typography options, reachable from JSX and
 from a `DocSpec`. Every option is off by default: a document that sets none
 renders byte-identically to earlier releases.
 
-_Applies to pdfnative-react v1.3.0 · pdfnative 1.8.0. Verified on 2026-09-22 against the source tree._
+_Applies to pdfnative-react v1.4.0 · pdfnative 1.9.0. Verified on 2026-11-01 against the source tree._
+The twelve typography keys shipped with engine 1.8.0 (release 1.3.0 of this
+package); `direction` (below) is engine 1.9.0 (release 1.4.0).
 
 Runnable: [`samples/text/typography-engine.tsx`](../samples/text/typography-engine.tsx)
-(every key, justification, soft hyphens, a hyphenation provider) and
+(every key, justification, soft hyphens, a hyphenation provider),
 [`samples/text/typography-french.tsx`](../samples/text/typography-french.tsx)
-(the punctuation-spacing presets).
+(the punctuation-spacing presets) and
+[`samples/text/rtl-direction.tsx`](../samples/text/rtl-direction.tsx)
+(right-to-left paragraphs).
 
 ## TL;DR
 
@@ -153,6 +157,30 @@ Soft hyphens (U+00AD) in the text are honoured as break opportunities and never
 drawn mid-word; a provider returns the break offsets for a word, and
 `hyphenationLanguage` is the tag it receives. `setHyphenationProvider(null)`
 removes it. The provider is process-wide, like `setDefaultCreationDate`.
+
+### Right-to-left text
+
+<!-- demo-language: ar (the Arabic paragraph exists to be set from the right margin by direction 'auto') -->
+```tsx
+<Document fontEntries={fontEntries} direction="auto">
+    <Paragraph>…عربي…</Paragraph>                 {/* set from the right margin */}
+    <Paragraph direction="ltr">English, forced.</Paragraph>
+```
+
+`direction` (`'auto' | 'ltr' | 'rtl'`, engine 1.9.0) is a `<Document>` prop —
+sugar over `layout.direction`, folded like `print` — and a `<Paragraph>` prop
+that overrides it per block; the `DocSpec` twins are the top-level `direction`
+field and the paragraph opt of the same name. `'auto'` resolves each
+paragraph's base direction from its first strong character (UAX #9 P2–P3), so
+an Arabic or Hebrew paragraph is set from the right margin, wraps on the
+right and carries its neutral punctuation with it; the engine runs the whole
+Unicode Bidirectional Algorithm, bracket pairs included. Every right-to-left
+run carries its logical text as an untagged `/Span /ActualText`, so
+extraction and copy-paste give back the source string; `layout.actualText:
+false` opts out. Omit `direction` and the output is byte-identical to earlier
+releases — the engine still reorders a right-to-left run inside a
+left-to-right line. Runnable:
+[`samples/text/rtl-direction.tsx`](../samples/text/rtl-direction.tsx).
 
 ## Previewing the effect
 

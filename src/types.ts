@@ -61,6 +61,10 @@ import type {
     PdfCmykString,
     HyphenationProvider,
     PdfXConformanceTarget,
+    TextDirection,
+    PdfSpotColor,
+    PdfInkMix,
+    SpotColourDef,
 } from 'pdfnative';
 
 export type {
@@ -119,6 +123,11 @@ export type {
     PdfCmykTuple,
     PdfCmykString,
     PdfXConformanceTarget,
+    // Bidirectional text and spot colours (engine ≥ 1.9.0)
+    TextDirection,
+    PdfSpotColor,
+    PdfInkMix,
+    SpotColourDef,
 };
 
 /** Horizontal alignment shared by several blocks. */
@@ -138,11 +147,19 @@ export type ParagraphAlign = Align | 'justify';
  * tuple (0–255), a PDF operator string (`'0.1 0.4 0.9'`), and — since engine
  * 1.8.0 — a CMYK tuple in percent (`[0, 60, 100, 0]`) or a four-operand
  * `'c m y k'` string (0.0–1.0), emitted as DeviceCMYK.
+ *
+ * Since engine 1.9.0 two object forms paint through named inks declared in
+ * `print.spotColours`: `{ spot: 'PANTONE 300 C', tint?: 0.5 }` (a
+ * `/Separation` space) and `{ inks: { 'PANTONE 300 C': 1, Varnish: 0.3 } }`
+ * (a `/DeviceN` mix). An ink the document does not declare is an engine
+ * throw, pre-empted by the `L_SPOT_UNDECLARED` lint rule.
  */
 export type Color =
     | string
     | readonly [number, number, number]
-    | readonly [number, number, number, number];
+    | readonly [number, number, number, number]
+    | PdfSpotColor
+    | PdfInkMix;
 
 /**
  * Options accepted by every render entry point. Forwarded to the underlying

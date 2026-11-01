@@ -20,11 +20,11 @@ Everything in AGENTS.md applies. This file adds only what is specific to Claude 
 
 - `npx tsx scripts/gate.ts --fast` before proposing a commit; `npm run gate` is the CI profile; `--publish --require-all` on release branches only.
 - `--only <step>` for one step, `--json` for machine output; logs in `test-output/.gate/<step>.log` — open only the failing step's log, through the shell.
-- When the gate exceeds the shell timeout, run it in the background and read the result with `--json`.
+- When the gate exceeds the shell timeout, run it in the background and read the result with `--json`; summarise, never paste logs.
 
 ## Where to look first
 
-1. `src/registry.ts` — the block grammar, the DocSpec fields, the components, the lint rules; `tests/regression/baselines/` — every frozen 1.2.0 capture.
+1. `src/registry.ts` — the block grammar, the DocSpec fields, the components, the lint rules; `tests/regression/baselines/` — every frozen 1.2.0 and 1.3.0 capture.
 2. AGENTS.md §Where is what — the path → purpose → instruction-file table.
 3. `docs/assets/ecosystem.json` — every count and version; `npm run verify:docs` enforces it.
 
@@ -40,13 +40,13 @@ React 19 ↔ `react-reconciler@^0.31` ↔ `@types/react-reconciler@^0.32`: the h
 - Multi-line `node -e` payloads and heredocs break on backticks, `$` and backslashes: write a script to the scratchpad and run it. An ESM import of an absolute Windows path needs a `file:///` URL.
 - veraPDF: portable install in `%USERPROFILE%\verapdf` with a JDK; the runner reads `VERAPDF_HOME` and `JAVACMD` (the JDK's `java.exe` — `JAVA_HOME` alone is not enough when spawned from Node).
 - vitest sometimes reports "no tests" right after a file write: run it again.
+- Run vitest from `D:\…` (capital drive letter) or every suite fails to find its suite; many backticks in `node -e` trip the shell check — use a scratchpad `.mjs`.
 
 ## Hooks and permissions in force
 
-- `.claude/hooks/guard.mjs` (PreToolUse on Bash **and** PowerShell) denies `npm publish`/`unpublish`/`deprecate`/`dist-tag`/`version <bump>`, `gh pr|issue create|edit|close|comment` (+ `pr merge`),
-  `gh release`, writing `gh api`, any `git push`, `git tag <name>` and `git add --renormalize` — in the whole command, every `&&`/`;`/`|` segment, `$( )`/backticks and
-  `sh -c`/`pwsh -Command`/`node -e`/`npx -c` payloads (a quoted string holding one is refused too — write such strings with Edit, never via echo/heredoc).
-  Those are submitted by the maintainer (.github/AGENT_RULES.md) — prepare, then stop. `tests/tools/guard.test.ts` is the rule table's contract.
+- `.claude/hooks/guard.mjs` (PreToolUse on Bash **and** PowerShell) denies `npm publish`/`unpublish`/`deprecate`/`dist-tag`/`version <bump>`, `gh pr|issue` writes, `gh release`,
+  writing `gh api`, any `git push`, `git tag <name>` and `git add --renormalize` — in every segment, subshell and `sh -c`/`pwsh -Command`/`node -e`/`npx -c` payload
+  (a quoted string holding one is refused too — write it with Edit). The maintainer submits those (.github/AGENT_RULES.md) — prepare, then stop. `tests/tools/guard.test.ts` is the contract.
 - `permissions.deny` blocks Read on the generated bulk files above and the same write commands, for both shells;
   `permissions.allow` pre-approves `npm run`, `npx vitest`, `npx tsx scripts/*`, `npx tsx samples/*`, `npx tsc`, `npx eslint`, `node -e` and read-only git.
 

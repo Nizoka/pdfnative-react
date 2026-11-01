@@ -1,0 +1,15 @@
+# Issue chooser (GitHub reads this file next to the templates).
+# Blank issues are off so every report lands in a template with the
+# reproduction fields the maintainer needs; security reports never go to a
+# public issue — the first link is the private advisory form (SECURITY.md).
+blank_issues_enabled: false
+contact_links:
+  - name: Report a vulnerability (private)
+    url: https://github.com/Nizoka/pdfnative-react/security/advisories/new
+    about: Security reports go through GitHub's private vulnerability reporting, never a public issue. See SECURITY.md for the disclosure timeline.
+  - name: Engine question or feature (pdfnative)
+    url: https://github.com/Nizoka/pdfnative/issues
+    about: Every PDF feature is upstream — a missing engine capability is an engine issue; this repository wraps what the engine ships.
+  - name: Agent-facing contract and recipes
+    url: https://github.com/Nizoka/pdfnative-react/blob/main/docs/AGENT_CONTRACT.md
+    about: The dry-run tiers, the DocSpec grammar, the error codes and the lint rules, before opening an issue about a render that fails.

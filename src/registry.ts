@@ -111,7 +111,7 @@ export const BLOCK_REGISTRY = [
         payload: 'object',
         kinds: ['img'],
         tuple: "['img', body]",
-        summary: 'Raster image (JPEG/PNG) from a Uint8Array.',
+        summary: 'Raster image (JPEG, PNG or JPEG 2000 — engine >= 1.9.0) from a Uint8Array.',
         component: 'Image',
     },
     {
@@ -251,6 +251,8 @@ export const DOC_SPEC_FIELDS = [
     'outputIntent',
     'typography',
     'creationDate',
+    // 1.4.0 (engine 1.9.0)
+    'direction',
 ] as const satisfies readonly (keyof DocSpec)[];
 
 /** A top-level `DocSpec` field name. */
@@ -280,7 +282,7 @@ export const COMPONENT_REGISTRY = [
         summary:
             'Required root. Carries title, metadata, fonts, outline, page labels and '
             + 'the layout sugar (watermark, header, footer, attachments, tagged, print, '
-            + 'pdfx, outputIntent, typography, creationDate).',
+            + 'pdfx, outputIntent, typography, creationDate, direction).',
     },
     { name: 'Page', tag: 'page', summary: 'Explicit page boundary.' },
     {
@@ -468,8 +470,9 @@ export const LINT_RULES = {
         severity: 'error',
         description:
             'The print-production options are invalid (bleed/box geometry, marks '
-            + 'without a TrimBox, or userUnit constraints) — the engine would '
-            + 'reject them mid-render.',
+            + 'without a TrimBox, userUnit constraints, or a spotColours entry with an '
+            + 'empty or duplicate name or an alternate out of range) — the engine '
+            + 'would reject them mid-render.',
     },
     L_VIEWER_PRINT_RANGE: {
         severity: 'error',
@@ -512,8 +515,9 @@ export const LINT_RULES = {
     L_PDFX_TAGGED_CONFLICT: {
         severity: 'error',
         description:
-            'pdfx and tagged are both set — the engine writes one conformance claim '
-            + 'per file and throws on the combination.',
+            "pdfx is combined with tagged: 'pdfa1b' (PDF 1.4 has no PDF/X-4) or "
+            + "'pdfa3b' (embedded files, which PDF/X forbids) — the engine throws; "
+            + "'pdfa2b' and 'pdfa2u' combine with pdfx4 since engine 1.9.0.",
     },
     L_PDFX_ENCRYPTED: {
         severity: 'error',
@@ -569,9 +573,38 @@ export const LINT_RULES = {
     L_CMYK_INTENT_MISMATCH: {
         severity: 'warning',
         description:
-            'A CMYK colour is used under a PDF/A or PDF/X claim whose output intent '
-            + 'is not CMYK; the engine reports PDFA_DEVICE_CMYK_CONTENT / '
-            + 'PDFX_DEVICE_CMYK (and throws under layout.strict).',
+            'A CMYK colour (or a spot colour whose alternate is CMYK) is used under '
+            + 'a PDF/A or PDF/X claim whose output intent is not CMYK; the engine '
+            + 'reports PDFA_DEVICE_CMYK_CONTENT / PDFX_DEVICE_CMYK (and throws under '
+            + 'layout.strict).',
+    },
+    // 1.4.0 (engine 1.9.0) — appended; never reorder.
+    L_CHART_SERIES_COLORS: {
+        severity: 'error',
+        description:
+            'A chart series carries a colors array whose length differs from its '
+            + 'values — the engine throws (one colour per value, bar charts only).',
+    },
+    L_SPOT_UNDECLARED: {
+        severity: 'error',
+        description:
+            'A { spot } or { inks } colour names an ink that print.spotColours does '
+            + 'not declare — the engine throws when it resolves the colour.',
+    },
+    L_SPOT_INK_MIX: {
+        severity: 'error',
+        description:
+            'An ink mix or tint the engine rejects: an { inks } mix without inks, '
+            + 'a tint outside 0–1 (spot or ink), or a mix of inks whose declared '
+            + 'alternates are in different spaces (CMYK and RGB) — the engine throws.',
+    },
+    L_PDFA_JPX_IMAGE: {
+        severity: 'warning',
+        description:
+            "A JPEG 2000 image under a PDF/A claim: PDF/A-1 has no JPXDecode filter "
+            + '(PDFA1_JPX_IMAGE), PDF/A-2+ needs 1, 3 or 4 colour channels and no '
+            + 'opacity channel (PDFA_JPX_IMAGE); the engine reports it (and throws '
+            + 'under layout.strict).',
     },
 } as const satisfies Record<
     string,

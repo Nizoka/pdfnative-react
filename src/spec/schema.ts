@@ -63,22 +63,76 @@ export function schemaId(subject: SchemaSubject = 'doc-spec'): string {
 /** A `$ref` to the shared colour definition. */
 const COLOR = { $ref: '#/$defs/color' } as const;
 
+/** A `$ref` to the process-only colour definition (outline bookmarks). */
+const PROCESS_COLOR = { $ref: '#/$defs/processColor' } as const;
+
 /**
  * Every colour form the engine accepts (`PdfColor`). Since engine 1.8.0 a
- * four-element tuple (percent) or a four-operand string is DeviceCMYK.
+ * four-element tuple (percent) or a four-operand string is DeviceCMYK; since
+ * 1.9.0 `{ spot, tint? }` and `{ inks }` paint through declared spot inks.
  */
 function colorDef(): JsonSchema {
     return {
         description:
             "PdfColor: '#RRGGBB' hex, [r, g, b] 0–255, 'r g b' operands 0–1, "
-            + "[c, m, y, k] percent 0–100 (DeviceCMYK, engine >= 1.8.0), or "
-            + "'c m y k' operands 0–1 (DeviceCMYK, engine >= 1.8.0). The component "
-            + 'count selects the colour space: three is RGB, four is CMYK.',
+            + "[c, m, y, k] percent 0–100 (DeviceCMYK, engine >= 1.8.0), "
+            + "'c m y k' operands 0–1 (DeviceCMYK, engine >= 1.8.0), "
+            + '{ spot: name, tint?: 0–1 } (a /Separation over an ink declared in '
+            + 'print.spotColours, engine >= 1.9.0), or { inks: { name: tint, … } } '
+            + '(a /DeviceN mix of declared inks, all with CMYK or all with RGB '
+            + 'alternates, engine >= 1.9.0). The component count selects the '
+            + 'colour space: three is RGB, four is CMYK. An undeclared ink is '
+            + 'lint L_SPOT_UNDECLARED before it is an engine throw.',
+        anyOf: [
+            { type: 'string' },
+            { type: 'array', items: { type: 'number' }, minItems: 3, maxItems: 4 },
+            {
+                type: 'object',
+                required: ['spot'],
+                properties: {
+                    spot: { type: 'string', minLength: 1, description: 'Declared ink name (non-empty).' },
+                    tint: { type: 'number', minimum: 0, maximum: 1, description: 'Tint 0–1; default 1 (solid).' },
+                },
+            },
+            {
+                type: 'object',
+                required: ['inks'],
+                properties: {
+                    inks: {
+                        type: 'object',
+                        description: 'Ink name → tint 0–1; every ink declared in print.spotColours.',
+                        additionalProperties: { type: 'number', minimum: 0, maximum: 1 },
+                    },
+                },
+            },
+        ],
+    };
+}
+
+/**
+ * The process-colour forms alone — hex, RGB or CMYK, as a tuple or an operand
+ * string. An outline bookmark colour (`/C`) is an RGB triple by the PDF
+ * specification (ISO 32000-1 §12.3.3): the engine approximates a CMYK value
+ * and refuses a spot or ink-mix value (`An outline colour (/C) is a process
+ * RGB colour …`), so the schema refuses them one tier earlier.
+ */
+function processColorDef(): JsonSchema {
+    return {
+        description:
+            "A process colour: '#RRGGBB' hex, [r, g, b] 0–255, 'r g b' operands 0–1, "
+            + "[c, m, y, k] percent 0–100 or 'c m y k' operands 0–1 (CMYK approximated). "
+            + 'Outline bookmark colours are RGB by the PDF specification: the { spot } '
+            + 'and { inks } forms do not apply here (the engine throws).',
         anyOf: [
             { type: 'string' },
             { type: 'array', items: { type: 'number' }, minItems: 3, maxItems: 4 },
         ],
     };
+}
+
+/** `TextDirection` (engine ≥ 1.9.0): the base direction of a paragraph. */
+function directionDef(description: string): JsonSchema {
+    return { enum: ['auto', 'ltr', 'rtl'], description };
 }
 
 /** The OpenType single-substitution features the engine can apply. */
@@ -249,7 +303,7 @@ function paragraphBlock(): JsonSchema {
                 type: 'object',
                 description:
                     'Optional { fontSize, lineHeight, align, indent, color, keepWithNext, '
-                    + 'splittable }.',
+                    + 'splittable, direction }.',
                 properties: {
                     fontSize: { type: 'number' },
                     lineHeight: { type: 'number' },
@@ -268,6 +322,11 @@ function paragraphBlock(): JsonSchema {
                         description:
                             'Override typography.splitParagraphs for this block (engine >= 1.8.0).',
                     },
+                    direction: directionDef(
+                        'Base text direction of this paragraph, overriding the document '
+                        + "direction: 'auto' (first strong character), 'ltr' or 'rtl' "
+                        + '(engine >= 1.9.0).',
+                    ),
                 },
             },
         ],
@@ -319,7 +378,7 @@ function outlineItemDef(): JsonSchema {
             y: { type: 'number', description: 'Destination Y in points (default: top of page).' },
             bold: { type: 'boolean' },
             italic: { type: 'boolean' },
-            color: COLOR,
+            color: PROCESS_COLOR,
             open: { type: 'boolean', description: 'Initial expansion state (default true).' },
             children: { type: 'array', items: { $ref: '#/$defs/outlineItem' } },
         },
@@ -419,7 +478,12 @@ function imageBlock(): JsonSchema {
             {
                 type: 'object',
                 required: ['data'],
-                description: 'Image body: { data: Uint8Array, width?, height?, align?, alt? }.',
+                description:
+                    'Image body: { data: Uint8Array, width?, height?, align?, alt? }. data is '
+                    + 'JPEG, PNG without an alpha channel (colour types 0, 2 and 3; the engine '
+                    + 'refuses types 4 and 6 — flatten the transparency first) or JPEG 2000 '
+                    + '(JP2 file or J2K codestream, passed through as /JPXDecode with a PDF 1.5 '
+                    + 'header; engine >= 1.9.0; not under pdfa1b — lint L_PDFA_JPX_IMAGE).',
             },
         ],
     };
@@ -540,11 +604,25 @@ function chartBlock(): JsonSchema {
                         description: 'Data series; each value array matches `categories` in length.',
                         items: {
                             type: 'object',
-                            required: ['label', 'values'],
+                            required: ['values'],
                             properties: {
-                                label: { type: 'string', description: 'Series label (legend).' },
+                                label: {
+                                    type: 'string',
+                                    description:
+                                        'Series label (legend). Optional since engine 1.9.0: an '
+                                        + "unnamed series is listed as 'Series N'.",
+                                },
                                 values: { type: 'array', items: { type: 'number' } },
                                 color: COLOR,
+                                colors: {
+                                    type: 'array',
+                                    items: COLOR,
+                                    description:
+                                        'One colour per value on bar/barH/stackedBar/stackedBarH '
+                                        + '(engine >= 1.9.0); must match values in length (lint '
+                                        + 'L_CHART_SERIES_COLORS, an engine throw). The other kinds '
+                                        + 'ignore it; the legend swatch keeps color.',
+                                },
                                 xValues: {
                                     type: 'array',
                                     items: { type: ['number', 'string'] },
@@ -666,7 +744,7 @@ function fieldBlock(): JsonSchema {
             {
                 type: 'object',
                 required: ['fieldType', 'name'],
-                description: 'Form-field body: { fieldType, name, label?, value?, options?, … }.',
+                description: "Form-field body: { fieldType, name, label?, value?, options?, … }. fieldType is the engine's FormFieldType: 'text' | 'multilineText' | 'checkbox' | 'radio' | 'dropdown' | 'listbox' (options for dropdown, listbox and radio).",
             },
         ],
     };
@@ -746,8 +824,8 @@ export function docSpecSchema(): JsonSchema {
         // `tests/registry.test.ts`, so a field `validateSpec` accepts can never
         // be invisible here.
         properties: {
-            title: { type: 'string' },
-            footerText: { type: 'string' },
+            title: { type: 'string', description: 'Document title: the /Title entry and the {title} placeholder of the page templates.' },
+            footerText: { type: 'string', description: 'A plain centred footer line on every page (sugar over footer.center).' },
             metadata: {
                 type: 'object',
                 description:
@@ -755,14 +833,24 @@ export function docSpecSchema(): JsonSchema {
                     + "('True' | 'False' | 'Unknown') }. Under pdfx, trapped must be "
                     + "'True' or 'False'.",
             },
-            fontEntries: { type: 'array', items: { type: 'object' } },
+            fontEntries: {
+                type: 'array',
+                items: { type: 'object' },
+                description:
+                    'Embedded fonts (FontEntry[]): the result of resolveFonts({ ar, he, hi, ja, … }) '
+                    + 'or the engine font modules, serialized as objects. Required for every '
+                    + 'PDF/A level (tagged) and for any text outside the base-14 repertoire.',
+            },
             layout: {
                 type: 'object',
                 description:
                     'PdfLayoutOptions overrides. Includes strict (escalate PDF/A and '
                     + 'PDF/X diagnostics to errors, JSON-safe), outputIntent (custom ICC '
-                    + 'profile; RGB, CMYK or Gray), typography, pdfx, creationDate and '
-                    + 'colors (every entry accepts the CMYK forms); onDiagnostic is '
+                    + 'profile; RGB, CMYK or Gray), typography, pdfx, creationDate, '
+                    + "direction ('auto' | 'ltr' | 'rtl', engine >= 1.9.0), actualText "
+                    + '(false opts out of the untagged /Span /ActualText the engine writes '
+                    + 'on reordered and right-to-left runs since 1.9.0) and colors (every '
+                    + 'entry accepts the CMYK and spot forms); onDiagnostic is '
                     + 'function-valued and not representable in JSON — set it from code.',
             },
             outline: {
@@ -842,8 +930,12 @@ export function docSpecSchema(): JsonSchema {
                 ],
                 description:
                     'Emit a tagged (accessible) PDF, optionally at a PDF/A conformance level. '
+                    + "true is the engine's default claim, PDF/A-2b — the same bytes as 'pdfa2b'; "
+                    + "the PDF/A lint rules (L_TAGGED_NO_FONTS, L_TAGGED_FORM_FONTS, L_PDFA_JPX_IMAGE) "
+                    + 'evaluate the string levels only, so name the level to get the pre-flight. '
                     + 'PDF/A requires every rendering font to be embedded via fontEntries. '
-                    + 'Mutually exclusive with pdfx.',
+                    + "'pdfa2b' and 'pdfa2u' combine with pdfx (one file, both claims; "
+                    + "engine >= 1.9.0); 'pdfa1b' and 'pdfa3b' do not.",
             },
             pdfx: {
                 const: 'pdfx4',
@@ -851,8 +943,9 @@ export function docSpecSchema(): JsonSchema {
                     'Claim PDF/X-4 conformance (ISO 15930-7; engine >= 1.8.0). Sugar over '
                     + 'layout.pdfx. Needs outputIntent (a prtr press profile), '
                     + "metadata.trapped 'True' or 'False', fontEntries, and a TrimBox or an "
-                    + 'ArtBox (not both); exclusive with tagged and layout.encryption. '
-                    + 'Every constraint is an L_PDFX_* lint rule.',
+                    + "ArtBox (not both); exclusive with layout.encryption and with tagged "
+                    + "'pdfa1b' / 'pdfa3b' (combines with 'pdfa2b' / 'pdfa2u' since engine "
+                    + '1.9.0). Every constraint is an L_PDFX_* lint rule.',
             },
             outputIntent: {
                 $ref: '#/$defs/outputIntent',
@@ -871,13 +964,46 @@ export function docSpecSchema(): JsonSchema {
                     + '/ID all derive from it, in UTC. Sugar over layout.creationDate. Not '
                     + 'covered: layout.encryption (fresh keys on every build).',
             },
+            direction: directionDef(
+                "Base text direction of every paragraph (engine >= 1.9.0): 'auto' "
+                + "detects it from the first strong character (UAX #9), 'rtl' and 'ltr' "
+                + 'force it. Sugar over layout.direction; a paragraph direction opt '
+                + 'overrides it. Omitted, the output is byte-identical to earlier '
+                + 'releases. Set it for Arabic, Hebrew, Persian or Urdu documents.',
+            ),
             print: {
                 type: 'object',
                 description:
-                    'Print-production page geometry. Sugar over layout.print. '
+                    'Print-production page geometry and spot inks. Sugar over layout.print. '
                     + 'bleed is mutually exclusive with trimBox; marks require a '
-                    + 'TrimBox source; userUnit is rejected under pdfa1b.',
+                    + 'TrimBox source; userUnit is rejected under pdfa1b; spotColours '
+                    + 'declares the inks that { spot } / { inks } colours may name.',
                 properties: {
+                    spotColours: {
+                        type: 'array',
+                        description:
+                            'Spot inks the document may paint with (engine >= 1.9.0): each '
+                            + 'a name and a process alternate — [c, m, y, k] percent 0–100 '
+                            + 'or [r, g, b] 0–255. A { spot } or { inks } colour naming an '
+                            + 'undeclared ink is lint L_SPOT_UNDECLARED, then an engine '
+                            + 'throw; an empty or duplicate name or an alternate out of '
+                            + 'range is L_PRINT_BOXES. Colour bars paint process inks only, '
+                            + 'and outline bookmark colours stay process RGB ($defs.processColor).',
+                        items: {
+                            type: 'object',
+                            required: ['name', 'alternate'],
+                            properties: {
+                                name: { type: 'string', minLength: 1 },
+                                alternate: {
+                                    type: 'array',
+                                    items: { type: 'number' },
+                                    minItems: 3,
+                                    maxItems: 4,
+                                    description: 'Four CMYK percentages or three RGB values.',
+                                },
+                            },
+                        },
+                    },
                     bleed: {
                         type: 'number',
                         exclusiveMinimum: 0,
@@ -938,6 +1064,7 @@ export function docSpecSchema(): JsonSchema {
         },
         $defs: {
             color: colorDef(),
+            processColor: processColorDef(),
             listItem: listItemDef(),
             outlineItem: outlineItemDef(),
             pageTemplate: pageTemplateDef(),
@@ -973,11 +1100,15 @@ function renderOptionsSchema(): JsonSchema {
                 type: 'object',
                 description:
                     'PdfLayoutOptions overrides: pageWidth, pageHeight, margins, columns, '
-                    + 'colors (CMYK forms accepted), fontSizes, tagged, pdfx, encryption, '
+                    + "colors (the engine's PdfColors palette — read by its table-report "
+                    + 'builder only, not by the block-flow renderer this package drives), '
+                    + 'fontSizes, tagged, pdfx, encryption, '
                     + 'compress, headerTemplate, footerTemplate, watermark, attachments, '
                     + 'maxBlocks, normalize, creationDate (pins the dates, {date} and the '
-                    + 'trailer /ID; UTC), typography, viewerPreferences (incl. duplex, '
-                    + 'pickTrayByPDFSize, printPageRange, numCopies), debug, print, '
+                    + 'trailer /ID; UTC), typography, direction (auto | ltr | rtl), '
+                    + 'actualText (false opts out of the untagged /ActualText spans), '
+                    + 'viewerPreferences (incl. duplex, pickTrayByPDFSize, printPageRange, '
+                    + 'numCopies), debug, print (incl. spotColours), '
                     + 'outputIntent (RGB, CMYK or Gray), strict, onDiagnostic. strict '
                     + 'escalates PDF/A and PDF/X diagnostics to thrown errors (JSON-safe); '
                     + 'onDiagnostic is function-valued and not representable in JSON — set '

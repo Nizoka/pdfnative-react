@@ -234,4 +234,9 @@ export type {
     PdfCmykTuple,
     PdfCmykString,
     PdfXConformanceTarget,
+    // Engine ≥ 1.9.0: bidirectional text, spot colours
+    TextDirection,
+    PdfSpotColor,
+    PdfInkMix,
+    SpotColourDef,
 } from './types.js';

@@ -154,7 +154,7 @@ describe('react-surface: the real tree', () => {
         expect(componentAliases(registry)).toEqual(['Text', 'Toc']);
         expect(clientComponentNames(registry)).toEqual(['PDFViewer', 'PDFDownloadLink', 'BlobProvider']);
         expect(blockKinds(registry)).toContain('qr');
-        expect(docSpecFields(registry).slice(-4)).toEqual(['pdfx', 'outputIntent', 'typography', 'creationDate']);
+        expect(docSpecFields(registry).slice(-5)).toEqual(['pdfx', 'outputIntent', 'typography', 'creationDate', 'direction']);
         expect(lintRuleTable(registry).get('L_PDFX_NO_FONTS')).toBe('error');
     });
 
@@ -163,14 +163,14 @@ describe('react-surface: the real tree', () => {
         expect(derived.components).toBe(19);
         expect(derived.clientComponents).toBe(3);
         expect(derived.blocks).toBe(14);
-        expect(derived.specFields).toBe(18);
-        expect(derived.lintRules).toBe(37);
+        expect(derived.specFields).toBe(19);
+        expect(derived.lintRules).toBe(41);
         expect(derived.errorCodes).toBe(6);
         expect(derived.schemaSubjects).toBe(7);
-        expect(derived.corpusFiles).toBe(16);
-        expect(derived.pdfaSamples).toBe(13);
-        expect(derived.pdfxSamples).toBe(3);
-        expect(derived.samples).toBe(38);
+        expect(derived.corpusFiles).toBe(20);
+        expect(derived.pdfaSamples).toBe(16);
+        expect(derived.pdfxSamples).toBe(5);
+        expect(derived.samples).toBe(42);
         expect(derived.sampleFiles).toBe(sampleSourceFiles(ROOT).length);
         expect(derived.testFiles).toBeGreaterThan(40);
     });

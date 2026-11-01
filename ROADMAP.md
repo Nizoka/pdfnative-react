@@ -74,7 +74,7 @@ this package as new `ChartProps` fields"):
 ### 1.3.0 — Typography, CMYK & PDF/X-4, reproducible output, the hardened repository
 
 Tracks the engine's 1.8.0 release and brings the repository to the engineering
-standard of pdfnative 1.8.0, pdfnative-cli 1.5.0 and pdfnative-mcp 1.7.0:
+standard of pdfnative 1.8.0, pdfnative-cli 1.5.0 and pdfnative-mcp 1.7.0: <!-- verify-docs:allow version-token -->
 
 - Typography — `<Document typography>` / `DocSpec.typography` (twelve keys,
   all opt-in), `align="justify"`, block-level `keepWithNext` / `splittable`;
@@ -87,7 +87,7 @@ standard of pdfnative 1.8.0, pdfnative-cli 1.5.0 and pdfnative-mcp 1.7.0:
 - Reproducible bytes — `creationDate` on `<Document>` / `DocSpec`,
   `setDefaultCreationDate` re-exported, UTC dates, `{date}` follows the pin;
   proven on Linux, Windows and macOS, and by a two-time-zone test.
-- 27 Unicode scripts (was 22) through `resolveFonts`; six engine helpers and
+- 27 Unicode scripts (was 22) through `resolveFonts`; six engine helpers and <!-- verify-docs:allow stale-token; verify-docs:allow count-tokens -->
   eleven types re-exported.
 - Lint 25 → 37 rules (20 pre-empt engine throws); engine input errors
   classified as `E_INPUT`.
@@ -100,7 +100,55 @@ standard of pdfnative 1.8.0, pdfnative-cli 1.5.0 and pdfnative-mcp 1.7.0:
   in the gate.
 - Inherited fixes: pdfnative #74 AcroForm fields under PDF/A, #75 page count
   with a table of contents, #78 `setDeflateImpl` validation.
-- Peer floor `^1.8.0`.
+- Peer floor `^1.8.0`. <!-- verify-docs:allow engine-version-token -->
+
+### 1.4.0 — Right-to-left text, spot colours, the joint PDF/A + PDF/X claim, JPEG 2000, 32 scripts
+
+Tracks the engine's 1.9.0 release and aligns the repository with the
+engineering standard of pdfnative 1.9.0:
+
+- Right-to-left documents — `<Document direction>` / `DocSpec.direction`
+  (`'auto' | 'ltr' | 'rtl'`, the 19th DocSpec field) and the per-paragraph
+  `direction` override; untagged right-to-left and reordered runs carry their
+  logical text as `/ActualText` (`layout.actualText: false` opts out).
+- Spot colours — `print.spotColours` declarations, `{ spot, tint }` and
+  `{ inks }` colour values on every colour position (the `Color` type and
+  `$defs.color` widened), one ink per bar through `ChartSeries.colors`;
+  two lint rules carrying the engine's throws (`L_SPOT_UNDECLARED`,
+  `L_SPOT_INK_MIX`), `E_INPUT` classification.
+- The joint claim — `tagged="pdfa2b" | "pdfa2u"` combines with
+  `pdfx="pdfx4"`; `L_PDFX_TAGGED_CONFLICT` narrows to PDF/A-1 and PDF/A-3
+  with the engine's two messages; a dual corpus entry under veraPDF and
+  `validatePdfX`.
+- Charts — optional `ChartSeries.label` (`Series N`), per-value
+  `ChartSeries.colors` on the bar kinds (`L_CHART_SERIES_COLORS`).
+- JPEG 2000 — `<Image>` and `watermark.image` accept JP2 / J2K bytes
+  (`/JPXDecode`, PDF 1.5); `L_PDFA_JPX_IMAGE` mirrors `PDFA1_JPX_IMAGE` /
+  `PDFA_JPX_IMAGE`; shared fixtures in `scripts/lib/jpx-fixture.ts`.
+- 32 Unicode scripts (was 27): Gujarati, Gurmukhi, Kannada, Malayalam and
+  Odia through `resolveFonts`; `fonts/scripts-32` replaces `fonts/scripts-27`.
+- 13 diagnostic codes (was 9); `TEXT_GLYPH_NOT_COVERED` surfaces silent
+  substitutions and throws under `layout.strict` — deliberately no lint tier.
+- Lint 37 → 41 rules (23 pre-empt engine throws); `doctor()` floor 1.9.0
+  (probe `resolveBidiLevels`); `toErrorEnvelope` total on values without a
+  primitive conversion.
+- Inherited byte changes, re-anchored once: lean, compact, six-letter-tagged
+  font subsets (every font-embedding sample shrinks three- to nine-fold),
+  one text object per line, `/ActualText` spans, full UAX #9, deeper table
+  rows for deep descenders, paginated tables of contents, the page
+  transparency group of a translucent watermark; the 27 base-14-only samples
+  keep their 1.3.0 hashes.
+- The repository: the 1.3.0 test suite replayed against the current sources
+  (`compat:previous`, a required check), frozen v1.3.0 captures beside the
+  v1.2.0 ones, a `workflow lint` check (zizmor + actionlint), seven required
+  checks on three operating systems, a guard → build → publish → attest
+  release pipeline with blocked egress and a content-pinned npm client,
+  CodeQL on the workflows themselves, a Node 26 advisory job, Dependabot
+  cooldowns, fast-check property tests, the Scorecard and CodeQL findings
+  triaged, every dev-tree advisory cleared.
+- The engine-surface matrix rebuilt for 1.9.0 (72 bullets: 22 tested, 50
+  waived with a reason) — the per-release matrix is now a shipped process.
+- Peer floor `^1.9.0`.
 
 ## Later
 
@@ -115,10 +163,44 @@ standard of pdfnative 1.8.0, pdfnative-cli 1.5.0 and pdfnative-mcp 1.7.0:
   (`tests/regression/engine-surface.json`, upstream limit `pdfx-single-target`).
 - **A hyphenation provider sample** — no dictionary will ever ship; a sample
   installing a Liang-pattern library through `setHyphenationProvider` would
-  show the seam (upstream limit `no-bundled-hyphenation`).
-- **The engine-surface matrix kept per release** — one section per engine bump.
-- **`harden-runner` block mode** once the audited egress of every workflow is
-  known.
+  show the seam (upstream limit `no-bundled-hyphenation`;
+  `samples/text/typography-engine.tsx` already installs an inline provider).
+- **`harden-runner` block mode on every job** — 1.4.0 blocks egress on the
+  release pipeline (`guard`, `publish`, `attest`) and the Node 26 job; the
+  gate jobs stay in audit mode until their endpoints are baselined, and the
+  Windows and macOS legs are audit-only by the vendor matrix.
+- **Node 26 in the required matrix** (1.5.0) — Active LTS since 2026-10-28, run as the
+  advisory `node-current` job for one release cycle first.
+- **PDF/UA-1 basics** when the engine ships them (planned for pdfnative
+  1.9.1: `metadata.language` → `/Lang`, per-block `lang`, borders as
+  `/Artifact`) — a `<Document language>` sugar and its DocSpec twin.
+- **The eslint 10 migration** — `minimatch@3.x` under eslint 9 has no fixed
+  release; `@eslint/js` 10, eslint 10 and `minimatch` ≥ 11 move together.
+- **A `runtimes` job** (Deno, Bun, headless Chromium smoke tests of the built
+  package, as the engine runs) — a new runtime claim, not a hardening, so it
+  waits for the claim.
+- **An `api.json` export index** (`docs/assets/api.json`, as the engine
+  publishes) — the root barrel is the per-module index today.
+- **`llms-full.txt`** — the tarball ships `llms.txt`; a concatenation of the
+  guides belongs on a documentation site, not in every install.
+- **`tagged: true` in the three PDF/A lint rules** (1.4.1) — `true` is the
+  engine's default PDF/A-2b claim; `L_TAGGED_NO_FONTS`, `L_TAGGED_FORM_FONTS`
+  and `L_PDFA_JPX_IMAGE` evaluate the string levels only. Widening them is a
+  lint behaviour change (a 1.3.0 test asserts the opposite), so it ships
+  declared, with its compat allow-list entry, not on release day.
+- **Required checks beyond the seven** — promote `codeql` and
+  `dependency-review` to required contexts once their runtimes are known;
+  turn on GitHub's Immutable Releases setting (no file records it; the tag
+  ruleset blocks update and deletion but not creation).
+- **`actions/attest-sbom`** — the SBOMs are subjects of the provenance
+  attestation today; a separate SBOM-predicate attestation is the next step
+  towards SLSA Build L3 (which also needs a hardened, isolated builder).
+- **REUSE / SPDX headers** — `SPDX-License-Identifier` on every source file
+  and a `REUSE.toml`; a tree-wide, byte-neutral change for a quiet minor.
+- **Two engine observations to raise upstream** — the block-flow renderer never
+  reads `layout.colors` (only `buildPDF`'s table path does), and `parsePNG`
+  refuses colour types 4 and 6 (no `/SMask` split) while the engine's images
+  guide describes one; the React surfaces state both limits since 1.4.0.
 
 ### Considered and dropped
 

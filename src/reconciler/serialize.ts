@@ -18,6 +18,7 @@ import type {
     PdfRow,
     PageTemplate,
     PrintOptions,
+    TextDirection,
     TypographyOptions,
     WatermarkOptions,
 } from '../types.js';
@@ -84,6 +85,7 @@ function toBlock(node: ElementNode): DocumentBlock | DocumentBlock[] {
                 color: p.color,
                 keepWithNext: p.keepWithNext,
                 splittable: p.splittable,
+                direction: p.direction,
             }) as DocumentBlock;
 
         case 'list':
@@ -376,7 +378,7 @@ function toCreationDate(value: unknown): Date | undefined {
 /**
  * Fold the `<Document>` layout-sugar props (`watermark`, `header`, `footer`,
  * `attachments`, `tagged`, `print`, `pdfx`, `outputIntent`, `typography`,
- * `creationDate`) into a single `layout` object.
+ * `creationDate`, `direction`) into a single `layout` object.
  *
  * An explicit `layout` prop always wins, mirroring how `RenderOptions.layout`
  * overrides `DocumentParams.layout` in `prepare()` (see `../render.ts`).
@@ -397,6 +399,7 @@ function resolveLayout(p: Record<string, unknown>): Partial<PdfLayoutOptions> | 
         outputIntent: p.outputIntent as CustomOutputIntent | undefined,
         typography: p.typography as TypographyOptions | undefined,
         creationDate: toCreationDate(p.creationDate),
+        direction: p.direction as TextDirection | undefined,
     });
 
     const explicit = p.layout as Partial<PdfLayoutOptions> | undefined;

@@ -4,12 +4,15 @@ Native vector charts, drawn with PDF path operators. No rasterisation, no chart
 library, no new runtime dependency — and the output is real vector art that
 stays sharp at any zoom and passes PDF/A.
 
-Charts v2 shipped with engine 1.7.0; the peer floor as of pdfnative-react 1.3.0
-is engine ≥ 1.8.0, which adds CMYK palettes (see Colours below).
+Charts v2 shipped with engine 1.7.0; engine 1.8.0 added CMYK palettes and
+the peer floor as of pdfnative-react 1.4.0 is engine ≥ 1.9.0, which adds one
+colour per value on the bar kinds, spot inks and an optional series label
+(see Props and Colours below).
 
 Runnable: [`samples/charts/charts.tsx`](../samples/charts/charts.tsx) (the
 basics) and [`samples/charts/charts-v2.tsx`](../samples/charts/charts-v2.tsx)
-(stacked/area/scatter, dual axes, log/time scales, data labels).
+(stacked/area/scatter, dual axes, log/time scales, data labels, a per-value
+palette and an unlabelled series).
 
 ## Quick start
 
@@ -62,7 +65,7 @@ they get cramped or clipped. Scatter charts position every point by its series'
 | Prop | Type | Default | Notes |
 |---|---|---|---|
 | `chartType` | `ChartType` | — | Required |
-| `series` | `ChartSeries[]` | — | Required. `{ label, values, color?, xValues?, yAxis? }` |
+| `series` | `ChartSeries[]` | — | Required. `{ label?, values, color?, colors?, xValues?, yAxis? }` — only `values` is required (schema `required: ['values']`); a series without a `label` is listed as `Series N` in the legend and in validation messages (engine ≥ 1.9.0) |
 | `categories` | `string[]` | 1-based indices | Category axes: every series supplies one value per category |
 | `title` | `string` | — | Drawn above the plot |
 | `width` | `number` | `460` | Points; clamped to the content width |
@@ -131,6 +134,7 @@ turns each of them into a finding you can read first:
 | `L_CHART_LOG_SCALE` | No log scale on stacked kinds; log bounds and log-bound series values strictly positive |
 | `L_CHART_X_AXIS` | Positional axes only on line/area/scatter; scatter is never `'category'`; `xValues` present and matching on positional axes; date strings need `'time'`; no `yAxis: 'right'` on pie/donut |
 | `L_CHART_LABELS` | `labelStride` an integer ≥ 1, `labelRotation` within 0–90, neither on scatter |
+| `L_CHART_SERIES_COLORS` | A series `colors` array has exactly one entry per value (the message is the engine's: `chart: series "<name>" colors length (n) does not match values (m)`) |
 
 ```ts
 const report = lintDocument(doc);
@@ -161,12 +165,25 @@ The default palette is an eight-colour categorical set. Override per chart:
 series={[{ label: 'Net margin', values: [-4.2, 1.8, 6.5, 11.3], color: '#e15759' }]}
 ```
 
+…or, on the bar kinds (`bar`, `barH`, `stackedBar`, `stackedBarH`), per
+value — one colour per bar, since engine 1.9.0:
+
+```tsx
+series={[{ label: 'Ink coverage', values: [100, 44, 8], colors: ['#00aeef', '#ec008c', { spot: 'Varnish' }] }]}
+```
+
+`colors` must carry exactly one entry per value (`L_CHART_SERIES_COLORS`
+reports a mismatch before the engine throws); the legend swatch keeps the
+series `color`, and the other chart kinds ignore the array.
+
 Colours accept any `PdfColor`: a hex string, an RGB tuple, a CMYK tuple in
-percent (`[0, 60, 100, 0]`), or a PDF operator string (RGB `'0.1 0.45 0.91'`
-or CMYK `'0 0.6 1 0'` — the component count picks the colour space). They are
-injection-safe — the engine validates them before emitting operators. Under a
-CMYK palette the tints of a stacked or area chart remove ink rather than
-mixing toward white; see [PRINT.md](PRINT.md).
+percent (`[0, 60, 100, 0]`), a PDF operator string (RGB `'0.1 0.45 0.91'`
+or CMYK `'0 0.6 1 0'` — the component count picks the colour space), or a
+spot ink declared under `print.spotColours` (`{ spot: 'Brand Blue' }`,
+`{ inks: { … } }`). They are injection-safe — the engine validates them
+before emitting operators. Under a CMYK palette the tints of a stacked or
+area chart remove ink rather than mixing toward white; see
+[PRINT.md](PRINT.md) for both.
 
 ## PDF/A
 
@@ -195,3 +212,13 @@ promised that "when they land there, they reach this package as new
 every one of them, with full `DocSpec` and schema parity — and the
 compile-time `ChartPropsCoversChartBlock` lock is what enforced it: the peer
 bump was a build error until the surfaces matched.
+
+The lock has a known blind spot, learned with engine 1.9.0: it compares the
+*keys* of `ChartProps` with those of the engine's `ChartBlock`, so a change
+inside a nested type — `ChartSeries.colors` and the optional
+`ChartSeries.label` — passes through silently, because `series` is typed as
+the engine's own `ChartSeries[]`. The surface that *can* drift on such a
+change is the hand-written `DocSpec` schema (`src/spec/schema.ts`): that is
+the file to check when the engine's changelog touches `ChartSeries`,
+`ChartAxis` or another nested chart type, and `tests/schema.test.ts` holds
+the `required` list and the `colors` entry for this one.

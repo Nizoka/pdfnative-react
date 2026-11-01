@@ -17,6 +17,10 @@ import {
     version,
 } from '../src/index.js';
 import type { SchemaSubject } from '../src/index.js';
+import { validate, type Json } from './helpers/json-schema-lite.js';
+
+/** The validator's schema node type (`scripts/lib/json-schema-lite.ts`). */
+type LiteSchema = { readonly [key: string]: Json };
 
 const DRAFT = 'https://json-schema.org/draft/2020-12/schema';
 
@@ -105,6 +109,7 @@ describe('doc-spec schema content', () => {
         const defs = doc['$defs'] as Record<string, unknown>;
         expect(Object.keys(defs)).toEqual([
             'color',
+            'processColor',
             'listItem',
             'outlineItem',
             'pageTemplate',
@@ -114,12 +119,62 @@ describe('doc-spec schema content', () => {
         ]);
     });
 
+    it('keeps outline bookmark colours process-only (the engine refuses a spot or ink mix there)', () => {
+        const defs = doc['$defs'] as Record<string, Record<string, unknown>>;
+        const outline = defs['outlineItem']['properties'] as Record<string, Record<string, unknown>>;
+        expect(outline['color']).toEqual({ $ref: '#/$defs/processColor' });
+        const process = defs['processColor']['anyOf'] as Record<string, unknown>[];
+        expect(process.map((b) => b['type'])).toEqual(['string', 'array']);
+        expect(defs['processColor']['description']).toContain('do not apply');
+
+        // validateSpec is the tier-1 shape check (tuples, from the registry); the
+        // JSON Schema is where the colour forms live, so the proof runs there.
+        const schemaDoc = doc as unknown as LiteSchema;
+        const cmyk = { blocks: [['p', 'x']], outline: [{ title: 'A', pageIndex: 0, color: [0, 60, 100, 0] }] } as Json;
+        expect(validate(cmyk, schemaDoc)).toEqual([]);
+        const spot = { blocks: [['p', 'x']], outline: [{ title: 'A', pageIndex: 0, color: { spot: 'Brand Blue' } }] } as Json;
+        expect(validate(spot, schemaDoc).join(' ')).toContain('outline');
+    });
+
+    it('requires a non-empty ink name in a { spot } colour (the engine refuses an empty one)', () => {
+        const colour = (doc['$defs'] as Record<string, { anyOf: Record<string, unknown>[] }>)['color'];
+        const spotBranch = colour.anyOf.find((b) => b['type'] === 'object' && 'spot' in (b['properties'] as object));
+        expect((spotBranch?.['properties'] as Record<string, Record<string, unknown>>)['spot']?.['minLength']).toBe(1);
+        const empty = { blocks: [['p', 'x', { color: { spot: '' } }]] } as Json;
+        expect(validate(empty, doc as unknown as LiteSchema).length).toBeGreaterThan(0);
+    });
+
     it('describes the 1.8.0 document-level sugar', () => {
         const props = doc['properties'] as Record<string, Record<string, unknown>>;
         expect(props['pdfx']?.['const']).toBe('pdfx4');
         expect(props['outputIntent']?.['$ref']).toBe('#/$defs/outputIntent');
         expect(props['typography']?.['$ref']).toBe('#/$defs/typography');
         expect(props['creationDate']?.['format']).toBe('date-time');
+    });
+
+    it('describes the 1.9.0 document-level sugar: direction, spot inks, per-value series colours', () => {
+        const props = doc['properties'] as Record<string, Record<string, unknown>>;
+        expect(props['direction']?.['enum']).toEqual(['auto', 'ltr', 'rtl']);
+        const print = props['print']?.['properties'] as Record<string, Record<string, unknown>>;
+        const spot = print['spotColours'];
+        expect(spot?.['type']).toBe('array');
+        expect((spot?.['items'] as Record<string, unknown>)['required']).toEqual(['name', 'alternate']);
+
+        const colour = (doc['$defs'] as Record<string, { anyOf: Record<string, unknown>[] }>)['color'];
+        const objectBranches = colour.anyOf.filter((b) => b['type'] === 'object').map((b) => b['required']);
+        expect(objectBranches).toEqual([['spot'], ['inks']]);
+
+        const defs = doc['$defs'] as { block: { oneOf: Record<string, unknown>[] } };
+        const chart = defs.block.oneOf.find((b) => b['title'] === 'ChartSpec');
+        const body = (chart?.['prefixItems'] as Record<string, Record<string, unknown>>[])[1];
+        const series = (body['properties'] as Record<string, Record<string, unknown>>)['series'];
+        const item = series['items'] as Record<string, unknown>;
+        expect(item['required']).toEqual(['values']); // label is optional since engine 1.9.0
+        expect(item['properties']).toHaveProperty('colors');
+
+        const paragraph = defs.block.oneOf.find((b) => b['title'] === 'ParagraphSpec');
+        const opts = (paragraph?.['prefixItems'] as Record<string, Record<string, unknown>>[])[2];
+        expect((opts['properties'] as Record<string, Record<string, unknown>>)['direction']?.['enum']).toEqual(['auto', 'ltr', 'rtl']);
     });
 
     it('routes every colour position through the shared $defs.color', () => {

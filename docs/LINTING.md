@@ -44,7 +44,7 @@ hint, before you spend the work.
 
 ## Rules
 
-37 lint rules, each with a stable code (23 error, 13 warning, 1 info). Branch on
+41 lint rules, each with a stable code (26 error, 14 warning, 1 info). Branch on
 the code, not the message.
 
 ### Errors — these clear `ok`
@@ -52,7 +52,7 @@ the code, not the message.
 | Code | Rule | Would otherwise |
 |---|---|---|
 | `L_EMPTY_DOCUMENT` | The document has no blocks | Render a blank page |
-| `L_TAGGED_NO_FONTS` | PDF/A requested with no `fontEntries` | Produce a file veraPDF rejects (6.2.11.4.1) |
+| `L_TAGGED_NO_FONTS` | PDF/A requested by a string level (`'pdfa2b'` …) with no `fontEntries`; `tagged: true` — the engine's default PDF/A-2b claim — is not inspected by the three PDF/A rules, so name the level to get the pre-flight | Produce a file veraPDF rejects (6.2.11.4.1) |
 | `L_TAGGED_ENCRYPTED` | PDF/A and encryption combined | **Throw** (ISO 19005-1 §6.3.2) |
 | `L_ATTACHMENTS_NEED_PDFA3` | Attachments outside `tagged="pdfa3b"` | **Throw** |
 | `L_MAX_BLOCKS_EXCEEDED` | Block count past the `maxBlocks` ceiling | **Throw** |
@@ -64,28 +64,38 @@ the code, not the message.
 | `L_CHART_LOG_SCALE` | Log scale on a stacked kind, log bounds ≤ 0, or non-positive values on a log-bound axis | **Throw** |
 | `L_CHART_X_AXIS` | Positional axis misuse: wrong chart kind, scatter on `'category'`, missing/mismatched `xValues`, date strings without `'time'`, `yAxis: 'right'` on pie/donut | **Throw** |
 | `L_CHART_LABELS` | `labelStride`/`labelRotation` on scatter, non-integer stride < 1, rotation outside 0–90 | **Throw** |
-| `L_PRINT_BOXES` | Invalid `layout.print` geometry (bleed/box constraints, marks without a TrimBox, `userUnit` limits) | **Throw** |
+| `L_PRINT_BOXES` | Invalid `layout.print` geometry (bleed/box constraints, marks without a TrimBox, `userUnit` limits) or an invalid `print.spotColours` declaration (empty or duplicate ink name, an alternate out of range) | **Throw** |
 | `L_VIEWER_PRINT_RANGE` | Malformed `viewerPreferences.printPageRange` pair or `numCopies` | **Throw** |
 | `L_OUTPUT_INTENT_PROFILE` | `outputIntent.iccProfile` is not a usable ICC profile: under 128 bytes, no `acsp` signature, a size field outside the buffer, or a colour space other than RGB/CMYK/Gray | **Throw** |
 | `L_PDFX_TARGET` | `pdfx` names a target other than `'pdfx4'` | **Throw** |
-| `L_PDFX_TAGGED_CONFLICT` | `pdfx` and `tagged` both set (one conformance claim per file) | **Throw** |
+| `L_PDFX_TAGGED_CONFLICT` | `pdfx` combined with `tagged: 'pdfa1b'` (PDF 1.4 has no PDF/X-4) or `'pdfa3b'` (embedded files, which PDF/X forbids) — `'pdfa2b'`, `'pdfa2u'` and `true` combine with `pdfx4` since engine 1.9.0 | **Throw** (one message per level) |
 | `L_PDFX_ENCRYPTED` | `pdfx` and `layout.encryption` combined (ISO 15930-7) | **Throw** |
 | `L_PDFX_OUTPUT_INTENT` | `pdfx` without an `outputIntent`, or with a monitor (`mntr`) profile instead of a printer (`prtr`) profile | **Throw** |
 | `L_PDFX_TRAPPED_UNKNOWN` | `pdfx` with `metadata.trapped: 'Unknown'` | **Throw** |
 | `L_PDFX_BOXES` | `pdfx` with `print.artBox` beside `print.trimBox` or `print.bleed` | **Throw** |
 | `L_PDFX_NO_FONTS` | `pdfx` requested with no `fontEntries` | The engine reports `PDFX_NO_FONT_ENTRIES` (a throw under `layout.strict`) |
+| `L_CHART_SERIES_COLORS` | A series `colors` array whose length differs from its `values` (one colour per value, bar charts only) | **Throw** (`chart: series "<name>" colors length (n) does not match values (m)`) |
+| `L_SPOT_UNDECLARED` | A `{ spot }` or `{ inks }` colour names an ink that `print.spotColours` does not declare | **Throw** (`Spot colour '<ink>' is not declared — add { name: '<ink>', alternate: [c, m, y, k] } to layout.print.spotColours`) |
+| `L_SPOT_INK_MIX` | An ink mix or tint the engine rejects: an `{ inks }` mix without inks, a tint outside 0–1 (`{ spot, tint }` or an ink of a mix), or a mix across inks whose alternates are in different spaces (CMYK and RGB) | **Throw** (`Invalid ink mix: no inks`, `Invalid tint of spot colour '<ink>': <tint>. Expected a tint between 0 and 1.`, `Ink mix '<a>' + '<b>': every ink of a mix needs the same alternate space (all CMYK or all RGB)`) |
 
-**Twenty of these twenty-three pre-empt an exception the engine raises at
-build time** — the eight chart rules, `L_PRINT_BOXES`, `L_VIEWER_PRINT_RANGE`,
-`L_ATTACHMENTS_NEED_PDFA3`, `L_TAGGED_ENCRYPTED`, `L_MAX_BLOCKS_EXCEEDED`,
-`L_OUTPUT_INTENT_PROFILE` and the six PDF/X coherence rules. For the PDF/X
-rules the finding's message *is* the engine's message, and the same throw
-reaches `toErrorEnvelope` as `E_INPUT` when you skip the linter.
-`L_MAX_BLOCKS_EXCEEDED` fires against the engine's `DEFAULT_MAX_BLOCKS` of
-100 000 even when you set no `maxBlocks` yourself, since that is the ceiling
-the engine actually enforces. `L_PRINT_BOXES` does not re-state the engine's
-geometry rules — it *calls* the engine's own `validatePrintOptions` and
-reports its message verbatim, so the two can never drift.
+**Twenty-three of these twenty-six pre-empt an exception the engine raises at
+build time** — the nine chart rules (`L_CHART_SERIES_COLORS` since 1.4.0),
+`L_PRINT_BOXES`, `L_VIEWER_PRINT_RANGE`, `L_ATTACHMENTS_NEED_PDFA3`,
+`L_TAGGED_ENCRYPTED`, `L_MAX_BLOCKS_EXCEEDED`, `L_OUTPUT_INTENT_PROFILE`, the
+two spot-colour rules and the six PDF/X coherence rules. For the PDF/X,
+spot-colour and series-colour rules the finding's message *is* the engine's
+message, and the same throw reaches `toErrorEnvelope` as `E_INPUT` when you
+skip the linter (`ENGINE_INPUT_ERROR_PREFIXES` knows the `Spot colour`, `Ink
+mix`, `Invalid tint`, `Invalid spot colour` and `An outline colour` prefixes —
+the last one has no lint tier: the schema types `outline[].color` as
+`$defs.processColor` instead). `L_MAX_BLOCKS_EXCEEDED` fires against the engine's
+`DEFAULT_MAX_BLOCKS` of 100 000 even when you set no `maxBlocks` yourself,
+since that is the ceiling the engine actually enforces. `L_PRINT_BOXES` does
+not re-state the engine's geometry rules — it *calls* the engine's own
+`validatePrintOptions` and reports its message verbatim, so the two can never
+drift; since engine 1.9.0 that validator also covers the `print.spotColours`
+declarations, so an empty or duplicate ink name or an alternate out of range
+is the same rule.
 
 The remaining three catch output that renders successfully but is wrong:
 `L_EMPTY_DOCUMENT` (a blank page), `L_TAGGED_NO_FONTS` (a PDF/A file veraPDF
@@ -107,12 +117,15 @@ rejects) and `L_PDFX_NO_FONTS` (a PDF/X-4 file with unembedded fonts).
 | `L_PDFX_ANNOTATIONS` | PDF/X-4 document with a link or a form field — ISO 15930-7 forbids annotations inside the BleedBox; the engine reports `PDFX_ANNOTATIONS` |
 | `L_TYPOGRAPHY_INEFFECTIVE` | A typography option that can have no effect: `orphans`/`widows` without `splitParagraphs`, an unknown `fontFeatures` tag, `kerning`/`fontFeatures`/`'fr'` without a registered font, a line quota below 1 |
 | `L_PRINT_COLOUR_BARS` | `print.marks.colourBars` with a bottom bleed strip under 5 mm (the patches fall below a densitometer aperture; under 4 pt the engine skips the bars) |
-| `L_CMYK_INTENT_MISMATCH` | A CMYK colour under a PDF/A or PDF/X claim whose output intent is not CMYK — the engine reports `PDFA_DEVICE_CMYK_CONTENT` / `PDFX_DEVICE_CMYK` |
+| `L_CMYK_INTENT_MISMATCH` | A CMYK colour — or a spot colour whose alternate is CMYK — under a PDF/A or PDF/X claim whose output intent is not CMYK; the engine reports `PDFA_DEVICE_CMYK_CONTENT` / `PDFX_DEVICE_CMYK` |
+| `L_PDFA_JPX_IMAGE` | A JPEG 2000 image under a PDF/A claim: PDF/A-1 has no `JPXDecode` filter (the engine reports `PDFA1_JPX_IMAGE`, ISO 19005-1 §6.1.10); PDF/A-2+ needs 1, 3 or 4 colour channels and no opacity channel (`PDFA_JPX_IMAGE`, ISO 19005-2 §6.2.8.3); veraPDF 1.30.2 has no rule for the PDF/A-1 filter case, so the diagnostic is the guard |
 
-Five of the warnings (`L_TAGGED_FORM_FONTS`, `L_PDFX_NO_FONTS` above,
-`L_PDFX_ANNOTATIONS`, `L_TYPOGRAPHY_INEFFECTIVE`, `L_CMYK_INTENT_MISMATCH`)
-mirror an engine diagnostic: a warning on the default channel, a throw under
-`layout.strict`.
+Six of the rules (`L_TAGGED_FORM_FONTS`, `L_PDFX_NO_FONTS` above,
+`L_PDFX_ANNOTATIONS`, `L_TYPOGRAPHY_INEFFECTIVE`, `L_CMYK_INTENT_MISMATCH`,
+`L_PDFA_JPX_IMAGE`) mirror an engine diagnostic: a warning on the default
+channel, a throw under `layout.strict`. `L_PDFA_JPX_IMAGE` delegates to the
+engine's own `parseJPX` for the channel count, as `L_PRINT_BOXES` delegates
+to `validatePrintOptions`.
 
 ### Info
 
@@ -128,7 +141,13 @@ import { LINT_RULES, LINT_RULE_CODES } from 'pdfnative-react';
 
 …and in `capabilityManifest().lintRules`. A 1.2.0 document trips none of the
 twelve rules added in 1.3.0: every one needs a 1.3.0 input (`pdfx`,
-`typography`, `colourBars`, a CMYK colour, an ICC profile) to fire.
+`typography`, `colourBars`, a CMYK colour, an ICC profile) to fire. The same
+holds for the four rules added in 1.4.0 (`L_CHART_SERIES_COLORS`,
+`L_SPOT_UNDECLARED`, `L_SPOT_INK_MIX`, `L_PDFA_JPX_IMAGE`): each needs a
+1.4.0 input — `ChartSeries.colors`, a `{ spot }` or `{ inks }` colour, a
+JPEG 2000 image. One rule *relaxed*: `L_PDFX_TAGGED_CONFLICT` no longer fires
+for `tagged: 'pdfa2b'`, `'pdfa2u'` or `true` beside `pdfx="pdfx4"`, which
+engine 1.9.0 writes as one file carrying both claims.
 
 ## Options
 
@@ -212,8 +231,8 @@ Call it explicitly. It is one line.
 ## The engine's diagnostics channel (tier 4½)
 
 Since engine 1.7.0, conformance problems only a render can see are reported
-*at render time* through a diagnostics channel; engine 1.8.0 brings the list
-to 9 diagnostic codes (`PdfDiagnosticCode`, an additions-only union):
+*at render time* through a diagnostics channel; engine 1.9.0 brings the list
+to 13 diagnostic codes (`PdfDiagnosticCode`, an additions-only union):
 
 | Code | Raised when | Lint rule ahead of it |
 |---|---|---|
@@ -226,10 +245,18 @@ to 9 diagnostic codes (`PdfDiagnosticCode`, an additions-only union):
 | `PDFX_DEVICE_CMYK` | A CMYK colour under a non-CMYK PDF/X intent | `L_CMYK_INTENT_MISMATCH` |
 | `PDFX_ANNOTATIONS` | A link or form field inside the BleedBox | `L_PDFX_ANNOTATIONS` |
 | `TYPOGRAPHY_FEATURE_INEFFECTIVE` | A `fontFeatures` tag the font cannot substitute (`tnum` on Noto Sans) | `L_TYPOGRAPHY_INEFFECTIVE` (tag validity only) |
+| `PDFA1_JPX_IMAGE` | A JPEG 2000 image under a PDF/A-1 claim (no `JPXDecode` in PDF 1.4) | `L_PDFA_JPX_IMAGE` |
+| `PDFA_JPX_IMAGE` | A JPEG 2000 image under PDF/A-2+ with 2 or more than 4 channels, or an opacity channel | `L_PDFA_JPX_IMAGE` |
+| `PDFA_GLYPH_WITHOUT_UNICODE` | A glyph with no `/ToUnicode` entry under a PDF/A-2u claim — the engine's own self-check of the maps it writes | — (no authoring trigger) |
+| `TEXT_GLYPH_NOT_COVERED` | A character no registered font covers, so the engine draws `.notdef` | — (deliberately: font coverage is the engine's routing, not the model's) |
 
 By default the engine `console.warn`s once per code; `layout.onDiagnostic`
 receives them programmatically, and `layout.strict: true` escalates them to
-thrown errors.
+thrown errors. `TEXT_GLYPH_NOT_COVERED` has no lint rule on purpose: which
+font covers which character is decided when the engine routes the text,
+after the model is compiled; a warning on `onDiagnostic` (a throw under
+`strict`) is the signal to register a covering font or replace the character
+(`extractText` shows the `.notdef` boxes — see [RECIPES.md](RECIPES.md)).
 
 The two tiers complement each other: `lintDocument` is pure, pre-render and
 covers the document model; the diagnostics channel sees what only the render

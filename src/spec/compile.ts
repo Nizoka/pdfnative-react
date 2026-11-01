@@ -153,6 +153,7 @@ export function specToElement(spec: DocSpec): ReactElement {
             outputIntent: spec.outputIntent,
             typography: spec.typography,
             creationDate: spec.creationDate,
+            direction: spec.direction,
         },
         children,
     );

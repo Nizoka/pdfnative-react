@@ -31,6 +31,17 @@
  *   - PDF/X-4 entries (1.3.0): a CMYK press sheet through the JSX door, a Gray
  *     output intent through the DocSpec door, and one NEGATIVE canary with no
  *     embedded fonts (PDFX_NO_FONT_ENTRIES) that validatePdfX() must reject.
+ *   - Engine 1.9.0 entries (1.4.0): spot colours and per-value chart colours
+ *     on a PDF/X-4 sheet; the PDF/A-2b + PDF/X-4 dual claim (claims 'both':
+ *     counted under both standards, run through veraPDF AND validatePdfX);
+ *     a 1-channel JPEG 2000 image under pdfa2b (positive); and a JPEG 2000
+ *     image under pdfa1b, which ISO 19005-1 §6.1.10 forbids (no JPXDecode
+ *     filter in PDF 1.4) and the engine reports as PDFA1_JPX_IMAGE — but which
+ *     veraPDF 1.30.2 ACCEPTS (measured on the 1.4.0 release branch: the file
+ *     carries the PDF 1.4 header and the pdfaid:part 1 claim, and the
+ *     validator has no rule for the filter). Tracked as a validator gap, not
+ *     a negative canary: the entry expects PASS today, so the day veraPDF
+ *     gains the rule the run fails loudly and the entry flips to a canary.
  *   - Positive entries render with `layout.strict: true`, so any conformance
  *     diagnostic aborts generation instead of shipping a doomed corpus entry.
  *     Negative entries must NOT set strict (it would throw before bytes);
@@ -49,6 +60,7 @@ import type { ReactElement } from 'react';
 
 import { SAMPLE_CREATION_DATE, TEST_OUTPUT_DIR } from '../helpers/io.js';
 import { buildSyntheticCmykProfile, buildSyntheticGrayProfile } from './synthetic-icc.js';
+import { makeMinimalJP2 } from './jpx-fixture.js';
 
 /** The built package, as `scripts/generate-pdfa-corpus.ts` imports it. */
 export type BuiltPackage = typeof import('../../src/index.js');
@@ -56,7 +68,8 @@ export type DocSpec = import('../../src/index.js').DocSpec;
 
 export const OUT_DIR = join(TEST_OUTPUT_DIR, 'pdfa');
 
-export type Claim = 'pdfa' | 'pdfx' | 'none';
+/** The standard(s) an entry claims; 'both' is the PDF/A-2 + PDF/X-4 dual claim (engine 1.9.0). */
+export type Claim = 'pdfa' | 'pdfx' | 'both' | 'none';
 export type Door = 'jsx' | 'spec';
 
 export interface CorpusContext {
@@ -87,6 +100,16 @@ export interface CorpusEntry {
 /** The standard an entry claims. */
 export function claimOf(entry: CorpusEntry): Claim {
     return entry.claims;
+}
+
+/** `true` when the entry claims PDF/A (alone or beside PDF/X-4). */
+export function claimsPdfA(entry: CorpusEntry): boolean {
+    return entry.claims === 'pdfa' || entry.claims === 'both';
+}
+
+/** `true` when the entry claims PDF/X-4 (alone or beside PDF/A-2). */
+export function claimsPdfX(entry: CorpusEntry): boolean {
+    return entry.claims === 'pdfx' || entry.claims === 'both';
 }
 
 const STRICT = { strict: true, creationDate: SAMPLE_CREATION_DATE };
@@ -455,6 +478,106 @@ export const CORPUS: readonly CorpusEntry[] = [
             blocks: [
                 ['h1', 'Deliberately non-conformant'],
                 ['p', 'PDF/X-4 requires every font to be embedded; base-14 Helvetica is not.'],
+            ],
+        }),
+    },
+    // ── Engine 1.9.0 (1.4.0) ────────────────────────────────────────
+    {
+        file: 'jsx-pdfx4-spot.pdf',
+        door: 'jsx',
+        claims: 'pdfx',
+        entry: 'renderToFile(createElement) — PDF/X-4 with spot colours: print.spotColours, { spot } and { inks } content, per-value chart colours, strict (1.9.0)',
+        produce: ({ lib, h, fontEntries }) =>
+            h(
+                lib.Document,
+                {
+                    title: 'Corpus PDF/X-4 spot colours',
+                    pdfx: 'pdfx4',
+                    fontEntries,
+                    outputIntent: CMYK_INTENT,
+                    metadata: { author: 'pdfnative-react corpus', trapped: 'False' },
+                    print: {
+                        bleed: BLEED,
+                        marks: { crop: true, colourBars: true },
+                        spotColours: [
+                            { name: 'Brand Blue', alternate: [100, 44, 0, 0] },
+                            { name: 'Varnish', alternate: [0, 0, 0, 8] },
+                        ],
+                    },
+                    layout: { ...STRICT, pageWidth: 595.28 + 2 * BLEED, pageHeight: 841.89 + 2 * BLEED },
+                },
+                h(lib.Heading, { level: 1, color: { spot: 'Brand Blue' } }, 'Brand blue plate'),
+                h(lib.Paragraph, { color: { inks: { 'Brand Blue': 1, Varnish: 0.5 } } }, 'A /DeviceN mix of two declared inks.'),
+                h(lib.Chart, {
+                    chartType: 'bar',
+                    categories: ['Brand Blue', 'Varnish'],
+                    series: [{ label: 'Coverage', values: [40, 60], colors: [{ spot: 'Brand Blue' }, { spot: 'Varnish' }] }],
+                    altText: 'Ink coverage per plate: Brand Blue 40 %, Varnish 60 %.',
+                }),
+            ),
+    },
+    {
+        file: 'jsx-pdfa2b-pdfx4-dual.pdf',
+        door: 'jsx',
+        claims: 'both',
+        entry: 'renderToFile(createElement) — the PDF/A-2b + PDF/X-4 dual claim: one file, both XMP identifications, veraPDF and validatePdfX, strict (1.9.0)',
+        produce: ({ lib, h, fontEntries }) =>
+            h(
+                lib.Document,
+                {
+                    title: 'Corpus dual claim',
+                    tagged: 'pdfa2b',
+                    pdfx: 'pdfx4',
+                    fontEntries,
+                    outputIntent: CMYK_INTENT,
+                    metadata: { author: 'pdfnative-react corpus', trapped: 'False' },
+                    print: { bleed: 9, marks: true },
+                    layout: { ...STRICT, pageWidth: 595.28 + 18, pageHeight: 841.89 + 18 },
+                },
+                h(lib.Heading, { level: 1, color: [0, 0, 0, 100] }, 'Archived press sheet'),
+                h(lib.Paragraph, null, 'Tagged for PDF/A-2b and trimmed for PDF/X-4, in one file.'),
+                h(lib.Table, {
+                    headers: ['Standard', 'Check'],
+                    rows: [
+                        { cells: ['PDF/A-2b', 'veraPDF'], type: 'default', pointed: false },
+                        { cells: ['PDF/X-4', 'validatePdfX'], type: 'default', pointed: false },
+                    ],
+                }),
+            ),
+    },
+    {
+        file: 'spec-pdfa2b-jpx.pdf',
+        door: 'spec',
+        claims: 'pdfa',
+        entry: 'renderSpecToFile — a 1-channel JPEG 2000 image under pdfa2b (ISO 19005-2 §6.2.8.3 allows 1, 3 or 4 channels, no opacity), strict (1.9.0)',
+        produce: ({ fontEntries }) => ({
+            title: 'Corpus JPEG 2000 under PDF/A-2b',
+            tagged: 'pdfa2b',
+            fontEntries,
+            layout: STRICT,
+            blocks: [
+                ['h1', 'JPEG 2000 under PDF/A-2'],
+                ['img', { data: makeMinimalJP2(1, { size: 16 }), width: 64, height: 64, alt: 'A flat grey square, passed through as JPXDecode' }],
+                ['p', 'PDF/A-2 accepts JPXDecode images with 1, 3 or 4 colour channels and no opacity channel.'],
+            ],
+        }),
+    },
+    {
+        file: 'jpx-pdfa1b.pdf',
+        door: 'spec',
+        claims: 'pdfa',
+        entry: 'renderSpecToFile — a JPEG 2000 image under pdfa1b: forbidden by ISO 19005-1 §6.1.10 (PDFA1_JPX_IMAGE, collected as a note), ACCEPTED by veraPDF 1.30.2 — a tracked validator gap, flips to a negative canary when veraPDF gains the rule',
+        produce: (ctx) => ({
+            title: 'Corpus validator gap: JPEG 2000 under PDF/A-1',
+            tagged: 'pdfa1b',
+            fontEntries: ctx.fontEntries,
+            // Not strict (strict would throw on PDFA1_JPX_IMAGE before bytes);
+            // the lint rule L_PDFA_JPX_IMAGE and the engine diagnostic both
+            // name the problem veraPDF 1.30.2 does not check.
+            layout: LENIENT(ctx),
+            blocks: [
+                ['h1', 'JPEG 2000 under PDF/A-1, deliberately'],
+                ['img', { data: makeMinimalJP2(3, { size: 16 }), width: 64, height: 64, alt: 'Refused by PDF/A-1' }],
             ],
         }),
     },

@@ -8,8 +8,9 @@
  * are DeviceRGB, four are DeviceCMYK. A CMYK colour is a tuple in percent
  * (`[c, m, y, k]`, 0–100) or a four-operand string (`'c m y k'`, 0.0–1.0),
  * and it is accepted wherever a colour is: headings, paragraphs, links, table
- * zebra stripes and borders, chart palettes and series, the document palette
- * (`layout.colors`), watermarks, headers and footers.
+ * zebra stripes and borders, chart palettes and series, watermarks, headers
+ * and footers. (`layout.colors` is forwarded but never read by the block-flow
+ * renderer — it is the palette of the engine's table-report builder.)
  *
  * Under a PDF/A or PDF/X claim whose output intent is not CMYK the engine
  * reports `PDFA_DEVICE_CMYK_CONTENT` / `PDFX_DEVICE_CMYK` — the linter's
@@ -29,7 +30,6 @@ const doc = (
         header={{ left: 'Acme Inc', right: 'Plates: C M Y K', color: [0, 0, 0, 60] }}
         footer={{ center: 'Page {page} of {pages}', color: [0, 0, 0, 60] }}
         watermark={{ text: { text: 'PROOF', color: '0 0 0 0.15', opacity: 0.5 } }}
-        layout={{ colors: { title: INK } as never }}
     >
         <Heading level={1} color={INK}>
             CMYK on every colour position

@@ -4,9 +4,12 @@
 > JSX compiles, via a custom React reconciler, into a `pdfnative` DocumentParams
 > object and renders real PDF bytes — no DOM, no headless browser, no native
 > modules. It is a declarative block flow, not a CSS/flexbox layout engine.
+> Typography, print colour (CMYK and spot inks), PDF/A, PDF/X-4, right-to-left
+> text and 32 Unicode scripts come from the engine; a compact DocSpec grammar,
+> 41 lint rules and a pre-flight make it drivable by an agent.
 
-Version: 1.3.0 · pairs with pdfnative 1.8.0. Current release: 1.3.0.
-Verified on 2026-09-22 against the source tree.
+Version: 1.4.0 · pairs with pdfnative 1.9.0. Current release: 1.4.0.
+Verified on 2026-11-01 against the source tree.
 
 This file is an LLM-facing capability summary. For the machine-readable JSON
 version, call `capabilityManifest()`; for schemas, call `schema(subject)`.
@@ -17,25 +20,27 @@ version, call `capabilityManifest()`; for schemas, call `schema(subject)`.
 npm install pdfnative-react pdfnative react
 ```
 
-Requires React 19, pdfnative >= 1.8, Node.js >= 22.
+Requires React 19, pdfnative >= 1.9, Node.js >= 22.
 
 ## Core idea
 
 JSX components map 1:1 onto pdfnative blocks. A custom react-reconciler compiles
 the tree synchronously (no DOM) into `DocumentParams`, which `pdfnative` renders
-to a `Uint8Array` PDF. 19 components, 14 block kinds, 18 DocSpec fields,
-37 lint rules, 6 error codes, 27 Unicode scripts.
+to a `Uint8Array` PDF. 19 components, 14 block kinds, 19 DocSpec fields,
+41 lint rules, 6 error codes, 13 diagnostic codes, 32 Unicode scripts.
 
 ## Components
 
-- Document (root: title, footerText, metadata, fontEntries, layout, outline, pageLabels, watermark, header, footer, attachments, tagged, print, pdfx, outputIntent, typography, creationDate)
+- Document (root: title, footerText, metadata, fontEntries, layout, outline, pageLabels, watermark, header, footer, attachments, tagged, print, pdfx, outputIntent, typography, creationDate, direction)
 - Page (explicit page boundary; auto-pagination otherwise)
 - Section (sugar: title + grouped content; level?, color?, break?)
 - Heading (level 1-3; keepWithNext?)
-- Paragraph / Text (alias) (fontSize?, lineHeight?, align?: 'left'|'center'|'right'|'justify', indent?, color?, keepWithNext?, splittable?)
+- Paragraph / Text (alias) (fontSize?, lineHeight?, align?: 'left'|'center'|'right'|'justify', indent?, color?, keepWithNext?, splittable?, direction?: 'auto'|'ltr'|'rtl' — overrides <Document direction> for this block; engine >= 1.9.0)
 - List (ordered?) + Item (items may nest sub-lists: child <List>, nested <Item>, or items={{text,items}})
 - Table + Row (header?, variant, pointed) + Cell  — or pass headers/rows props; cellBorders?, cellVAlign?, zebra?
-- Image (data: Uint8Array)
+- Image (data: Uint8Array — JPEG, PNG without an alpha channel (colour types 0, 2, 3;
+  the engine refuses 4 and 6: flatten first), or JPEG 2000: a JP2 file or a raw J2K
+  codestream passes through as /JPXDecode, never decoded; engine >= 1.9.0; lint L_PDFA_JPX_IMAGE)
 - Link (url | href)
 - Spacer (height)
 - PageBreak
@@ -46,12 +51,20 @@ to a `Uint8Array` PDF. 19 components, 14 block kinds, 18 DocSpec fields,
   area, scatter; log/time scales (axis.scale, xAxis), secondary right axis (axis2 +
   series yAxis:'right'), per-point dataLabels, labelStride/labelRotation; series
   xValues required for scatter/positional axes. Native vector, PDF/A-safe.
+  Series { label?, values, color?, colors?, xValues?, yAxis? }: label optional (unnamed
+  => 'Series N'); colors = one colour per value on bar/barH/stackedBar/stackedBarH
+  (other kinds ignore it; the legend swatch keeps color), length = values
+  (L_CHART_SERIES_COLORS). Engine >= 1.9.0.
 - FormField (fieldType, name) — interactive AcroForm widgets
 
 Colour (every `color`, chart colors/series color, cellBorders.color, zebra,
-watermark, header/footer color, layout.colors): '#rrggbb' | [r,g,b] (0-255) |
+watermark, header/footer color; NOT layout.colors, which the block-flow renderer
+never reads; outline[].color takes the process forms only): '#rrggbb' | [r,g,b] (0-255) |
 'r g b' (0-1) | [c,m,y,k] (percent, 0-100) | 'c m y k' (0-1). Three values are
-DeviceRGB, four are DeviceCMYK.
+DeviceRGB, four are DeviceCMYK. Engine >= 1.9.0 adds two object forms everywhere:
+{ spot: 'PANTONE 300 C', tint?: 0.5 } (a /Separation; PdfSpotColor) and
+{ inks: { 'PANTONE 300 C': 1, Varnish: 0.3 } } (a /DeviceN mix; PdfInkMix) — every
+ink declared under print.spotColours (L_SPOT_UNDECLARED), a well-formed mix: inks, tints in 0-1, one alternate space (L_SPOT_INK_MIX).
 
 ## Document-level page furniture (props on <Document>, not components)
 
@@ -62,15 +75,24 @@ DeviceRGB, four are DeviceCMYK.
 - attachments: PdfAttachment[] { filename, data, mimeType, description?, relationship? }
   Requires tagged: 'pdfa3b' — the engine throws otherwise.
 - tagged: boolean | 'pdfa1b' | 'pdfa2b' | 'pdfa2u' | 'pdfa3b'
-  PDF/A requires embedded fonts: pair with fontEntries.
+  true is the engine's default claim, PDF/A-2b (same bytes as 'pdfa2b'); the PDF/A
+  lint rules (L_TAGGED_NO_FONTS, L_TAGGED_FORM_FONTS, L_PDFA_JPX_IMAGE) evaluate the
+  string levels only — name the level to get the pre-flight.
+  PDF/A requires embedded fonts: pair with fontEntries. 'pdfa2b' and 'pdfa2u'
+  combine with pdfx: 'pdfx4' (one file, both XMP identifications; engine >= 1.9.0).
 - print: PrintOptions { bleed? | trimBox?/bleedBox?/artBox?/cropBox? ([llx,lly,urx,ury]),
-  marks?: boolean | { crop?, registration?, colourBars?: boolean | { tints?, size? }, length?, offset?, weight? }, userUnit? (1-75000) }
-  Print production (engine >= 1.7; colourBars >= 1.8). bleed and trimBox are mutually
-  exclusive; marks need a TrimBox source; userUnit is rejected under 'pdfa1b';
-  colour bars want a 5 mm (14.17 pt) bleed.
+  marks?: boolean | { crop?, registration?, colourBars?: boolean | { tints?, size? }, length?, offset?, weight? }, userUnit? (1-75000),
+  spotColours?: [{ name, alternate: [c,m,y,k] | [r,g,b] }] }
+  Print production (engine >= 1.7; colourBars >= 1.8; spotColours >= 1.9). bleed and
+  trimBox are mutually exclusive; marks need a TrimBox source; userUnit is rejected
+  under 'pdfa1b'; colour bars want a 5 mm (14.17 pt) bleed. spotColours declares the
+  named inks { spot } / { inks } colours paint with (SpotColourDef); an empty or
+  duplicate name or an alternate out of range is L_PRINT_BOXES.
 - pdfx: 'pdfx4'  — PDF/X-4 (ISO 15930-7). Needs outputIntent with a printer (prtr)
-  ICC profile, metadata.trapped 'True'|'False', fontEntries; exclusive with tagged
-  and layout.encryption; a TrimBox or an ArtBox per page, not both. Each constraint
+  ICC profile, metadata.trapped 'True'|'False', fontEntries; exclusive with
+  layout.encryption and with tagged 'pdfa1b' (PDF 1.4) or 'pdfa3b' (embedded files) —
+  'pdfa2b' / 'pdfa2u' are allowed beside it (L_PDFX_TAGGED_CONFLICT fires on the two
+  incompatible levels only); a TrimBox or an ArtBox per page, not both. Each constraint
   is an L_PDFX_* lint rule before it is an E_INPUT throw. Check bytes with the
   engine's validatePdfX() (not re-exported; docs/RECIPES.md).
 - outputIntent: { iccProfile: Uint8Array (RGB/CMYK/Gray), outputConditionIdentifier, registryName?, outputCondition?, info? }
@@ -91,20 +113,33 @@ DeviceRGB, four are DeviceCMYK.
   pinned document gives the same bytes on every host. An unparseable string is E_INPUT.
   Process-wide: setDefaultCreationDate(date | null). The library reads NO environment
   variable (not SOURCE_DATE_EPOCH). Not reproducible by design: layout.encryption.
+- direction: 'auto' | 'ltr' | 'rtl' (TextDirection, engine >= 1.9.0) — the base text
+  direction of every paragraph: 'auto' resolves it from the first strong character
+  (UAX #9 P2-P3), 'rtl' / 'ltr' force it; <Paragraph direction> overrides it per
+  block. Right-to-left lines wrap from the right margin under the full bidirectional
+  algorithm, and every right-to-left run carries its logical text as an untagged
+  /Span /ActualText, so extractText returns the source string (layout.actualText:
+  false opts out — layout only, no sugar). Omitted => byte-identical to 1.3.
 
-All ten fold into `layout` under the engine's keys (watermark, headerTemplate,
+All eleven fold into `layout` under the engine's keys (watermark, headerTemplate,
 footerTemplate, attachments, tagged, print, pdfx, outputIntent, typography,
-creationDate). An explicit `layout` prop wins (replaces whole, no deep merge).
+creationDate, direction). An explicit `layout` prop wins (replaces whole, no deep merge).
 Document.outline: OutlineItem[] | 'auto'. Document.pageLabels: PageLabelRange[].
 metadata.trapped: 'True' | 'False' | 'Unknown' (prepress /Trapped + XMP; PDF/X needs a known state).
 layout.viewerPreferences also takes duplex, pickTrayByPDFSize,
 printPageRange ([[first,last], ...] 1-based) and numCopies.
-layout.strict (boolean, JSON-safe) escalates the engine's 9 diagnostic codes to
+layout.strict (boolean, JSON-safe) escalates the engine's 13 diagnostic codes to
 thrown errors; layout.onDiagnostic (function — not representable in JSON specs)
 receives them instead of the default console.warn:
 PDFA_NO_FONT_ENTRIES, PDFA_UNEMBEDDED_FORM_FONT, PDFA_DEVICE_CMYK_IMAGE,
 PDFA_DEVICE_CMYK_CONTENT, PDFA_ICC_PROFILE_VERSION, PDFX_NO_FONT_ENTRIES,
-PDFX_DEVICE_CMYK, PDFX_ANNOTATIONS, TYPOGRAPHY_FEATURE_INEFFECTIVE.
+PDFX_DEVICE_CMYK, PDFX_ANNOTATIONS, TYPOGRAPHY_FEATURE_INEFFECTIVE, and since
+engine 1.9.0 PDFA1_JPX_IMAGE (any JPEG 2000 under 'pdfa1b'), PDFA_JPX_IMAGE
+(a JPX with channels other than 1/3/4 or an opacity channel under PDF/A-2+),
+PDFA_GLYPH_WITHOUT_UNICODE (the PDF/A-2u ToUnicode check; no authoring trigger)
+and TEXT_GLYPH_NOT_COVERED (a character no registered font covers — it used to
+render as a box or '?' silently; now a warning, a throw under strict; no lint
+rule by design: which font covers a character is the engine's routing).
 
 ## Rendering
 
@@ -133,9 +168,14 @@ do `fontEntries: await resolveFonts({...})`.
 ## Fonts & assets
 
 - resolveFonts(map) -> Promise<FontEntry[]>  (map: { lang: () => import('pdfnative/fonts/…-data.js') })
-  27 Unicode scripts are bundled by the engine as font modules; 1.8.0 added
+  32 Unicode scripts are bundled by the engine as font modules; 1.9.0 added
+  gu (Gujarati, noto-gujarati-data.js), pa (Gurmukhi, noto-gurmukhi-data.js),
+  kn (Kannada, noto-kannada-data.js), ml (Malayalam, noto-malayalam-data.js) and
+  or (Odia, noto-oriya-data.js) on the Indic shaping engine; 1.8.0 added
   lo (Lao), nod (Tai Tham), khb (New Tai Lue), tdd (Tai Le), cjm (Cham), and
   ha/yo/ig/sw (Hausa, Yoruba, Igbo, Swahili) as aliases of the latin module.
+  Since engine 1.9.0 every embedded font is a lean subset and /BaseFont carries
+  the six-letter subset tag (ABCDEF+NotoSans-Regular; bare under PDF/A-1).
 - validateFontData(data) -> FontValidationResult { valid, errors, warnings }  (opt-in font check)
 - fromUrl(url, init?) -> Promise<Uint8Array>  (image bytes)
 - fromBase64(payload) -> Uint8Array           (base64 or data: URI)
@@ -169,6 +209,10 @@ wrapZlib (wrap a raw deflater by hand), setDefaultCreationDate /
 getDefaultCreationDate (process-wide creation instant; null restores the clock),
 setHyphenationProvider / getHyphenationProvider ((word, lang?) => break offsets).
 Every one is the engine's own function, re-exported unchanged.
+Font modules are the engine's `pdfnative/fonts/<name>-data.js` files (noto-sans,
+noto-arabic, noto-hebrew, noto-sans-math, noto-lao, …; the size table is README
+§Fonts & environment); resolveFonts({ ar, he, hi, ja, … }) maps the 32 script keys
+to them, so a DocSpec's fontEntries is `await resolveFonts({ … })` serialized.
 
 ## Compact agent authoring (token-frugal DocSpec)
 
@@ -184,16 +228,17 @@ Prefer it when generating documents programmatically.
 - lintSpec(spec, options?) -> LintReport
 - validateSpec(spec: unknown) -> { ok, errors, warnings }   (no JSON-Schema engine needed)
 
-DocSpec fields (18): title, footerText, metadata, fontEntries, layout, outline,
+DocSpec fields (19): title, footerText, metadata, fontEntries, layout, outline,
 pageLabels, watermark, header, footer, attachments, tagged, print, pdfx,
-outputIntent, typography, creationDate (ISO string), blocks — every one optional
-but blocks.
+outputIntent, typography, creationDate (ISO string), direction ('auto'|'ltr'|'rtl'),
+blocks — every one optional but blocks. Colour values take the same forms as in
+JSX, { spot, tint? } and { inks } included (declared under print.spotColours).
 Block tuples (kind, ...payload, opts?):
 - ['h1'|'h2'|'h3', text, opts?]   opts: color?, keepWithNext?
-- ['p', text, opts?]   opts: fontSize?, lineHeight?, align? (incl. 'justify'), indent?, color?, keepWithNext?, splittable?
+- ['p', text, opts?]   opts: fontSize?, lineHeight?, align? (incl. 'justify'), indent?, color?, keepWithNext?, splittable?, direction? ('auto'|'ltr'|'rtl', overrides the document)
 - ['ul'|'ol', items, opts?]   items entry = string | { text, items }  (nested sub-lists)
 - ['table', { h?, r, columns?, zebra?, caption?, cellBorders?, cellVAlign?, ... }]   r row = string[] | PdfRow
-- ['img', { data, ... }]
+- ['img', { data, ... }]   data: JPEG, PNG (no alpha channel) or JPEG 2000 (JP2 file or J2K codestream) bytes
 - ['link', text, { url, ... }]
 - ['sp', height?]
 - ['br']
@@ -201,18 +246,19 @@ Block tuples (kind, ...payload, opts?):
 - ['toc', opts?]
 - ['qr'|'code128'|'ean13'|'pdf417'|'datamatrix', data, opts?]
 - ['svg', data, opts?]
-- ['chart', { chartType, series, categories?, title?, width?, height?, legend?, axis?, axis2?, xAxis?, dataLabels?, labelStride?, labelRotation?, markers?, colors?, align?, altText? }]
+- ['chart', { chartType, series, categories?, title?, width?, height?, legend?, axis?, axis2?, xAxis?, dataLabels?, labelStride?, labelRotation?, markers?, colors?, align?, altText? }]   series entry: { label?, values, color?, colors?, xValues?, yAxis? } (schema requires values only)
 - ['field', { fieldType, name, ... }]
 
 ## Agent surface
 
 - doctor() -> { ok, checks: [{ name, status: 'ok'|'warn'|'error', value, detail }] }
   Environment pre-flight. NEVER throws, including when the pdfnative peer is
-  missing. Engine probe newest-first: a 1.7.x engine is reported as needing >= 1.8.0.
-  Call this first in an unfamiliar environment.
+  missing. Engine probe newest-first (resolveBidiLevels 1.9.0 -> setDefaultCreationDate
+  1.8.0 -> validatePrintOptions 1.7.0 -> estimateChartHeight 1.6.0): a 1.8.x engine
+  is reported as needing >= 1.9.0. Call this first in an unfamiliar environment.
 - capabilityManifest() -> everything the package can do, as plain JSON:
   components, specBlocks (the whole grammar), specFields, entrypoints, errorCodes,
-  lintRules, schemaSubjects, and the contract invariants (engine '^1.8.0').
+  lintRules, schemaSubjects, and the contract invariants (engine '^1.9.0').
 - schema(subject?) -> Draft 2020-12 JSON Schema; schemaId(subject?) -> versioned $id.
   Subjects: doc-spec (default), render-options, lint-report, spec-validation,
   doctor, manifest, list. The $id embeds the package version, so a caching
@@ -258,12 +304,17 @@ Every error carries a stable code. Branch on the code, never the message.
   envelope deliberately omits the cause.
 - PdfStructureError extends PdfReactError — code 'E_STRUCTURE'
 - toErrorEnvelope(unknown) -> the same envelope for any thrown value; an engine
-  input error (PDF/X coherence, print geometry, output intent, chart) is E_INPUT.
+  input error (PDF/X coherence, print geometry, output intent, chart, the colour
+  input — an undeclared spot ink, an ink mix, an empty ink name, a spot colour on an
+  outline bookmark —, malformed or unsupported image bytes 'parsePNG:'/'parseJPEG:'/
+  'parseJPX:'/'parseImage:', 'Watermark transparency' under PDF/A-1b) is E_INPUT;
+  the full prefix list is the exported ENGINE_INPUT_ERROR_PREFIXES. A layout.strict
+  escalation of a diagnostic ('pdfnative: <CODE> …') is E_RUNTIME.
 - ErrorCode: E_STRUCTURE, E_INPUT, E_UNSUPPORTED, E_ENV, E_POLICY, E_RUNTIME
 
 ## Lint rules (stable L_* codes)
 
-37 lint rules — 23 error, 13 warning, 1 info.
+41 lint rules — 26 error, 14 warning, 1 info.
 
 errors:   L_EMPTY_DOCUMENT, L_TAGGED_NO_FONTS, L_TAGGED_ENCRYPTED,
           L_ATTACHMENTS_NEED_PDFA3, L_MAX_BLOCKS_EXCEEDED, L_CHART_EMPTY,
@@ -271,22 +322,40 @@ errors:   L_EMPTY_DOCUMENT, L_TAGGED_NO_FONTS, L_TAGGED_ENCRYPTED,
           L_CHART_LOG_SCALE, L_CHART_X_AXIS, L_CHART_LABELS, L_PRINT_BOXES,
           L_VIEWER_PRINT_RANGE, L_OUTPUT_INTENT_PROFILE, L_PDFX_TARGET,
           L_PDFX_TAGGED_CONFLICT, L_PDFX_ENCRYPTED, L_PDFX_OUTPUT_INTENT,
-          L_PDFX_TRAPPED_UNKNOWN, L_PDFX_BOXES, L_PDFX_NO_FONTS
+          L_PDFX_TRAPPED_UNKNOWN, L_PDFX_BOXES, L_PDFX_NO_FONTS,
+          L_CHART_SERIES_COLORS, L_SPOT_UNDECLARED, L_SPOT_INK_MIX
 warnings: L_IMAGE_ALT, L_TABLE_HEADERS, L_HEADING_HIERARCHY, L_FIELD_LABEL,
           L_LINK_TEXT, L_MAX_BLOCKS, L_OUTPUT_INTENT_IGNORED,
           L_TAGGED_FORM_FONTS, L_OVERFLOW, L_PDFX_ANNOTATIONS,
-          L_TYPOGRAPHY_INEFFECTIVE, L_PRINT_COLOUR_BARS, L_CMYK_INTENT_MISMATCH
+          L_TYPOGRAPHY_INEFFECTIVE, L_PRINT_COLOUR_BARS, L_CMYK_INTENT_MISMATCH,
+          L_PDFA_JPX_IMAGE
 info:     L_CHART_ALT
 
-TWENTY of them pre-empt an exception the engine raises at build time: the eight
-L_CHART_* errors, L_PRINT_BOXES (delegates to the engine's own
+Added in 1.4.0 (engine 1.9.0), each with the engine's own message:
+- L_CHART_SERIES_COLORS (error): a series' colors length differs from its values
+  (`chart: series "<name>" colors length (n) does not match values (m)`).
+- L_SPOT_UNDECLARED (error): a { spot } / { inks } colour names an ink that
+  print.spotColours does not declare (`Spot colour '<ink>' is not declared — add
+  { name: '<ink>', alternate: [c, m, y, k] } to layout.print.spotColours`).
+- L_SPOT_INK_MIX (error): an ink mix or tint the engine rejects — no inks, a tint outside 0-1, alternates in different spaces
+  (`Ink mix <a> + <b>: every ink of a mix needs the same alternate space (all CMYK or all RGB)`).
+- L_PDFA_JPX_IMAGE (warning): a JPEG 2000 image under PDF/A — any JPX under 'pdfa1b'
+  (PDFA1_JPX_IMAGE), channels other than 1/3/4 or an opacity channel under PDF/A-2+
+  (PDFA_JPX_IMAGE); a throw under layout.strict, a veraPDF rejection otherwise.
+Changed: L_PRINT_BOXES also carries the spot-colour declaration errors;
+L_CMYK_INTENT_MISMATCH counts a CMYK-alternate spot colour as CMYK content;
+L_PDFX_TAGGED_CONFLICT fires only for tagged 'pdfa1b' / 'pdfa3b' beside pdfx.
+
+TWENTY-THREE of them pre-empt an exception the engine raises at build time: the
+nine L_CHART_* errors, L_PRINT_BOXES (delegates to the engine's own
 validatePrintOptions, so its message is the engine's), L_VIEWER_PRINT_RANGE,
 L_ATTACHMENTS_NEED_PDFA3, L_TAGGED_ENCRYPTED, L_MAX_BLOCKS_EXCEEDED,
-L_OUTPUT_INTENT_PROFILE and the six PDF/X coherence rules (their message is the
-engine's message). Five mirror an engine diagnostic that throws under
-layout.strict. L_MAX_BLOCKS_EXCEEDED fires against the engine default of
-100 000 blocks even when layout.maxBlocks is unset. L_OVERFLOW requires
-{ overflow: true }. A 1.2.0 document trips none of the twelve 1.3.0 rules.
+L_OUTPUT_INTENT_PROFILE, L_SPOT_UNDECLARED, L_SPOT_INK_MIX and the six PDF/X
+coherence rules (their message is the engine's message). Six mirror an engine
+diagnostic that throws under layout.strict. L_MAX_BLOCKS_EXCEEDED fires against
+the engine default of 100 000 blocks even when layout.maxBlocks is unset.
+L_OVERFLOW requires { overflow: true }. A 1.2.0 document trips none of the
+twelve 1.3.0 rules; a 1.3.0 document trips none of the four 1.4.0 rules.
 
 ## Notes
 
@@ -298,12 +367,30 @@ layout.strict. L_MAX_BLOCKS_EXCEEDED fires against the engine default of
   produces — see docs/RECIPES.md.
 - No outbound network calls, no telemetry, no autonomous GitHub writes, no
   environment variables read.
+- Engine >= 1.9.0 inheritance, no code change here: every font-embedding document
+  changes bytes (lean font subsets, one text object per line, /ActualText on
+  untagged right-to-left and reordered Indic/SE-Asian runs, full UAX #9, deeper
+  table rows, TOC pagination); base-14-only documents are byte-identical. /BaseFont
+  carries a subset tag (ABCDEF+NotoSans-Regular, bare under PDF/A-1) — strip
+  ^[A-Z]{6}\+ when matching font names.
+- TEXT_GLYPH_NOT_COVERED (engine >= 1.9.0): a character no registered font covers
+  is a warning, a throw under layout.strict — register the covering font module.
+- layout.actualText: false drops the /ActualText spans (compatibility opt-out;
+  layout only, no prop or field). The PDF/A-2 + PDF/X-4 dual claim is validated
+  by veraPDF AND validatePdfX in the repository corpus.
+- Not re-exported by design (post-processing stays out of the authoring barrel):
+  extractText({ onStreamError }) / PdfStreamLimitError (PDF_STREAM_LIMIT),
+  decodePdfTextString, composeLtvData and the OCSP/ECDSA primitives, { type: 'link' }
+  annotations, parseJPX, the bidi helpers, validatePdfX / validatePdfUA — call the
+  engine on the bytes (docs/RECIPES.md).
 
 ## Links
 
 - npm: https://www.npmjs.com/package/pdfnative-react
 - repo: https://github.com/Nizoka/pdfnative-react
 - engine: https://www.npmjs.com/package/pdfnative
+- engine 1.9.0 release note: https://github.com/Nizoka/pdfnative/blob/main/release-notes/v1.9.0.md
+- the native family (pdfnative, zipnative, pkinative): https://pdfnative.dev/guides/native-family.html
 - agent contract: docs/AGENT_CONTRACT.md
 - guides: docs/TYPOGRAPHY.md · docs/PRINT.md · docs/REPRODUCIBLE.md · docs/CHARTS.md · docs/SERVER.md · docs/LINTING.md
 - recipes (post-processing): docs/RECIPES.md

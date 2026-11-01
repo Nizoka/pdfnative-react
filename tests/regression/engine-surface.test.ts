@@ -9,8 +9,9 @@
  *
  *   - every reference is real (the test file holds that test name, the sample
  *     is an entry of the byte baseline, the transmission suite exists);
- *   - every typography key is set by an executed sample, and the five new
- *     script codes reach a fingerprinted sample;
+ *   - every typography key is set by an executed sample, and the ten script
+ *     codes added since 1.2.0 (five in 1.8.0, five in 1.9.0) reach a
+ *     fingerprinted sample;
  *   - moving the pdfnative peer pin fails the suite until the matrix follows.
  *
  * Ported from pdfnative-mcp 1.7.0 (tests/engine-surface.test.ts) and
@@ -53,6 +54,9 @@ const TYPOGRAPHY_KEYS = [
     'opticalMargins', 'metrics', 'fontFeatures', 'kerning', 'hyphenationLanguage',
 ] as const;
 
+/** Bold bullet titles of the pinned engine entry that are a bare conventional prefix. */
+const BARE_BOLD_TITLES: ReadonlySet<string> = new Set(['docs:', 'fix(ci):']);
+
 describe('engine-surface matrix: shape', () => {
     it('describes the pdfnative release the package is pinned to — moving the pin fails until the matrix follows', () => {
         expect(pkg.peerDependencies['pdfnative']).toBe(`^${matrix.engine}`);
@@ -64,10 +68,20 @@ describe('engine-surface matrix: shape', () => {
     it('has unique ids, known kinds, and exactly one of tests / waiver per item', () => {
         const ids = matrix.items.map((i) => i.id);
         expect(new Set(ids).size).toBe(ids.length);
-        expect(ids.length).toBeGreaterThanOrEqual(85);
+        // The 1.9.0 entry has 72 bold bullets (the 1.8.0 entry had 85): one item each.
+        expect(ids.length).toBeGreaterThanOrEqual(70);
         for (const item of matrix.items) {
             expect(ITEM_KINDS, item.id).toContain(item.kind);
-            expect(item.changelog.length, item.id).toBeGreaterThan(8);
+            // Two 1.9.0 bullets are titled by their bare Conventional Commits
+            // prefix (`docs:`, `fix(ci):`), so a prefix may be as short as five characters.
+            // A `changelog` is a readable prefix of the bullet's bold title. The
+            // 1.9.0 entry has two bullets whose whole bold title is a bare
+            // conventional prefix (`docs:`, `fix(ci):`); those exact titles are
+            // the only short values accepted — a placeholder like `feat(x):` is not.
+            expect(
+                item.changelog.length > 8 || BARE_BOLD_TITLES.has(item.changelog),
+                `${item.id}: changelog "${item.changelog}" is too short to be a readable prefix`,
+            ).toBe(true);
             const tested = (item.tests?.length ?? 0) > 0;
             expect(tested !== (item.waiver !== undefined), `${item.id}: tests XOR waiver`).toBe(true);
             if (item.waiver !== undefined) {
@@ -87,10 +101,10 @@ describe('engine-surface matrix: shape', () => {
     it('every engine feature JSX or a DocSpec can reach is tested, not waived', () => {
         // The headline features of the release, by id: none may drift into a waiver.
         const mustBeTested = [
-            'typography', 'five-new-scripts', 'cmyk-colours', 'cmyk-gray-output-intents', 'pdfx4', 'validate-pdfx', 'colour-bars',
-            'utc-dates', 'deterministic-samples', 'latin-marks', 'deflate-raw-impl', 'typography-feature-ineffective', 'bind-short-words',
-            'parse-color-cmyk', 'output-intent-cmyk-gray', 'fix-soft-hyphens', 'fix-justified-text', 'fix-pdfx-trimbox',
-            'fix-output-intent-validation', 'fix-acroform-pdfa', 'fix-locale-dependent-samples',
+            'uax9-direction', 'five-indic-scripts', 'spot-colours', 'dual-pdfa-pdfx', 'jpeg-2000', 'layout-190', 'chart-optional-label',
+            'layout-actualtext', 'actualtext-rtl-runs', 'text-glyph-not-covered', 'chart-series-colors', 'pdfx-refusal-per-level',
+            'every-subset-lean-compact', 'untagged-actualtext-spans', 'subset-font-tag', 'lean-compact-subsets',
+            'fix-deep-descenders', 'fix-toc-pagination', 'fix-unlabelled-series', 'fix-devicen-tint-transform',
         ];
         for (const id of mustBeTested) {
             const item = matrix.items.find((i) => i.id === id);
@@ -158,13 +172,14 @@ describe('engine-surface: named means exercised', () => {
         expect(TYPOGRAPHY_KEYS.filter((key) => !used.has(key)), 'typography keys no sample sets').toEqual([]);
     });
 
-    it('the five new scripts and the four Latin aliases reach a fingerprinted sample', () => {
-        const text = read('samples/fonts/scripts-27.tsx');
-        for (const code of ['lo', 'nod', 'khb', 'tdd', 'cjm']) expect(text, code).toMatch(new RegExp(`^\\s+${code}:\\s*\\(\\)\\s*=>\\s*import\\(`, 'm'));
+    it('the ten new scripts and the four Latin aliases reach a fingerprinted sample', () => {
+        const text = read('samples/fonts/scripts-32.tsx');
+        // 1.8.0: Lao, Tai Tham, New Tai Lue, Tai Le, Cham; 1.9.0: Gujarati, Gurmukhi, Kannada, Malayalam, Odia.
+        for (const code of ['lo', 'nod', 'khb', 'tdd', 'cjm', 'gu', 'pa', 'kn', 'ml', 'or']) expect(text, code).toMatch(new RegExp(`^\\s+${code}:\\s*\\(\\)\\s*=>\\s*import\\(`, 'm'));
         for (const alias of ['ha', 'yo', 'ig', 'sw']) expect(text, alias).toContain(`(${alias})`);
-        expect(Object.hasOwn(baseline.entries, 'fonts/scripts-27.pdf')).toBe(true);
+        expect(Object.hasOwn(baseline.entries, 'fonts/scripts-32.pdf')).toBe(true);
         // Rendered for real: the parametrised suite resolves every module.
-        expect(read('tests/fonts-27.test.tsx')).toContain('resolveFonts');
+        expect(read('tests/fonts-32.test.tsx')).toContain('resolveFonts');
     });
 
     it('every diagnostic code the engine can raise has a row in the agent contract and a lint rule ahead of it', () => {
@@ -172,9 +187,11 @@ describe('engine-surface: named means exercised', () => {
         const codes = [
             'PDFA_NO_FONT_ENTRIES', 'PDFA_DEVICE_CMYK_IMAGE', 'PDFA_UNEMBEDDED_FORM_FONT', 'PDFA_DEVICE_CMYK_CONTENT', 'PDFA_ICC_PROFILE_VERSION',
             'PDFX_NO_FONT_ENTRIES', 'PDFX_DEVICE_CMYK', 'PDFX_ANNOTATIONS', 'TYPOGRAPHY_FEATURE_INEFFECTIVE',
+            // 1.9.0: the JPEG 2000 pair, the level-U guard and the uncovered-glyph report.
+            'PDFA1_JPX_IMAGE', 'PDFA_JPX_IMAGE', 'PDFA_GLYPH_WITHOUT_UNICODE', 'TEXT_GLYPH_NOT_COVERED',
         ];
         for (const code of codes) expect(contract.includes(`\`${code}\``), `the agent contract documents ${code}`).toBe(true);
-        expect(read('samples/quality/diagnostics.tsx')).toContain('Nine codes');
+        expect(read('samples/quality/diagnostics.tsx')).toContain('Thirteen codes');
     });
 });
 

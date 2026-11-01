@@ -17,12 +17,12 @@ with far fewer tokens than JSX. It is pure, isomorphic, and side-effect-free.
   Pure JSX sugar with no new capability (e.g. `<Section>`) is deliberately
   **not** given a tuple — agents emit the underlying blocks. Document-level
   `outline`, `pageLabels`, `watermark`, `header`, `footer`, `attachments`,
-  `tagged`, `print`, `pdfx`, `outputIntent`, `typography` and `creationDate`
+  `tagged`, `print`, `pdfx`, `outputIntent`, `typography`, `creationDate` and `direction`
   are top-level `DocSpec` fields (not tuples), mirroring `<Document>`; a new
   field is appended to `DOC_SPEC_FIELDS` in `src/registry.ts` (locked to
   `keyof DocSpec`), forwarded by `specToElement`, and described in
   `schema.ts` with its bounds (`typography` keys, the `pdfx` enum,
-  `creationDate` as `format: date-time`, colours as `$defs.color` — hex, RGB
+  `creationDate` as `format: date-time`, `direction` as the engine enum, colours as `$defs.color` — hex, RGB
   tuple, CMYK tuple or operand string). Nested list items use `{ text, items }`
   in the `ul`/`ol` grammar.
 - **`src/registry.ts` is the single source of truth.** `schema.ts` derives

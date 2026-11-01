@@ -29,7 +29,7 @@ each step's full output to `test-output/.gate/<step>.log`.
 |---|---|---|
 | Fast | `npm run gate:fast` | `typecheck:all`, `lint`, `test`, `verify:docs` |
 | CI (default) | `npm run gate` | `typecheck:all`, `lint`, `build`, `dist-check`, `dist-probe`, `bundle-smoke`, `pack-check`, `test:generate`, `test:coverage`, `verify:docs`, `verify:samples`, `corpus:pdfa`, `validate:pdfx` |
-| Publish | `npx tsx scripts/gate.ts --publish --require-all` | everything, plus `validate:pdfa` (veraPDF); a step that would skip fails |
+| Publish | `npx tsx scripts/gate.ts --publish --require-all` | everything, plus `compat:previous` (the previous release's suite against the current sources, after `test:coverage`) and `validate:pdfa` (veraPDF); a step that would skip fails |
 
 `--only <step>` runs one step, `--from <step>` resumes a profile, `--json`
 prints machine output. PowerShell swallows a bare `--` after `npm run`, so
@@ -77,7 +77,7 @@ Linux, Windows and macOS as a required check.
 
 ## PDF/A and PDF/X validation
 
-`npm run corpus:pdfa` renders a 16-file conformance corpus
+`npm run corpus:pdfa` renders a 20-file conformance corpus
 (`scripts/lib/pdfa-corpus.ts`) through the **built** package — both authoring
 doors, JSX and `DocSpec`, every PDF/A target (1b/2b/2u/3b), PDF/X-4, with
 three negative canaries — into `test-output/pdfa/`.
@@ -165,7 +165,7 @@ permissions and the release-audit skill.
 
 - [ ] `npm run gate` passes — the CI profile in one command (`npm run gate:fast` for a quick loop while iterating; PowerShell swallows a bare `--`, so call `npx tsx scripts/gate.ts --fast` there)
 - [ ] All tests pass (`npm run test`)
-- [ ] Type check passes (`npm run typecheck:all` — src, tests, samples, scripts and the v1.2.0 compatibility snapshot)
+- [ ] Type check passes (`npm run typecheck:all` — src, tests, samples, scripts and the v1.2.0 and v1.3.0 compatibility snapshots)
 - [ ] Lint passes (`npm run lint`)
 - [ ] New code has tests (coverage thresholds in `vitest.config.ts` must not regress)
 - [ ] No `any` types introduced
@@ -175,7 +175,7 @@ permissions and the release-audit skill.
 - [ ] If docs, README, llms.txt, AGENTS.md, CLAUDE.md or `.claude/` changed: `npm run verify:docs` passes
 - [ ] No breaking change (`tests/api-surface.test.ts`, `tests/schema-superset.test.ts`, `tests/manifest-superset.test.ts` and `npm run typecheck:compat` are green), or documented and versioned accordingly
 - [ ] `CHANGELOG.md` updated (Unreleased section) if user-facing changes
-- [ ] For releases: follow [Release](#release) — `release-notes/vX.Y.Z.md` and `release-notes/draft/PR-vX.Y.Z.md` written, and `npx tsx scripts/gate.ts --publish --require-all` passes locally, which runs every individual gate: `typecheck:all`, `lint`, `build`, `dist-check`, `dist-probe`, `bundle-smoke`, `pack-check`, `test:generate`, `test:coverage`, `verify:docs`, `verify:samples`, `corpus:pdfa`, `validate:pdfx`, `validate:pdfa`
+- [ ] For releases: follow [Release](#release) — `release-notes/vX.Y.Z.md` and `release-notes/draft/PR-vX.Y.Z.md` written, and `npx tsx scripts/gate.ts --publish --require-all` passes locally, which runs every individual gate: `typecheck:all`, `lint`, `build`, `dist-check`, `dist-probe`, `bundle-smoke`, `pack-check`, `test:generate`, `test:coverage`, `compat:previous`, `verify:docs`, `verify:samples`, `corpus:pdfa`, `validate:pdfx`, `validate:pdfa`
 - [ ] No `Co-Authored-By` trailer and no "generated with" footer anywhere on the branch
 
 ## Release
@@ -185,7 +185,7 @@ permissions and the release-audit skill.
 3. `npx tsx scripts/gate.ts --publish --require-all` with veraPDF installed — every step, no skip.
 4. If output changed on purpose, rebaseline (`--update`) and declare it in the note's Upgrade section.
 5. Run the `release-audit` Claude Code skill; fix what it confirms.
-6. Fill `release-notes/draft/PR-vX.Y.Z.md`. Everything after this line is the maintainer's: push, open the pull request with that body, wait for the five required checks, merge, tag `vX.Y.Z`, publish the GitHub Release with the note as its body. `publish.yml` then re-runs the publish gate and publishes through npm Trusted Publishing, attaching the SBOM and the provenance attestation.
+6. Fill `release-notes/draft/PR-vX.Y.Z.md`. Everything after this line is the maintainer's: push, open the pull request with that body, wait for the seven required checks, merge, tag `vX.Y.Z`, publish the GitHub Release with the note as its body. `publish.yml` then re-runs the publish gate and publishes through npm Trusted Publishing, attaching the SBOM and the provenance attestation.
 
 Rollback: never unpublish — cut a superseding patch; tags are immutable (`.github/rulesets/tags.json`).
 
@@ -204,10 +204,11 @@ go in the Upgrade section.
 
 ## Branch protection
 
-`.github/rulesets/main.json` requires five status checks on `main`: `ci (22)`,
-`ci (24)`, `os (windows-latest)`, `os (macos-latest)` and `sample-regression`.
-`verapdf` and `docs` are blocking workflows but not required checks (they are
-path-filtered). `.github/rulesets/tags.json` makes `v*` tags immutable. Import
+`.github/rulesets/main.json` requires seven status checks on `main`: `ci (22)`,
+`ci (24)`, `os (windows-latest)`, `os (macos-latest)`, `sample-regression`,
+`compat-previous` and `workflow lint`. `verapdf` and `docs` are blocking
+workflows but not required checks (they are path-filtered); `node-current`
+(Node 26, Active LTS since 2026-10-28, advisory until it joins the matrix) and `codeql` report without blocking. `.github/rulesets/tags.json` makes `v*` tags immutable. Import
 both through **Settings → Rules → Rulesets → Import** after they change;
 `verify:docs` rule `ruleset-parity` keeps the contexts pointing at real jobs.
 The `npm-publish` environment and the npm Trusted Publisher are bound by the

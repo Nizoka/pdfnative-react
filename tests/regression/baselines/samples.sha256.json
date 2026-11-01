@@ -1,7 +1,7 @@
 {
   "$comment": "Fingerprints of every sample in test-output/samples/ (each sample run by scripts/generate-samples.ts in its own process with the creation instant pinned, in UTC). Regenerate deliberately with `npx tsx scripts/verify-samples.ts --update`, and say why in the release notes: a changed hash means existing output changed. Mode `bytes` is a SHA-256 of the file; mode `semantic` is a SHA-256 of a canonical projection of the document, reserved for encrypted samples (CSPRNG file key and IVs), of which this repository has none. Each entry's `since` names the release whose output the hash is: it is carried forward untouched while the sample is unchanged, and moves to the release doing the rebaseline when the hash changes, so the chain 1.3.0 -> 1.4.0 -> … stays auditable and every re-anchoring is visible in the diff.",
-  "baselineVersion": "1.3.0",
-  "provenance": "Chain origin: pdfnative-react 1.3.0 on pdfnative 1.8.0 — the first release with a pinned creation instant (creationDate / setDefaultCreationDate) and UTC dates, so every entry is anchored at 1.3.0 and there is no earlier reference to inherit. Captured on Windows 11 (Node 22) by running scripts/generate-samples.ts twice in a row under TZ=UTC: 38 of 38 samples byte-identical between the two runs, then held by the Linux, Windows and macOS runners of sample-regression.yml. The two-time-zone proof (Pacific/Kiritimati vs America/Los_Angeles, over dist/index.js) is tests/regression/reproducible-build.test.ts. fonts/fonts-prop.pdf and fonts/fonts-prop-sync.pdf are one document rendered through both entry points and are identical by design (IDENTICAL_SAMPLE_GROUPS).",
+  "baselineVersion": "1.4.0",
+  "provenance": "Chain origin: pdfnative-react 1.3.0 on pdfnative 1.8.0 — the first release with a pinned creation instant (creationDate / setDefaultCreationDate) and UTC dates, so every entry was anchored at 1.3.0 with no earlier reference to inherit. Captured on Windows 11 (Node 22) by running scripts/generate-samples.ts twice in a row under TZ=UTC, then held by the Linux, Windows and macOS runners of sample-regression.yml. The two-time-zone proof (Pacific/Kiritimati vs America/Los_Angeles, over dist/index.js) is tests/regression/reproducible-build.test.ts. fonts/fonts-prop.pdf and fonts/fonts-prop-sync.pdf are one document rendered through both entry points and are identical by design (IDENTICAL_SAMPLE_GROUPS). Re-anchored at 1.4.0 on pdfnative 1.9.0 (release-notes/v1.4.0.md, Upgrade section): every sample that embeds a font moves through the engine ledger — lean, compact subsets with a six-letter subset tag (C6, C21, C28), one text object per line (C25), /ActualText spans on right-to-left and reordered runs (C20, C27) — and shrinks by a factor of three to nine (fonts/fonts-prop*, layout/page-setup, layout/print-pdfx4, layout/watermark-header-footer, text/math, text/typography-engine, text/typography-french); layout/cmyk.pdf gains the page transparency group the engine now writes for a translucent watermark (C11, +53 bytes); charts/charts-v2.pdf gains a per-value-colour chart and an unlabelled series (sample edit); fonts/scripts-27.pdf is renamed fonts/scripts-32.pdf and extended with the five Indic scripts of 1.9.0; five samples are new (text/rtl-direction, media/image-jpx, layout/print-spot-colours, layout/print-dual-pdfa2b-pdfx4, fonts/scripts-32). The 27 base-14-only samples (invoice, report, structure/*, forms/*, charts/charts, agent/*, quality/*, media/*, table/*, text/typography, text/nested-lists, layout/*) keep their 1.3.0 hashes untouched: engine 1.9.0 is byte-identical for documents that embed no font and carry no right-to-left or shaped text.",
   "creationDate": "2026-01-01T00:00:00.000Z",
   "timezone": "UTC",
   "entries": {
@@ -25,9 +25,9 @@
     },
     "charts/charts-v2.pdf": {
       "mode": "bytes",
-      "hash": "3a2a023512f60843eeb2ebdf4116e5ebdee85b4a76c9776f22ca7b828f29c45f",
-      "size": 26432,
-      "since": "1.3.0"
+      "hash": "edec0e21b37e070823fc460f4415c20052282ab28bf57b06eb11d548134e145a",
+      "size": 29510,
+      "since": "1.4.0"
     },
     "charts/charts.pdf": {
       "mode": "bytes",
@@ -43,21 +43,21 @@
     },
     "fonts/fonts-prop-sync.pdf": {
       "mode": "bytes",
-      "hash": "2f1e2203f952a4c1fd49ef69e20aadb8e563babc364251519b92b9e95b4a9ce8",
-      "size": 48994,
-      "since": "1.3.0"
+      "hash": "77952643f6d19ef05ffd3b5c9e1e187e925fe9bf54e07b925ea74274b6e6a37c",
+      "size": 13410,
+      "since": "1.4.0"
     },
     "fonts/fonts-prop.pdf": {
       "mode": "bytes",
-      "hash": "2f1e2203f952a4c1fd49ef69e20aadb8e563babc364251519b92b9e95b4a9ce8",
-      "size": 48994,
-      "since": "1.3.0"
+      "hash": "77952643f6d19ef05ffd3b5c9e1e187e925fe9bf54e07b925ea74274b6e6a37c",
+      "size": 13410,
+      "since": "1.4.0"
     },
-    "fonts/scripts-27.pdf": {
+    "fonts/scripts-32.pdf": {
       "mode": "bytes",
-      "hash": "6e11d04863585bdcbbba7fd024f8fe1f2be43adb042eb457ce8cc81a651ba057",
-      "size": 227911,
-      "since": "1.3.0"
+      "hash": "7b38d063c3fcc4cb62cd4f40cdabe33afe005a3bbdef3733a63e8e3b51e97df2",
+      "size": 102644,
+      "since": "1.4.0"
     },
     "forms/form-fields.pdf": {
       "mode": "bytes",
@@ -73,9 +73,9 @@
     },
     "layout/cmyk.pdf": {
       "mode": "bytes",
-      "hash": "128f44fd275ea07d102655982ecbecbbf27ac442e2e5a18f2a6a9d056c3f81d7",
-      "size": 10244,
-      "since": "1.3.0"
+      "hash": "b3aa36b5e26f331892f4e8e4720db1086ff40ec4cf89b294dc4f2b042fb7cdea",
+      "size": 10297,
+      "since": "1.4.0"
     },
     "layout/debug-overlay.pdf": {
       "mode": "bytes",
@@ -85,21 +85,33 @@
     },
     "layout/page-setup.pdf": {
       "mode": "bytes",
-      "hash": "c3f7b9692b226f42f12b5db7229ccec7a8ac48462c070739b1788763bebf5be4",
-      "size": 117331,
-      "since": "1.3.0"
+      "hash": "015e932a8f39cc27eff5a48ad06cfa82aa3092fffb7ba4e92c53531ea3f9c904",
+      "size": 13389,
+      "since": "1.4.0"
+    },
+    "layout/print-dual-pdfa2b-pdfx4.pdf": {
+      "mode": "bytes",
+      "hash": "64c816980dd981ee8b51e21b840bc8a7bcb38d912e85f7b96685566f032096be",
+      "size": 33059,
+      "since": "1.4.0"
     },
     "layout/print-pdfx4.pdf": {
       "mode": "bytes",
-      "hash": "c5776ba7d2128b3e48fa3b7ff8f5ed7a1d0200b17c7803455ff918d860cb04a1",
-      "size": 130476,
-      "since": "1.3.0"
+      "hash": "48fbcc4da8430f67dbc1ca26eb3d7da78aff44660ace080ba942dbe18687f260",
+      "size": 26598,
+      "since": "1.4.0"
     },
     "layout/print-production.pdf": {
       "mode": "bytes",
       "hash": "81c641d47e63ba7171fd406ebdb4e347ba1f8387949fa8134df31a06c71297a5",
       "size": 6583,
       "since": "1.3.0"
+    },
+    "layout/print-spot-colours.pdf": {
+      "mode": "bytes",
+      "hash": "66c8477d0b4972e05a4fb220b85344dbcc5a0fe764f3c246aa801dfa9377af1e",
+      "size": 33524,
+      "since": "1.4.0"
     },
     "layout/viewer-preferences.pdf": {
       "mode": "bytes",
@@ -109,15 +121,21 @@
     },
     "layout/watermark-header-footer.pdf": {
       "mode": "bytes",
-      "hash": "a20bc8dabddd5813e4870138286e7a4f2a8b2bfa3975eef5c869bac36508b28f",
-      "size": 133852,
-      "since": "1.3.0"
+      "hash": "aaa7b14f8700beb53e3e6ff02b9fd64601cd212672af0cf096a60edec48f7314",
+      "size": 31054,
+      "since": "1.4.0"
     },
     "media/barcode.pdf": {
       "mode": "bytes",
       "hash": "243cbe3c71dce28e89b0413a5d565112928001b28ae83607be7ed70470c2792a",
       "size": 35310,
       "since": "1.3.0"
+    },
+    "media/image-jpx.pdf": {
+      "mode": "bytes",
+      "hash": "bfee55e8912f5cef8a151c1ce315f9d7d224c66ece465645b5c482237e4ad314",
+      "size": 5803,
+      "since": "1.4.0"
     },
     "media/image.pdf": {
       "mode": "bytes",
@@ -205,9 +223,9 @@
     },
     "text/math.pdf": {
       "mode": "bytes",
-      "hash": "57a9a2b4797317d9a91a9e51e870ff1b654ab57405068198174d394e95ac7dfd",
-      "size": 143247,
-      "since": "1.3.0"
+      "hash": "c6838b5d9cf90cf4765b90272322937578cd35161cff14390c98d0f89d958a95",
+      "size": 21834,
+      "since": "1.4.0"
     },
     "text/nested-lists.pdf": {
       "mode": "bytes",
@@ -215,17 +233,23 @@
       "size": 5777,
       "since": "1.3.0"
     },
+    "text/rtl-direction.pdf": {
+      "mode": "bytes",
+      "hash": "640bb3ad86c7d509591dc446942452fb92463d9c19d7991363b2a8225c896231",
+      "size": 48705,
+      "since": "1.4.0"
+    },
     "text/typography-engine.pdf": {
       "mode": "bytes",
-      "hash": "9c1213798ef37400799bd0b0c3b7ba188489b5747899bb4e11d071328f46c29e",
-      "size": 152734,
-      "since": "1.3.0"
+      "hash": "6642f06036bf218059c68fb618953bba1116765a9de463ac1e25526289342183",
+      "size": 49314,
+      "since": "1.4.0"
     },
     "text/typography-french.pdf": {
       "mode": "bytes",
-      "hash": "b9c1c132086f320d593171a0ae05377a95b7119829a9d758965b15a66b00b1e6",
-      "size": 121764,
-      "since": "1.3.0"
+      "hash": "d9830b6c9a79d608404a23e4f16213bc68fea3d6f39715eea88142a62f046a42",
+      "size": 18116,
+      "since": "1.4.0"
     },
     "text/typography.pdf": {
       "mode": "bytes",

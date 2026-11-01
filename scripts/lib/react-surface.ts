@@ -23,8 +23,24 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { CORPUS, claimOf } from './pdfa-corpus.js';
+import { CORPUS, claimsPdfA, claimsPdfX } from './pdfa-corpus.js';
 import { MODULE_SAMPLES, SAMPLE_PLAN } from './sample-plan.js';
+
+/**
+ * Files whose `Verified on YYYY-MM-DD` stamp must equal the manifest's
+ * `verifiedOn` (`verify:docs` rule `verified-on-parity`) and that
+ * `release-prepare --date` restamps. One list for both, so a guide that gains
+ * a stamp is held to the manifest from the release it appears in — the 1.4.0
+ * audit found three guides stamped by hand and watched by nothing.
+ */
+export const STAMPED_FILES: readonly string[] = [
+    'llms.txt',
+    'docs/KNOWLEDGE_BASE.md',
+    'docs/AGENT_CONTRACT.md',
+    'docs/PRINT.md',
+    'docs/REPRODUCIBLE.md',
+    'docs/TYPOGRAPHY.md',
+];
 
 // ── Pure parsers over src/registry.ts ────────────────────────────────
 
@@ -327,7 +343,7 @@ export function computeDerived(root: string): DerivedCounts {
         sampleFiles: SAMPLE_PLAN.length + MODULE_SAMPLES.length,
         samples: baselineEntryCount(root),
         corpusFiles: CORPUS.length,
-        pdfaSamples: CORPUS.filter((e) => claimOf(e) === 'pdfa').length,
-        pdfxSamples: CORPUS.filter((e) => claimOf(e) === 'pdfx').length,
+        pdfaSamples: CORPUS.filter(claimsPdfA).length,
+        pdfxSamples: CORPUS.filter(claimsPdfX).length,
     };
 }

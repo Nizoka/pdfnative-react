@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Condensed, editor-agnostic guidance for AI coding agents working **on** pdfnative-react (Cursor, Aider, Claude Code, Copilot, Continue, Zed, Cline, Windsurf, Goose, Gemini CLI, …).
+Condensed, editor-agnostic guidance for AI coding agents working **on** pdfnative-react (Cursor, Aider, Claude Code, Copilot, Continue, Zed, Cline, Windsurf, …).
 Canonical detail: [.github/copilot-instructions.md](.github/copilot-instructions.md) + [.github/instructions/](.github/instructions/) + [docs/KNOWLEDGE_BASE.md](docs/KNOWLEDGE_BASE.md).
 Claude Code loads [CLAUDE.md](CLAUDE.md), which imports this file. Keep the three consistent.
 Agents that **use** the package read [docs/AGENT_CONTRACT.md](docs/AGENT_CONTRACT.md) (the loop, the dry-run tiers, the DocSpec grammar, the error codes) instead.
@@ -8,7 +8,7 @@ Agents that **use** the package read [docs/AGENT_CONTRACT.md](docs/AGENT_CONTRAC
 ## Mission and constraints
 
 pdfnative-react is the official React renderer of the pdfnative engine: JSX → react-reconciler → `DocumentParams` → PDF bytes, plus a token-frugal `DocSpec` door for agents.
-19 components, 14 block kinds, 18 DocSpec fields, 37 lint rules, 6 error codes; a declarative **block flow**, not a CSS engine — there is no `<View>`.
+19 components, 14 block kinds, 19 DocSpec fields, 41 lint rules, 6 error codes; a declarative **block flow**, not a CSS engine — there is no `<View>`.
 
 - **One runtime dependency.** `react-reconciler`. `pdfnative` and `react` are peers; proposing another runtime package is a hard block (`npm run verify:issue` enforces it).
 - **One bridge.** Only `src/core-bridge/index.ts` imports `pdfnative` at runtime (`src/types.ts` type-only). The scripts and the tests that check finished bytes are the documented exception.
@@ -31,11 +31,11 @@ pdfnative-react is the official React renderer of the pdfnative engine: JSX → 
 | Profile | Command | Runs |
 |---|---|---|
 | Fast — before every commit | `npm run gate:fast` | typecheck:all, lint, test, verify:docs |
-| CI — the default | `npm run gate` | fast minus `test`, plus build, dist-check, dist-probe, bundle-smoke, pack-check, test:generate, test:coverage, verify:samples, corpus:pdfa, validate:pdfx — build and samples precede the tests |
-| Publish — release branches | `npx tsx scripts/gate.ts --publish --require-all` | everything, incl. validate:pdfa (veraPDF; `--require-all` fails on a skip) |
+| CI — the default | `npm run gate` | fast minus `test`, plus build, dist-check, dist-probe, bundle-smoke, pack-check, test:generate, test:coverage, verify:samples, corpus:pdfa, validate:pdfx |
+| Publish — release branches | `npx tsx scripts/gate.ts --publish --require-all` | everything, plus compat:previous and validate:pdfa (veraPDF; `--require-all` fails on a skip) |
 
 PowerShell swallows a bare `--`, so pass flags by calling the script: `npx tsx scripts/gate.ts --fast`, `--only <step>`, `--json`.
-One suite: `npx vitest run tests/<name>.test.tsx` (dot reporter). Type-check everything with `npm run typecheck:all` (src, tests, samples, scripts, the v1.2.0 compatibility snapshot).
+One suite: `npx vitest run tests/<name>.test.tsx` (dot reporter). Type-check everything with `npm run typecheck:all` (src, tests, samples, scripts, the v1.2.0 and v1.3.0 compatibility snapshots).
 
 ## Where is what
 
@@ -69,14 +69,14 @@ Adding a block kind or a document capability touches ALL of these (`verify:docs`
 
 ## Consumer contract in brief
 
-A render succeeds with bytes or fails with a `PdfReactError` carrying one of the 6 error codes of `docs/AGENT_CONTRACT.md` §6 (`toErrorEnvelope` wraps anything thrown);
-`validateSpec`, `lintSpec` and `doctor` never throw. The JSON Schema `$id` carries the package version; `capabilityManifest()` lists every export, rule and code.
+A render succeeds with bytes or fails with a `PdfReactError` carrying one of the 6 error codes of `docs/AGENT_CONTRACT.md` §6 (`toErrorEnvelope` wraps any throw);
+`validateSpec` and `doctor` never throw; `lintSpec` never throws on a spec `validateSpec` accepts. The JSON Schema `$id` carries the package version; `capabilityManifest()` lists every export, rule and code.
 
 ## Never touch
 
-- `release-notes/v*.md` of already-shipped versions (read-only history), and `tests/regression/baselines/*.v1.2.0.json` + `tests/regression/compat/v1.2.0/` (frozen captures of the published 1.2.0 surface — never regenerated).
+- `release-notes/v*.md` of shipped versions (read-only history); `tests/regression/baselines/*.v1.{2,3}.0.json` + `tests/regression/compat/v1.{2,3}.0/` (frozen 1.2.0 and 1.3.0 captures — never regenerated).
 - `dist/`, `coverage/`, `test-output/`, `samples/output/`, `node_modules/`, `package-lock.json` (npm owns it), and the table below: regenerate, never hand-edit.
-- Any figure in `docs/assets/ecosystem.json` without running `npm run verify:docs` afterwards; the `pdfnative` peer pin without a release note and a matrix update; the coverage thresholds downwards.
+- Any figure in `docs/assets/ecosystem.json` without `npm run verify:docs` afterwards; the peer pin without a release note and a matrix update; the coverage thresholds downwards.
 
 ## Generated files
 
@@ -90,9 +90,9 @@ A render succeeds with bytes or fails with a `PdfReactError` carrying one of the
 
 ## Counts and versions
 
-19 components, 3 client components, 14 block kinds, 18 DocSpec fields, 37 lint rules, 6 error codes, 7 schema subjects, 27 Unicode scripts, 811 tests, 38 samples in the baseline, 16 corpus files.
-`docs/assets/ecosystem.json` is the source of every count and version quoted in the docs; run `npm run verify:docs` after touching any of them.
-Coverage thresholds live once in `vitest.config.ts` and are enforced by the gate. Engine: pdfnative 1.8.0 (peer `^1.8.0`); React 19; Node ≥ 22.
+19 components, 3 client components, 14 block kinds, 19 DocSpec fields, 41 lint rules, 6 error codes, 7 schema subjects, 32 Unicode scripts, 949 tests, 42 samples in the baseline, 20 corpus files.
+`docs/assets/ecosystem.json` is the source of every count and version quoted in the docs; run `npm run verify:docs` after touching one.
+Coverage thresholds live once in `vitest.config.ts` and are enforced by the gate. Engine: pdfnative 1.9.0 (peer `^1.9.0`); React 19; Node ≥ 22.
 
 ## Releasing
 
@@ -104,11 +104,11 @@ Every runtime change gets a ROADMAP.md entry, a CHANGELOG line and a line in the
 
 Human-in-the-loop, enforced: agents never push, never open PRs/issues/releases, never publish, never tag, and never add `Co-Authored-By` trailers.
 Protocol: [.github/AGENT_RULES.md](.github/AGENT_RULES.md); machine-readable policy: [.github/ai-governance.json](.github/ai-governance.json).
-Issue drafts go to `.github/drafts/` and are validated with `npm run verify:issue` (or `validateIssueDraft()`) before a human submits them.
+Issue drafts go to `.github/drafts/`, validated with `npm run verify:issue` before a human submits them.
 
 ## Ecosystem
 
-- [pdfnative](https://github.com/Nizoka/pdfnative) — the zero-dependency engine this renderer wraps; every PDF feature is upstream (`ROADMAP.md` lists what is upstream-blocked).
+- [pdfnative](https://github.com/Nizoka/pdfnative) — the zero-dependency engine this renderer wraps; every PDF feature is upstream (`ROADMAP.md` lists the upstream limits).
 - [pdfnative-cli](https://github.com/Nizoka/pdfnative-cli) — the terminal wrapper of the same engine, for pipelines and shell agents.
 - [pdfnative-mcp](https://github.com/Nizoka/pdfnative-mcp) — the Model Context Protocol server of the same engine, for MCP hosts.
 

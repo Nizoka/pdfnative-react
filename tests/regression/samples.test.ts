@@ -71,7 +71,7 @@ describe.skipIf(skip)('sample regression baseline', () => {
         const rels = samples.map(relPath).sort();
         const planned = SAMPLE_PLAN.filter((e) => e.exclude === undefined).flatMap(expectedOutputs).sort();
         expect(rels).toEqual(planned);
-        for (const sample of ['text/typography-engine.pdf', 'layout/print-pdfx4.pdf', 'layout/cmyk.pdf', 'quality/reproducible.pdf', 'fonts/scripts-27.pdf']) {
+        for (const sample of ['text/typography-engine.pdf', 'layout/print-pdfx4.pdf', 'layout/cmyk.pdf', 'quality/reproducible.pdf', 'fonts/scripts-32.pdf']) {
             expect(rels).toContain(sample);
         }
         expect(rels.length).toBeGreaterThanOrEqual(35);

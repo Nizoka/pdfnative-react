@@ -241,6 +241,9 @@ documents move once — see **Compatibility** first.
   repository's renormalisation release.
 - **fix(tests):** the obsolete `api-surface` snapshot key left by the
   describe move.
+- **fix(tests):** the `renderToResponse` fixtures pin their `creationDate` —
+  two renders launched together could straddle a second boundary on a slow
+  runner (macOS CI) and yield two ETags for one document.
 - **fix(docs):** `SECURITY.md` describes the release jobs as they are (SBOMs
   and the attestation in `attest`, the smoke test in `build`, the three-OS
   byte proof in the `os` job), states the engine-peer and type-widening rules

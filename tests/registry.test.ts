@@ -131,6 +131,8 @@ describe('DOC_SPEC_FIELDS', () => {
             'outputIntent',
             'typography',
             'creationDate',
+            // 1.4.0 (engine 1.9.0) — appended, never reordered
+            'direction',
         ]);
     });
 
@@ -226,6 +228,11 @@ describe('LINT_RULES', () => {
             'L_TYPOGRAPHY_INEFFECTIVE',
             'L_PRINT_COLOUR_BARS',
             'L_CMYK_INTENT_MISMATCH',
+            // 1.4.0 — appended, never reordered
+            'L_CHART_SERIES_COLORS',
+            'L_SPOT_UNDECLARED',
+            'L_SPOT_INK_MIX',
+            'L_PDFA_JPX_IMAGE',
         ]);
     });
 

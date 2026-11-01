@@ -38,6 +38,7 @@ import type {
     PrintOptions,
     QRErrorLevel,
     SvgRenderOptions,
+    TextDirection,
     TypographyOptions,
     WatermarkOptions,
 } from './types.js';
@@ -119,12 +120,18 @@ export interface DocumentProps {
     readonly print?: PrintOptions;
     /**
      * Emit a tagged (accessible) PDF, optionally targeting a PDF/A conformance
-     * level. `true` tags the document; `'pdfa2b'` &c. additionally enforce the
-     * matching PDF/A profile. Sugar over `layout.tagged`.
+     * level. `true` is the engine's default claim, PDF/A-2b — the same bytes
+     * as `'pdfa2b'`; the other string levels select their profile. Sugar over
+     * `layout.tagged`.
      *
      * PDF/A requires every rendering font to be embedded — pair it with
-     * `fontEntries`, and see `lintDocument` (rule `L_TAGGED_NO_FONTS`).
-     * Mutually exclusive with `pdfx`.
+     * `fontEntries`, and see `lintDocument` (rule `L_TAGGED_NO_FONTS`). The
+     * three PDF/A rules (`L_TAGGED_NO_FONTS`, `L_TAGGED_FORM_FONTS`,
+     * `L_PDFA_JPX_IMAGE`) evaluate the string levels only: name the level to
+     * get the pre-flight, or expect the engine's diagnostic instead.
+     * Combines with `pdfx="pdfx4"` at the `'pdfa2b'` and `'pdfa2u'` levels
+     * (engine ≥ 1.9.0: one file, both claims); `'pdfa1b'` and `'pdfa3b'` do
+     * not (rule `L_PDFX_TAGGED_CONFLICT`).
      */
     readonly tagged?: PdfLayoutOptions['tagged'];
     /**
@@ -138,8 +145,11 @@ export interface DocumentProps {
      * class `prtr`; pdfnative ships no press profile), `metadata.trapped` set
      * to `'True'` or `'False'` (never `'Unknown'`), embedded fonts via
      * `fontEntries`, and a TrimBox *or* an ArtBox — not both. It cannot be
-     * combined with `tagged` or `layout.encryption`; every one of those
-     * constraints is an `L_PDFX_*` lint rule before it is an engine throw.
+     * combined with `layout.encryption`, nor with `tagged` at the `'pdfa1b'`
+     * (PDF 1.4) or `'pdfa3b'` (embedded files) levels; `'pdfa2b'` and
+     * `'pdfa2u'` combine with it since engine 1.9.0 — a single file carrying
+     * both the archival and the print claim. Every one of those constraints
+     * is an `L_PDFX_*` lint rule before it is an engine throw.
      *
      * Check the bytes with the engine's `validatePdfX()` — see
      * `docs/RECIPES.md`. A `valid` result means the structural prerequisites
@@ -195,6 +205,22 @@ export interface DocumentProps {
      * is re-exported. See `docs/REPRODUCIBLE.md`.
      */
     readonly creationDate?: Date | string;
+    /**
+     * Base text direction of every paragraph (engine ≥ 1.9.0): `'auto'`
+     * detects it from the first strong character of each paragraph (UAX #9
+     * P2–P3), `'rtl'` and `'ltr'` force it. Sugar over `layout.direction`;
+     * an explicit `layout` wins, and `<Paragraph direction>` overrides it per
+     * block. Omitted, the output is byte-identical to earlier releases: the
+     * engine keeps its left-to-right default and still reorders right-to-left
+     * runs inside a line.
+     *
+     * Set `'auto'` (or `'rtl'`) for Arabic, Hebrew, Persian or Urdu
+     * documents so that a paragraph's neutral punctuation, its alignment and
+     * its wrap points follow the paragraph direction. Right-to-left runs
+     * carry their logical text as `/ActualText`, so extraction and copy-paste
+     * return the source string (opt out with `layout.actualText: false`).
+     */
+    readonly direction?: TextDirection;
     readonly children?: ReactNode;
 }
 
@@ -313,6 +339,12 @@ export interface ParagraphProps {
      * (engine ≥ 1.8.0). Unset means "follow the document setting".
      */
     readonly splittable?: boolean;
+    /**
+     * Base text direction of this paragraph (engine ≥ 1.9.0): `'auto'`,
+     * `'ltr'` or `'rtl'`, overriding `<Document direction>` for this block
+     * only. Unset means "follow the document setting".
+     */
+    readonly direction?: TextDirection;
     /** Paragraph text (alternatively provide it as children). */
     readonly text?: string;
     readonly children?: ReactNode;
@@ -452,7 +484,16 @@ export function Cell(props: CellProps): ReactElement {
 
 /** Props for {@link Image}. */
 export interface ImageProps {
-    /** Raw JPEG or PNG bytes. */
+    /**
+     * Raw image bytes: JPEG, PNG, or — with the engine ≥ 1.9.0 — JPEG 2000
+     * (a JP2 file or a raw J2K codestream), which the engine passes through
+     * as `/JPXDecode` with a `%PDF-1.5` header. The format is detected from
+     * the magic bytes. A PNG must carry no alpha channel (colour types 0, 2
+     * and 3; the engine refuses 4 and 6 with `parsePNG: …`, an `E_INPUT`
+     * envelope — flatten the transparency first). PDF/A-1 has no JPXDecode
+     * filter and PDF/A-2+ accepts 1, 3 or 4 colour channels without opacity
+     * (rule `L_PDFA_JPX_IMAGE`).
+     */
     readonly data: Uint8Array;
     /** Display width in points. */
     readonly width?: number;
@@ -464,7 +505,7 @@ export interface ImageProps {
     readonly alt?: string;
 }
 
-/** An embedded raster image (JPEG/PNG). */
+/** An embedded raster image (JPEG, PNG or JPEG 2000). */
 export function Image(props: ImageProps): ReactElement {
     return h('image', { ...props });
 }
@@ -595,6 +636,12 @@ export interface ChartProps {
      * Data series. Pie/donut take exactly one series. Series may bind to the
      * secondary axis (`yAxis: 'right'`) and carry per-point x positions
      * (`xValues`, required for `'scatter'` and positional `xAxis` types).
+     *
+     * Since engine 1.9.0 `label` is optional (an unnamed series is listed as
+     * `Series N` in the legend) and `colors` paints one colour per value on
+     * the four bar kinds (`bar`, `barH`, `stackedBar`, `stackedBarH`); its
+     * length must equal `values` (rule `L_CHART_SERIES_COLORS`), the other
+     * kinds ignore it, and the legend swatch keeps the series `color`.
      */
     readonly series: readonly ChartSeries[];
     /** Category / slice labels. Defaults to 1-based indices. */

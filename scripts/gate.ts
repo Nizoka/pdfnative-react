@@ -326,6 +326,10 @@ export const STEPS: readonly Step[] = [
         id: 'test:coverage', npmScript: 'test:coverage', profiles: ['ci', 'publish'],
         env: { GATE: '1', GATE_REQUIRE_ARTIFACTS: '1' }, note: () => joinNotes(testCount(), coverageFigure()),
     },
+    // The previous release's own suite against these sources (scripts/run-compat.ts):
+    // a publish-profile step, since it needs the previous tag fetched (never skipped —
+    // the runner exits 2 with the fetch command when the tag is absent).
+    { id: 'compat:previous', npmScript: 'compat:previous', profiles: ['publish'] },
     { id: 'verify:docs', npmScript: 'verify:docs', profiles: ['fast', 'ci', 'publish'] },
     { id: 'verify:samples', npmScript: 'verify:samples', profiles: ['ci', 'publish'] },
     { id: 'corpus:pdfa', npmScript: 'corpus:pdfa', profiles: ['ci', 'publish'] },

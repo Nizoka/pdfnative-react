@@ -9,17 +9,19 @@
  * Findings carry a stable {@link LintRuleCode}. Branch on the code, never on
  * the message: messages may be reworded in any release, codes may not.
  *
- * Twenty of the thirty-seven rules pre-empt an exception the engine raises at
- * build time — the eight `L_CHART_*` errors, `L_PRINT_BOXES`,
- * `L_VIEWER_PRINT_RANGE`, `L_ATTACHMENTS_NEED_PDFA3`, `L_TAGGED_ENCRYPTED`,
- * `L_MAX_BLOCKS_EXCEEDED`, `L_OUTPUT_INTENT_PROFILE` and the six PDF/X
- * coherence rules (`L_PDFX_TARGET`, `L_PDFX_TAGGED_CONFLICT`,
+ * Twenty-three of the forty-one rules pre-empt an exception the engine raises
+ * at build time — the nine `L_CHART_*` errors (`L_CHART_SERIES_COLORS` since
+ * 1.4.0), `L_PRINT_BOXES`, `L_VIEWER_PRINT_RANGE`, `L_ATTACHMENTS_NEED_PDFA3`,
+ * `L_TAGGED_ENCRYPTED`, `L_MAX_BLOCKS_EXCEEDED`, `L_OUTPUT_INTENT_PROFILE`,
+ * the two spot-colour rules (`L_SPOT_UNDECLARED`, `L_SPOT_INK_MIX`) and the
+ * six PDF/X coherence rules (`L_PDFX_TARGET`, `L_PDFX_TAGGED_CONFLICT`,
  * `L_PDFX_ENCRYPTED`, `L_PDFX_OUTPUT_INTENT`, `L_PDFX_TRAPPED_UNKNOWN`,
  * `L_PDFX_BOXES`) — turning a runtime throw into a finding you can act on
- * beforehand; for the PDF/X rules the finding's message *is* the engine's
- * message. Five more mirror an engine diagnostic that becomes a throw under
- * `layout.strict` (`L_TAGGED_FORM_FONTS`, `L_PDFX_NO_FONTS`,
- * `L_PDFX_ANNOTATIONS`, `L_TYPOGRAPHY_INEFFECTIVE`, `L_CMYK_INTENT_MISMATCH`),
+ * beforehand; for the PDF/X, spot-colour and series-colour rules the
+ * finding's message *is* the engine's message. Six more mirror an engine
+ * diagnostic that becomes a throw under `layout.strict`
+ * (`L_TAGGED_FORM_FONTS`, `L_PDFX_NO_FONTS`, `L_PDFX_ANNOTATIONS`,
+ * `L_TYPOGRAPHY_INEFFECTIVE`, `L_CMYK_INTENT_MISMATCH`, `L_PDFA_JPX_IMAGE`),
  * and two (`L_EMPTY_DOCUMENT`, `L_TAGGED_NO_FONTS`) catch output that renders
  * successfully but is wrong.
  *
@@ -34,6 +36,8 @@ import {
     PDF_X_CONFORMANCE_TARGETS,
     PG_H,
     PG_W,
+    detectImageFormat,
+    parseJPX,
     validatePrintOptions,
 } from './core-bridge/index.js';
 import { compileDocument, inspectDocument } from './render.js';
@@ -45,11 +49,13 @@ import {
 } from './registry.js';
 import type {
     ChartBlock,
+    ChartSeries,
     CustomOutputIntent,
     DocumentBlock,
     DocumentParams,
     PdfLayoutOptions,
     RenderOptions,
+    SpotColourDef,
     TypographyOptions,
 } from './types.js';
 
@@ -156,6 +162,11 @@ export const EMITTED_LINT_RULES: readonly LintRuleCode[] = [
     'L_TYPOGRAPHY_INEFFECTIVE',
     'L_PRINT_COLOUR_BARS',
     'L_CMYK_INTENT_MISMATCH',
+    // 1.4.0 (engine 1.9.0)
+    'L_CHART_SERIES_COLORS',
+    'L_SPOT_UNDECLARED',
+    'L_SPOT_INK_MIX',
+    'L_PDFA_JPX_IMAGE',
 ];
 
 /** The OpenType single-substitution features the engine applies (`fontFeatures`). */
@@ -182,6 +193,36 @@ function isCmykColor(value: unknown): boolean {
         && value.length === 4
         && value.every((v) => typeof v === 'number')
     );
+}
+
+/**
+ * The ink names a colour value paints with (engine ≥ 1.9.0): one for
+ * `{ spot }`, every key for `{ inks }`, none for the process forms.
+ */
+function inksOf(value: unknown): readonly string[] {
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) return [];
+    if ('spot' in value && typeof value.spot === 'string') return [value.spot];
+    if ('inks' in value && typeof value.inks === 'object' && value.inks !== null) {
+        return Object.keys(value.inks);
+    }
+    return [];
+}
+
+/**
+ * The legend text the engine gives a series: its `label`, or `Series N`
+ * (1-based) when the author gave none — optional since engine 1.9.0.
+ */
+function seriesName(s: ChartSeries, index: number): string {
+    return s.label ?? `Series ${String(index + 1)}`;
+}
+
+/** `true` when the engine's own magic-byte sniff sees a JPEG 2000 file or codestream. */
+function isJpx(data: Uint8Array): boolean {
+    try {
+        return detectImageFormat(data) === 'jpx';
+    } catch {
+        return false; // the engine's own throw at render time names the problem
+    }
 }
 
 /** The four ICC header fields the engine reads before writing an output intent. */
@@ -257,14 +298,27 @@ function lintPdfX(params: DocumentParams, out: LintFinding[]): void {
         );
     }
 
+    // Engine ≥ 1.9.0: PDF/A-2b and PDF/A-2u combine with PDF/X-4 (one file,
+    // both claims); PDF/A-1 (PDF 1.4) and PDF/A-3 (embedded files) do not,
+    // each with its own message.
     const tagged = layout?.tagged;
-    if (tagged !== undefined && tagged !== false) {
+    if (tagged === 'pdfa1b') {
         out.push(
             finding(
                 'L_PDFX_TAGGED_CONFLICT',
-                'layout.pdfx and layout.tagged cannot be combined — pdfnative writes one '
-                    + 'conformance claim per file; drop one of them',
-                { hint: 'Build the print file and the archival file as two documents.' },
+                "layout.pdfx cannot be combined with tagged: 'pdfa1b' — PDF/A-1 is PDF 1.4 "
+                    + "and PDF/X-4 is PDF 1.6; claim 'pdfa2b' or 'pdfa2u' alongside PDF/X-4",
+                { hint: "Set tagged to 'pdfa2b' or 'pdfa2u', or build the PDF/A-1b file separately." },
+            ),
+        );
+    } else if (tagged === 'pdfa3b') {
+        out.push(
+            finding(
+                'L_PDFX_TAGGED_CONFLICT',
+                "layout.pdfx cannot be combined with tagged: 'pdfa3b' — PDF/A-3 allows "
+                    + "embedded files, which PDF/X-4 forbids; claim 'pdfa2b' or 'pdfa2u' "
+                    + 'alongside PDF/X-4',
+                { hint: "Set tagged to 'pdfa2b' or 'pdfa2u'; attachments and PDF/X do not mix." },
             ),
         );
     }
@@ -487,13 +541,155 @@ function colourPositions(params: DocumentParams): [string, unknown][] {
                 break;
             case 'chart':
                 for (const c of block.colors ?? []) out.push([`${at} colors`, c]);
-                for (const s of block.series) out.push([`${at} series "${s.label}"`, s.color]);
+                block.series.forEach((s, i) => {
+                    out.push([`${at} series "${seriesName(s, i)}"`, s.color]);
+                    for (const c of s.colors ?? []) out.push([`${at} series "${seriesName(s, i)}" colors`, c]);
+                });
                 break;
             default:
                 break;
         }
     });
     return out;
+}
+
+/**
+ * The spot-colour rules (engine ≥ 1.9.0), with the engine's own messages:
+ * every ink a `{ spot }` or `{ inks }` colour names must be declared in
+ * `print.spotColours` (`spotColourResources` throws otherwise), and a mix
+ * must be well-formed — at least one ink, every tint in [0, 1], and alternates
+ * in one space (`parseColor` and `spotColourResources` throw otherwise; the
+ * tint bound applies to `{ spot, tint }` too). The declaration's own validity
+ * (empty or duplicate names, alternates out of range) is the engine's
+ * `validatePrintOptions`, delegated by `L_PRINT_BOXES`.
+ */
+function lintSpotColours(params: DocumentParams, out: LintFinding[]): void {
+    const declared = new Map<string, SpotColourDef>();
+    for (const def of params.layout?.print?.spotColours ?? []) declared.set(def.name, def);
+
+    const reported = new Set<string>();
+    const mix = (message: string, hint: string): void => {
+        out.push(finding('L_SPOT_INK_MIX', message, { hint }));
+    };
+    // The engine's `parseColor` bounds: a tint is a finite number in [0, 1].
+    const badTint = (tint: unknown): boolean =>
+        tint !== undefined && (typeof tint !== 'number' || !Number.isFinite(tint) || tint < 0 || tint > 1);
+
+    for (const [, value] of colourPositions(params)) {
+        if (typeof value !== 'object' || value === null || Array.isArray(value)) continue;
+
+        // `{ spot, tint? }` — the tint bound, with the engine's message.
+        if ('spot' in value && typeof value.spot === 'string' && 'tint' in value && badTint(value.tint)) {
+            mix(
+                `Invalid tint of spot colour '${value.spot}': ${JSON.stringify(value.tint)}. Expected a tint between 0 and 1.`,
+                'Use a tint between 0 (none) and 1 (solid), or omit it.',
+            );
+        }
+
+        // `{ inks }` — an empty mix and every tint, before the declarations.
+        const mixture = 'inks' in value && typeof value.inks === 'object' && value.inks !== null
+            ? (value.inks as Readonly<Record<string, unknown>>)
+            : undefined;
+        if (mixture !== undefined) {
+            if (Object.keys(mixture).length === 0) {
+                mix('Invalid ink mix: no inks', 'Name at least one declared ink in the mix.');
+                continue;
+            }
+            for (const [ink, tint] of Object.entries(mixture)) {
+                if (badTint(tint)) {
+                    mix(
+                        `Invalid tint of ink '${ink}': ${JSON.stringify(tint)}. Expected a tint between 0 and 1.`,
+                        'Every tint of a mix is a number between 0 and 1.',
+                    );
+                }
+            }
+        }
+
+        const inks = inksOf(value);
+        if (inks.length === 0) continue;
+        let undeclared = false;
+        for (const ink of inks) {
+            if (declared.has(ink)) continue;
+            undeclared = true;
+            if (reported.has(ink)) continue;
+            reported.add(ink);
+            out.push(
+                finding(
+                    'L_SPOT_UNDECLARED',
+                    `Spot colour '${ink}' is not declared — add { name: '${ink}', alternate: [c, m, y, k] } `
+                        + 'to layout.print.spotColours',
+                    { hint: 'Declare every ink once in print.spotColours, with its CMYK or RGB alternate.' },
+                ),
+            );
+        }
+        if (undeclared || inks.length < 2) continue;
+        const spaces = new Set(inks.map((ink) => declared.get(ink)?.alternate.length));
+        if (spaces.size > 1) {
+            mix(
+                `Ink mix ${inks.map((ink) => `'${ink}'`).join(' + ')}: every ink of a mix needs the same `
+                    + 'alternate space (all CMYK or all RGB)',
+                'Give the inks of one mix alternates in the same space.',
+            );
+        }
+    }
+}
+
+/**
+ * JPEG 2000 under a PDF/A claim (engine ≥ 1.9.0): PDF/A-1 has no JPXDecode
+ * filter at all; PDF/A-2 and later take 1, 3 or 4 colour channels and no
+ * opacity channel. The engine reports `PDFA1_JPX_IMAGE` / `PDFA_JPX_IMAGE`
+ * and throws under `layout.strict`. (veraPDF 1.30.2 checks the PDF/A-2 channel
+ * rule but not the PDF/A-1 filter rule — the diagnostic is the guard.)
+ * The channel facts come from the engine's own `parseJPX`, in a try/catch —
+ * an unparseable image is the engine's throw to make, not a lint finding.
+ */
+function lintJpxImages(params: DocumentParams, out: LintFinding[]): void {
+    const tagged = params.layout?.tagged;
+    if (tagged === undefined || tagged === false || tagged === true) return;
+    const images: [string, Uint8Array, number | undefined][] = [];
+    params.blocks.forEach((block, index) => {
+        if (block.type === 'image') images.push([`block #${String(index)}`, block.data, index]);
+    });
+    const watermark = params.layout?.watermark?.image?.data;
+    if (watermark !== undefined) images.push(['watermark.image', watermark, undefined]);
+
+    for (const [where, data, blockIndex] of images) {
+        if (!isJpx(data)) continue;
+        if (tagged === 'pdfa1b') {
+            out.push(
+                finding(
+                    'L_PDFA_JPX_IMAGE',
+                    `${where} is a JPEG 2000 image under tagged: 'pdfa1b' — PDF/A-1 is PDF 1.4, which `
+                        + 'has no JPXDecode filter (ISO 19005-1 §6.1.10); the engine reports PDFA1_JPX_IMAGE '
+                        + '(and throws under layout.strict).',
+                    { hint: "Claim 'pdfa2b' or later, or convert the image to JPEG or PNG.", blockIndex },
+                ),
+            );
+            continue;
+        }
+        let reason: string | undefined;
+        try {
+            const jpx = parseJPX(data).jpx;
+            if (jpx === undefined) continue;
+            if (jpx.channels !== 1 && jpx.channels !== 3 && jpx.channels !== 4) {
+                reason = `${String(jpx.channels)} colour channels`;
+            } else if (jpx.alpha) {
+                reason = 'an opacity channel';
+            }
+        } catch {
+            continue; // the engine's own throw at render time names the problem
+        }
+        if (reason === undefined) continue;
+        out.push(
+            finding(
+                'L_PDFA_JPX_IMAGE',
+                `${where} is a JPEG 2000 image with ${reason} under a PDF/A claim — ISO 19005-2 §6.2.8.3 `
+                    + 'requires 1, 3 or 4 colour channels and no opacity channel; the engine reports '
+                    + 'PDFA_JPX_IMAGE (and throws under layout.strict).',
+                { hint: 'Re-encode the image without the extra channels, or drop the PDF/A level.', blockIndex },
+            ),
+        );
+    }
 }
 
 /**
@@ -524,7 +720,14 @@ function lintCmykIntent(params: DocumentParams, out: LintFinding[]): void {
     }
     if (space === 'CMYK') return;
 
-    const offenders = colourPositions(params).filter(([, value]) => isCmykColor(value));
+    // A spot colour paints through its declared alternate: a CMYK alternate
+    // is DeviceCMYK content under the claim exactly like a CMYK tuple.
+    const cmykInks = new Set(
+        (layout?.print?.spotColours ?? []).filter((d) => d.alternate.length === 4).map((d) => d.name),
+    );
+    const offenders = colourPositions(params).filter(
+        ([, value]) => isCmykColor(value) || inksOf(value).some((ink) => cmykInks.has(ink)),
+    );
     if (offenders.length === 0) return;
     out.push(
         finding(
@@ -577,12 +780,12 @@ function lintChart(block: ChartBlock, index: number, out: LintFinding[]): void {
             }),
         );
     }
-    for (const s of series) {
+    for (const [i, s] of series.entries()) {
         if (s.values.length === 0) {
             out.push(
                 finding(
                     'L_CHART_EMPTY',
-                    `Chart #${index} series "${s.label}" has no values.`,
+                    `Chart #${index} series "${seriesName(s, i)}" has no values.`,
                     { blockIndex: index, hint: 'Every series needs at least one value.' },
                 ),
             );
@@ -695,13 +898,13 @@ function lintChart(block: ChartBlock, index: number, out: LintFinding[]): void {
                 ),
             );
         }
-        for (const s of series) {
+        for (const [i, s] of series.entries()) {
             if ((s.yAxis ?? 'left') !== side) continue;
             if (s.values.some((v) => v <= 0)) {
                 out.push(
                     finding(
                         'L_CHART_LOG_SCALE',
-                        `Chart #${index} series "${s.label}" has non-positive values on a log axis.`,
+                        `Chart #${index} series "${seriesName(s, i)}" has non-positive values on a log axis.`,
                         { blockIndex: index, hint: 'Log scales need strictly positive data.' },
                     ),
                 );
@@ -710,7 +913,7 @@ function lintChart(block: ChartBlock, index: number, out: LintFinding[]): void {
     }
 
     let points = 0;
-    for (const s of series) {
+    for (const [i, s] of series.entries()) {
         points += s.values.length;
 
         if (positional) {
@@ -718,7 +921,7 @@ function lintChart(block: ChartBlock, index: number, out: LintFinding[]): void {
                 out.push(
                     finding(
                         'L_CHART_X_AXIS',
-                        `Chart #${index} series "${s.label}" needs xValues for xAxis.type '${xType}'.`,
+                        `Chart #${index} series "${seriesName(s, i)}" needs xValues for xAxis.type '${xType}'.`,
                         { blockIndex: index, hint: 'Give every series one x position per value.' },
                     ),
                 );
@@ -726,7 +929,7 @@ function lintChart(block: ChartBlock, index: number, out: LintFinding[]): void {
                 out.push(
                     finding(
                         'L_CHART_X_AXIS',
-                        `Chart #${index} series "${s.label}" has ${String(s.xValues.length)} xValues `
+                        `Chart #${index} series "${seriesName(s, i)}" has ${String(s.xValues.length)} xValues `
                             + `but ${String(s.values.length)} values.`,
                         { blockIndex: index, hint: 'xValues and values must be the same length.' },
                     ),
@@ -735,7 +938,7 @@ function lintChart(block: ChartBlock, index: number, out: LintFinding[]): void {
                 out.push(
                     finding(
                         'L_CHART_X_AXIS',
-                        `Chart #${index} series "${s.label}" uses date strings — set xAxis.type to 'time'.`,
+                        `Chart #${index} series "${seriesName(s, i)}" uses date strings — set xAxis.type to 'time'.`,
                         { blockIndex: index, hint: "Only a 'time' axis parses ISO-8601 strings." },
                     ),
                 );
@@ -746,9 +949,22 @@ function lintChart(block: ChartBlock, index: number, out: LintFinding[]): void {
             out.push(
                 finding(
                     'L_CHART_CATEGORIES',
-                    `Chart #${index} series "${s.label}" has ${String(s.values.length)} values `
+                    `Chart #${index} series "${seriesName(s, i)}" has ${String(s.values.length)} values `
                         + `but there are ${String(categories.length)} categories.`,
                     { blockIndex: index, hint: 'Every series must supply one value per category.' },
+                ),
+            );
+        }
+
+        // Engine ≥ 1.9.0: one colour per value on the bar kinds; a length
+        // mismatch is a throw, with this exact message.
+        if (s.colors !== undefined && s.colors.length !== s.values.length) {
+            out.push(
+                finding(
+                    'L_CHART_SERIES_COLORS',
+                    `chart: series "${seriesName(s, i)}" colors length (${String(s.colors.length)}) `
+                        + `does not match values (${String(s.values.length)})`,
+                    { blockIndex: index, hint: 'Give exactly one colour per value, or drop colors.' },
                 ),
             );
         }
@@ -759,7 +975,7 @@ function lintChart(block: ChartBlock, index: number, out: LintFinding[]): void {
             out.push(
                 finding(
                     'L_CHART_VALUES',
-                    `Chart #${index} series "${s.label}" contains a non-finite value.`,
+                    `Chart #${index} series "${seriesName(s, i)}" contains a non-finite value.`,
                     { blockIndex: index, hint: 'Replace NaN/Infinity with a real number or 0.' },
                 ),
             );
@@ -1033,7 +1249,9 @@ function lintDocumentParams(params: DocumentParams, out: LintFinding[]): void {
 
     if (print !== undefined) lintColourBars(print, out);
 
+    lintSpotColours(params, out);
     lintCmykIntent(params, out);
+    lintJpxImages(params, out);
 
     const maxBlocks = layout?.maxBlocks ?? DEFAULT_MAX_BLOCKS;
     const blockCount = params.blocks.length;

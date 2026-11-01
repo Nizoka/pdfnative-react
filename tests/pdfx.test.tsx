@@ -95,7 +95,11 @@ describe('the PDF/X-4 round-trip', () => {
         expect(text.startsWith('%PDF-1.6')).toBe(true);
         expect(text).toContain('/GTS_PDFX');
         expect(text).toMatch(/\/Trapped\s*\/False/);
-        expect(bytes.byteLength).toBeGreaterThan(50_000); // the font really is embedded
+        // The font really is embedded — a lean, compact subset since engine
+        // 1.9.0 (tens of KB, not hundreds), under a six-letter subset tag.
+        expect(text).toContain('/FontFile2');
+        expect(text).toMatch(/\/BaseFont\s*\/[A-Z]{6}\+/);
+        expect(bytes.byteLength).toBeGreaterThan(10_000);
     });
 
     it("passes the engine's own structural PDF/X-4 validation", () => {
@@ -128,8 +132,15 @@ describe('every PDF/X coherence rule is the engine throw, one tier earlier', () 
     const cases: [string, string, React.ReactElement][] = [
         [
             'L_PDFX_TAGGED_CONFLICT',
-            'tagged + pdfx',
-            <Document pdfx="pdfx4" tagged="pdfa2b" fontEntries={fontEntries} outputIntent={CMYK} metadata={{ trapped: 'False' }}>
+            "tagged 'pdfa1b' + pdfx",
+            <Document pdfx="pdfx4" tagged="pdfa1b" fontEntries={fontEntries} outputIntent={CMYK} metadata={{ trapped: 'False' }}>
+                <Paragraph>x</Paragraph>
+            </Document>,
+        ],
+        [
+            'L_PDFX_TAGGED_CONFLICT',
+            "tagged 'pdfa3b' + pdfx",
+            <Document pdfx="pdfx4" tagged="pdfa3b" fontEntries={fontEntries} outputIntent={CMYK} metadata={{ trapped: 'False' }}>
                 <Paragraph>x</Paragraph>
             </Document>,
         ],
@@ -194,5 +205,69 @@ describe('every PDF/X coherence rule is the engine throw, one tier earlier', () 
         expect(codes).toContain('PDFX_NO_FONT_ENTRIES');
 
         expect(() => renderToBytes(node, { layout: { strict: true } })).toThrow(/PDFX_NO_FONT_ENTRIES|font/i);
+    });
+});
+
+describe('the PDF/A-2b + PDF/X-4 dual claim (engine >= 1.9.0)', () => {
+    // One file, both claims: the archival PDF/A-2b profile and the PDF/X-4
+    // print profile. Before 1.9.0 the engine refused the pair outright and
+    // `L_PDFX_TAGGED_CONFLICT` fired on any `tagged`; now only PDF/A-1
+    // (PDF 1.4) and PDF/A-3 (embedded files) are refused.
+    const dualDoc = (
+        <Document
+            title="Press sheet, archived"
+            pdfx="pdfx4"
+            tagged="pdfa2b"
+            fontEntries={fontEntries}
+            metadata={{ author: 'Acme Inc', trapped: 'False' }}
+            outputIntent={CMYK}
+            print={PRINT}
+            creationDate={PINNED}
+            layout={PAGE}
+        >
+            <Heading level={1} color={[0, 0, 0, 100]}>Press sheet, archived</Heading>
+            <Paragraph>Tagged for PDF/A-2b and trimmed for PDF/X-4, in one file.</Paragraph>
+        </Document>
+    );
+    const dualSpec: DocSpec = {
+        title: 'Press sheet, archived',
+        pdfx: 'pdfx4',
+        tagged: 'pdfa2b',
+        fontEntries,
+        metadata: { author: 'Acme Inc', trapped: 'False' },
+        outputIntent: CMYK,
+        print: PRINT,
+        creationDate: '2026-01-01T00:00:00Z',
+        layout: PAGE,
+        blocks: [
+            ['h1', 'Press sheet, archived', { color: [0, 0, 0, 100] }],
+            ['p', 'Tagged for PDF/A-2b and trimmed for PDF/X-4, in one file.'],
+        ],
+    };
+    const bytes = renderToBytes(dualDoc);
+
+    it('lints clean — no L_PDFX_TAGGED_CONFLICT', () => {
+        expect(lintDocument(dualDoc).findings).toEqual([]);
+    });
+
+    it('carries both XMP identifications and passes validatePdfX', () => {
+        const text = latin1(bytes);
+        expect(text).toContain('pdfaid:part');
+        expect(text).toContain('pdfxid:GTS_PDFXVersion');
+        expect(text).toContain('/GTS_PDFX');
+        expect(text).toContain('/StructTreeRoot');
+        const result = validatePdfX(bytes);
+        expect(result.errors).toEqual([]);
+        expect(result.valid).toBe(true);
+    });
+
+    it('renders to the same bytes through the DocSpec door', () => {
+        expect(latin1(renderSpecToBytes(dualSpec))).toBe(latin1(bytes));
+    });
+
+    it("'pdfa2u' combines as well", () => {
+        const text = latin1(renderToBytes(dualDoc, { layout: { tagged: 'pdfa2u' } }));
+        expect(text).toContain('pdfaid:conformance');
+        expect(text).toContain('/GTS_PDFX');
     });
 });

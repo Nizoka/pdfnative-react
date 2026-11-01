@@ -27,7 +27,7 @@ Read [docs/KNOWLEDGE_BASE.md](../docs/KNOWLEDGE_BASE.md) and
   a rule in those files. Compile-time `Assert<Equals<…>>` locks mean forgetting
   to register something fails `npm run typecheck`. See the 10-step checklist in
   [AGENTS.md](../AGENTS.md).
-- **`pdfnative` is a peer dependency** (`^1.8.0`; Node ≥ 22). Never move it back
+- **`pdfnative` is a peer dependency** (`^1.9.0`; Node ≥ 22). Never move it back
   to `dependencies`. The pin, `REQUIRED_ENGINE` in `src/doctor.ts`,
   `contract.engine` in `src/manifest.ts` and `docs/assets/ecosystem.json` move
   together (`verify:docs` rule `peer-pin-parity`), with the engine-surface

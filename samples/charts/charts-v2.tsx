@@ -219,6 +219,41 @@ const doc = (
             colors={['#e15759']}
             altText="Average monthly temperature in Lyon, peaking at 23.8 °C in July and bottoming at 3.1 °C in January."
         />
+
+        <Spacer height={16} />
+
+        <Heading level={2}>Per-value colours and an unlabelled series (engine 1.9.0)</Heading>
+        <Paragraph>
+            `series.colors` paints one colour per value on the four bar kinds — its
+            length must equal `values` (rule `L_CHART_SERIES_COLORS`); the legend
+            swatch keeps the series `color`. A series without a `label` is listed
+            as `Series N`.
+        </Paragraph>
+        <Chart
+            chartType="bar"
+            series={[
+                {
+                    label: 'Status',
+                    values: [62, 23, 15],
+                    color: '#4e79a7',
+                    colors: ['#59a14f', '#f28e2b', '#e15759'], // green, amber, red
+                },
+            ]}
+            categories={['On track', 'At risk', 'Late']}
+            title="Projects by status"
+            dataLabels={{ suffix: ' %' }}
+            axis={{ yMin: 0, yMax: 100 }}
+            legend="bottom"
+            altText="Projects by status, each bar in its own colour: 62 % on track (green), 23 % at risk (amber), 15 % late (red)."
+        />
+        <Chart
+            chartType="line"
+            series={[{ values: [3, 5, 4, 6] }, { values: [2, 2, 3, 5] }]}
+            categories={QUARTERS}
+            title="Two unlabelled series"
+            legend="bottom"
+            altText="Two lines without labels, listed as Series 1 and Series 2 in the legend."
+        />
     </Document>
 );
 

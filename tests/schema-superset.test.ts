@@ -1,11 +1,14 @@
 /**
- * The DocSpec schema is a superset of its 1.2.0 self.
+ * The DocSpec schema is a superset of every shipped minor's schema.
  *
- * Two proofs. Instance-level: every fixture spec under
- * `tests/regression/fixtures/specs/` (valid 1.2.0 documents) validates under
- * the frozen 1.2.0 schema, under the current schema, and through
- * `validateSpec`. Structural: every property, enum member and block branch the
- * 1.2.0 schema described is still described, and nothing became required.
+ * Two proofs, run once per frozen capture (`CAPTURES`). Instance-level: every
+ * fixture spec under `tests/regression/fixtures/specs/` (valid 1.2.0 documents)
+ * validates under each frozen schema, under the current schema, and through
+ * `validateSpec`. Structural: every property, enum member and block branch a
+ * frozen schema described is still described, and nothing became required —
+ * the walk enters `$defs` and every `oneOf` / `anyOf` branch by position
+ * (branches are appended, never reordered), so the blocks, the colour forms,
+ * the outline items and the chart series are inside the proof, not beside it.
  *
  * The validator is `tests/helpers/json-schema-lite.ts`, which fails on any
  * keyword it does not implement — so a schema that starts relying on a new
@@ -22,9 +25,15 @@ type Schema = { readonly [key: string]: Json };
 
 const ROOT = process.cwd();
 const FIXTURES = join(ROOT, 'tests', 'regression', 'fixtures', 'specs');
-const frozen = JSON.parse(
-    readFileSync(join(ROOT, 'tests', 'regression', 'baselines', 'doc-spec.schema.v1.2.0.json'), 'utf8'),
-) as Schema;
+
+/** Every shipped minor whose schema is frozen under `tests/regression/baselines/`. */
+const CAPTURES = ['1.2.0', '1.3.0'] as const;
+
+function loadFrozen(captured: string): Schema {
+    return JSON.parse(
+        readFileSync(join(ROOT, 'tests', 'regression', 'baselines', `doc-spec.schema.v${captured}.json`), 'utf8'),
+    ) as Schema;
+}
 const current = docSpecSchema() as Schema;
 
 const fixtures = readdirSync(FIXTURES)
@@ -37,8 +46,11 @@ describe('every 1.2.0 fixture spec', () => {
         expect(fixtures.length).toBeGreaterThanOrEqual(6);
     });
 
-    it.each(fixtures)('%s validates under the frozen 1.2.0 schema', (_name, spec) => {
-        expect(validate(spec, frozen)).toEqual([]);
+    describe.each(CAPTURES)('under the frozen %s schema', (captured) => {
+        const frozen = loadFrozen(captured);
+        it.each(fixtures)('%s validates', (_name, spec) => {
+            expect(validate(spec, frozen)).toEqual([]);
+        });
     });
 
     it.each(fixtures)('%s validates under the current schema', (_name, spec) => {
@@ -96,13 +108,29 @@ function narrowings(was: Json, now: Json | undefined, at: string, out: string[])
     for (const key of ['oneOf', 'anyOf'] as const) {
         const wasList = w[key];
         const nowList = n[key];
-        if (Array.isArray(wasList) && Array.isArray(nowList) && nowList.length < wasList.length) {
-            out.push(`${at}: ${key} lost a branch`);
+        if (Array.isArray(wasList) && Array.isArray(nowList)) {
+            if (nowList.length < wasList.length) out.push(`${at}: ${key} lost a branch`);
+            // Branches are appended, never reordered: compare by position.
+            wasList.forEach((branch, i) => narrowings(branch, nowList[i], `${at}.${key}[${String(i)}]`, out));
+        }
+    }
+    // Shared definitions: a `$ref` target that narrowed narrows every site.
+    const wasDefs = w['$defs'];
+    if (wasDefs && typeof wasDefs === 'object' && !Array.isArray(wasDefs)) {
+        const nowDefs = (n['$defs'] ?? {}) as Schema;
+        for (const key of Object.keys(wasDefs)) {
+            if (!(key in nowDefs)) out.push(`${at}.$defs.${key}: definition vanished`);
+            else narrowings((wasDefs as Schema)[key], nowDefs[key], `${at}.$defs.${key}`, out);
         }
     }
 }
 
-describe('structurally, the current schema only widens the 1.2.0 one', () => {
+const branches = (s: Schema): number =>
+    (((s['$defs'] as Schema)['block'] as Schema)['oneOf'] as readonly Json[]).length;
+
+describe.each(CAPTURES)('structurally, the current schema only widens the %s one', (captured) => {
+    const frozen = loadFrozen(captured);
+
     it('keeps every property, every enum member, every block branch; nothing became required', () => {
         const out: string[] = [];
         narrowings(frozen, current, '$', out);
@@ -110,14 +138,22 @@ describe('structurally, the current schema only widens the 1.2.0 one', () => {
     });
 
     it('describes at least as many block branches', () => {
-        const branches = (s: Schema): number =>
-            (((s['$defs'] as Schema)['block'] as Schema)['oneOf'] as readonly Json[]).length;
         expect(branches(current)).toBeGreaterThanOrEqual(branches(frozen));
     });
 
     it('differs in $id only by the version', () => {
-        expect(frozen['$id']).toBe('https://pdfnative.dev/schema/react/1.2.0/doc-spec.schema.json');
+        expect(frozen['$id']).toBe(`https://pdfnative.dev/schema/react/${captured}/doc-spec.schema.json`);
         expect(current['$id']).toBe(`https://pdfnative.dev/schema/react/${version}/doc-spec.schema.json`);
         expect(current['$schema']).toBe(frozen['$schema']);
+    });
+});
+
+describe('the captures themselves form a chain', () => {
+    it('each later capture only widens the earlier one', () => {
+        for (let i = 1; i < CAPTURES.length; i += 1) {
+            const out: string[] = [];
+            narrowings(loadFrozen(CAPTURES[i - 1]), loadFrozen(CAPTURES[i]), '$', out);
+            expect(out, `${CAPTURES[i]} narrows ${CAPTURES[i - 1]}`).toEqual([]);
+        }
     });
 });

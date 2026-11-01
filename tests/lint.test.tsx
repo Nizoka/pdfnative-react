@@ -841,15 +841,30 @@ describe('PDF/X-4 rules (engine 1.8.0)', () => {
         expect(report.ok).toBe(false);
     });
 
-    it('L_PDFX_TAGGED_CONFLICT — pdfx and tagged together', () => {
-        const report = lintDocument(
-            <Document pdfx="pdfx4" tagged="pdfa2b" fontEntries={LATIN} outputIntent={CMYK_INTENT} metadata={{ trapped: 'False' }}>
-                <Paragraph>x</Paragraph>
-            </Document>,
+    it("L_PDFX_TAGGED_CONFLICT — pdfx with tagged 'pdfa1b' and 'pdfa3b' carry the engine's two messages", () => {
+        const at = (tagged: 'pdfa1b' | 'pdfa3b') =>
+            lintDocument(
+                <Document pdfx="pdfx4" tagged={tagged} fontEntries={LATIN} outputIntent={CMYK_INTENT} metadata={{ trapped: 'False' }}>
+                    <Paragraph>x</Paragraph>
+                </Document>,
+            ).findings.find((x) => x.code === 'L_PDFX_TAGGED_CONFLICT')?.message;
+        expect(at('pdfa1b')).toBe(
+            "layout.pdfx cannot be combined with tagged: 'pdfa1b' — PDF/A-1 is PDF 1.4 and PDF/X-4 is PDF 1.6; claim 'pdfa2b' or 'pdfa2u' alongside PDF/X-4",
         );
-        expect(report.findings.find((x) => x.code === 'L_PDFX_TAGGED_CONFLICT')?.message).toBe(
-            'layout.pdfx and layout.tagged cannot be combined — pdfnative writes one conformance claim per file; drop one of them',
+        expect(at('pdfa3b')).toBe(
+            "layout.pdfx cannot be combined with tagged: 'pdfa3b' — PDF/A-3 allows embedded files, which PDF/X-4 forbids; claim 'pdfa2b' or 'pdfa2u' alongside PDF/X-4",
         );
+    });
+
+    it("L_PDFX_TAGGED_CONFLICT — 'pdfa2b', 'pdfa2u' and true combine with pdfx4 (engine >= 1.9.0): clean", () => {
+        for (const tagged of ['pdfa2b', 'pdfa2u', true] as const) {
+            const report = lintDocument(
+                <Document pdfx="pdfx4" tagged={tagged} fontEntries={LATIN} outputIntent={CMYK_INTENT} metadata={{ trapped: 'False' }}>
+                    <Paragraph>x</Paragraph>
+                </Document>,
+            );
+            expect(report.findings.map((x) => x.code), String(tagged)).not.toContain('L_PDFX_TAGGED_CONFLICT');
+        }
     });
 
     it('L_PDFX_ENCRYPTED — pdfx and encryption together', () => {

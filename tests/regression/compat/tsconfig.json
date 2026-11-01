@@ -6,6 +6,6 @@
     "noUnusedLocals": false,
     "noUnusedParameters": false
   },
-  "include": ["v1.2.0/**/*.ts", "v1.2.0/**/*.tsx"],
+  "include": ["v1.2.0/**/*.ts", "v1.2.0/**/*.tsx", "v1.3.0/**/*.ts", "v1.3.0/**/*.tsx"],
   "exclude": []
 }

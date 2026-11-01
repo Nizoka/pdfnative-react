@@ -1,0 +1,79 @@
+name: Node Current
+
+# The Current Node.js line, TESTED and NOT PROMISED. SECURITY.md §Supported
+# runtimes promises Node 22 and 24. Node 26 entered Active LTS on 2026-10-28;
+# it runs here, on every push and pull request, for one release cycle before
+# joining the ci.yml matrix as a required check (ROADMAP, 1.5.0), so that it
+# arrives there with a history of green runs behind it.
+#
+# Never a required check — `.github/rulesets/main.json` names the contexts
+# that block a merge, and this is not one of them: a Current line breaks for
+# reasons that are its own, and a red here must never block a change to the
+# renderer.
+#
+# There is deliberately no `continue-on-error: true`: it blocks nothing
+# already, and a green square over a red run would hide the one thing this
+# workflow exists to show.
+#
+# The CI profile of the gate downloads nothing (veraPDF belongs to the
+# publish profile), so the egress list is the setup-node download, the
+# registry for `npm ci` and GitHub itself.
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: node-current-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  node-current:
+    name: node 26 (current, advisory)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      # A Current line is not in the runner's tool cache: setup-node downloads
+      # it from the actions/node-versions release (served from
+      # release-assets.githubusercontent.com) and falls back to nodejs.org.
+      - name: Harden the runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: block
+          allowed-endpoints: >
+            github.com:443
+            api.github.com:443
+            release-assets.githubusercontent.com:443
+            nodejs.org:443
+            registry.npmjs.org:443
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js 26
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 26
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Run the quality gate (CI profile)
+        run: npx tsx scripts/gate.ts --ci --require-all
+
+      - name: Upload the gate logs on failure
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: gate-logs-linux-node26
+          path: test-output/.gate/
+          retention-days: 7
+          if-no-files-found: ignore

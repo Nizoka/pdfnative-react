@@ -237,7 +237,7 @@ export interface DocSpec {
     readonly tagged?: DocumentProps['tagged'];
     /** Print-production page geometry (bleed/trim boxes, printer's marks, `/UserUnit`). */
     readonly print?: DocumentProps['print'];
-    /** PDF/X-4 conformance claim (`'pdfx4'`). Sugar over `layout.pdfx`; exclusive with `tagged`. */
+    /** PDF/X-4 conformance claim (`'pdfx4'`). Sugar over `layout.pdfx`; combines with `tagged` at `'pdfa2b'`/`'pdfa2u'` (engine ≥ 1.9.0). */
     readonly pdfx?: DocumentProps['pdfx'];
     /** Custom output intent (ICC profile bytes). Sugar over `layout.outputIntent`. */
     readonly outputIntent?: DocumentProps['outputIntent'];
@@ -245,6 +245,8 @@ export interface DocSpec {
     readonly typography?: DocumentProps['typography'];
     /** Pinned creation instant (ISO 8601 string in JSON, or a `Date`). Sugar over `layout.creationDate`. */
     readonly creationDate?: DocumentProps['creationDate'];
+    /** Base text direction (`'auto' | 'ltr' | 'rtl'`, engine ≥ 1.9.0). Sugar over `layout.direction`; a paragraph's `direction` opt overrides it. */
+    readonly direction?: DocumentProps['direction'];
     /** Ordered document blocks. */
     readonly blocks: readonly BlockSpec[];
 }

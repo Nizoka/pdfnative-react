@@ -4,7 +4,7 @@
 [![CI](https://github.com/Nizoka/pdfnative-react/actions/workflows/ci.yml/badge.svg)](https://github.com/Nizoka/pdfnative-react/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-blue)](https://www.typescriptlang.org/)
-[![pdfnative](https://img.shields.io/badge/pdfnative-1.8-0a7e8c.svg)](https://github.com/Nizoka/pdfnative)
+[![pdfnative](https://img.shields.io/badge/pdfnative-1.9-0a7e8c.svg)](https://github.com/Nizoka/pdfnative)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/Nizoka/pdfnative-react/badge)](https://scorecard.dev/viewer/?uri=github.com/Nizoka/pdfnative-react)
 
 Write PDFs the way you write UIs. **pdfnative-react** turns declarative JSX into
@@ -44,9 +44,19 @@ const bytes = renderToBytes(
   orphan rules, headings kept with what follows, justification with hanging
   punctuation, kerning, OpenType features, units and short words that never
   break — all opt-in. See [Typography](docs/TYPOGRAPHY.md).
-- **Print colour and PDF/X-4.** CMYK on every colour position, colour bars in
-  the bleed, CMYK and Gray output intents, and the PDF/X-4 conformance claim
-  with every constraint linted before the render. See [Print](docs/PRINT.md).
+- **Print colour and PDF/X-4.** CMYK and named spot inks (`/Separation`,
+  `/DeviceN` mixes) on every painted colour position (outline bookmarks stay
+  process RGB, as the PDF specification says), colour bars in the bleed, CMYK
+  and Gray output intents, the PDF/X-4 conformance claim — alone or combined
+  with PDF/A-2 in one file — with every constraint linted before the render.
+  See [Print](docs/PRINT.md).
+- **Right-to-left and bidirectional text.** `direction="auto" | "rtl" | "ltr"`
+  on the document or per paragraph; Arabic and Hebrew lines wrap from the
+  right under the full UAX #9 algorithm, and every right-to-left run carries
+  its logical text as `/ActualText`, so extraction returns the source string.
+- **JPEG 2000 images.** A JP2 file or a raw J2K codestream passes straight
+  through as `/JPXDecode` — never decoded, never re-encoded — in `<Image>` and
+  in watermarks, with a lint rule for the PDF/A constraints.
 - **Byte-reproducible.** Pin `creationDate` and the same document renders to
   the same bytes on every host, in every time zone — proven by the repository
   on Linux, Windows and macOS. See [Reproducible output](docs/REPRODUCIBLE.md).
@@ -61,18 +71,20 @@ const bytes = renderToBytes(
   the API and verify its own output before rendering — see the
   [agent contract](docs/AGENT_CONTRACT.md).
 - **Checks its own work.** `lintDocument` reports accessibility problems and
-  pre-empts the engine constraints that would otherwise throw mid-render — 37
+  pre-empts the engine constraints that would otherwise throw mid-render — 41
   lint rules, see [Linting](docs/LINTING.md).
 - **Validated against veraPDF and `validatePdfX`.** A PDF/A and PDF/X corpus
   covering both authoring doors is validated with the pinned veraPDF reference
   validator and the engine's PDF/X validator — locally and as a blocking gate,
   with negative canaries the validators must reject. See
   [CONTRIBUTING.md](CONTRIBUTING.md#pdfa-and-pdfx-validation).
-- **27 Unicode scripts.** Every bundled font module of the engine — Latin with
-  its tone-marked African languages, Arabic, Indic, Thai, Lao, Khmer, Myanmar,
-  Tai Tham, Cham, CJK, colour emoji and more — through one `resolveFonts` call.
+- **32 Unicode scripts.** Every bundled font module of the engine — Latin with
+  its tone-marked African languages, Arabic, Hebrew, the Indic family down to
+  Gujarati, Gurmukhi, Kannada, Malayalam and Odia, Thai, Lao, Khmer, Myanmar,
+  Tai Tham, Cham, CJK, colour emoji and more — through one `resolveFonts` call,
+  embedded as lean subsets.
 - **Typed, tested, tree-shakeable.** Strict TypeScript, dual ESM + CJS with
-  per-condition types, source maps, provenance-signed publishes, 811 tests.
+  per-condition types, source maps, provenance-signed publishes, 949 tests.
 
 ## Install
 
@@ -80,7 +92,7 @@ const bytes = renderToBytes(
 npm install pdfnative-react pdfnative react
 ```
 
-Requires **React 19**, **`pdfnative` ≥ 1.8**, and **Node.js ≥ 22** (the engine's
+Requires **React 19**, **`pdfnative` ≥ 1.9**, and **Node.js ≥ 22** (the engine's
 own floor since 1.6.0).
 
 ## Components
@@ -89,34 +101,37 @@ Every component maps 1:1 onto a pdfnative block.
 
 | Component | Renders |
 |---|---|
-| `Document` | The required root (`title`, `footerText`, `metadata`, `fontEntries`, `layout`, `outline`, `pageLabels`, `watermark`, `header`, `footer`, `attachments`, `tagged`, `print`, `pdfx`, `outputIntent`, `typography`, `creationDate`). |
+| `Document` | The required root (`title`, `footerText`, `metadata`, `fontEntries`, `layout`, `outline`, `pageLabels`, `watermark`, `header`, `footer`, `attachments`, `tagged`, `print`, `pdfx`, `outputIntent`, `typography`, `creationDate`, `direction`). |
 | `Page` | An explicit page boundary (content auto-paginates otherwise). |
 | `Section` | Sugar: a heading grouped with its content (`title`, `level`, `color`, `break`). |
 | `Heading` | A section heading (`level` 1–3, `keepWithNext`); feeds the auto `TableOfContents`. |
-| `Paragraph` / `Text` | A wrapping paragraph (`fontSize`, `lineHeight`, `align` incl. `'justify'`, `indent`, `color`, `keepWithNext`, `splittable`). |
+| `Paragraph` / `Text` | A wrapping paragraph (`fontSize`, `lineHeight`, `align` incl. `'justify'`, `indent`, `color`, `keepWithNext`, `splittable`, `direction`). |
 | `List` / `Item` | A bullet or numbered (`ordered`) list; items may nest sub-lists. |
 | `Table` / `Row` / `Cell` | A data table (`headers`/`rows` or JSX children; `cellBorders`, `cellVAlign`, `zebra`, `caption`, …). |
-| `Image` | An embedded JPEG/PNG (`data: Uint8Array`). |
+| `Image` | An embedded JPEG, PNG (no alpha channel — flatten colour types 4 and 6 first) or JPEG 2000 (`data: Uint8Array`; a JP2 file or a J2K codestream passes through as `/JPXDecode`). |
 | `Link` | A clickable hyperlink (`url`/`href`). |
 | `Spacer` | Vertical whitespace (`height`). |
 | `PageBreak` | A hard page break. |
 | `TableOfContents` / `Toc` | An auto-generated TOC built from headings. |
 | `Barcode` | QR, Code 128, EAN-13, PDF417, Data Matrix (`format`, `data`). |
 | `Svg` | Inline vector graphics (path data or markup; `<text>` renders as selectable PDF text). |
-| `Chart` | Native vector charts — bar, barH, line, pie, donut, stackedBar, stackedBarH, area, scatter; log/time scales, dual axes, data labels ([guide](docs/CHARTS.md)). |
+| `Chart` | Native vector charts — bar, barH, line, pie, donut, stackedBar, stackedBarH, area, scatter; log/time scales, dual axes, data labels, one colour per bar (`series.colors`) ([guide](docs/CHARTS.md)). |
 | `FormField` | Interactive AcroForm widgets (`fieldType`, `name`). |
 
 Every `color` prop — and chart palettes, table borders and zebra stripes,
 watermarks, headers and footers — accepts a hex string, an RGB tuple, a
-CMYK tuple in percent (`[0, 60, 100, 0]`) or a PDF operator string.
+CMYK tuple in percent (`[0, 60, 100, 0]`), a PDF operator string, or a named
+ink declared under `print.spotColours`: `{ spot: 'PANTONE 300 C', tint: 0.5 }`
+(a `/Separation`) or `{ inks: { 'PANTONE 300 C': 1, Varnish: 0.3 } }` (a
+`/DeviceN` mix).
 
 ### Document-level page furniture
 
 `watermark`, `header`, `footer`, `attachments`, `tagged`, `print`, `pdfx`,
-`outputIntent`, `typography` and `creationDate` are props on `<Document>`
-rather than components, because they are page furniture, not blocks in the
-flow. They fold into `layout` under the engine's own keys, and an explicit
-`layout` prop always wins.
+`outputIntent`, `typography`, `creationDate` and `direction` are props on
+`<Document>` rather than components, because they are page furniture, not
+blocks in the flow. They fold into `layout` under the engine's own keys, and an
+explicit `layout` prop always wins.
 
 ```tsx
 <Document
@@ -128,16 +143,24 @@ flow. They fold into `layout` under the engine's own keys, and an explicit
     print={{ bleed: 14.17, marks: { crop: true, colourBars: true } }}   // print production (engine ≥ 1.7; colour bars ≥ 1.8)
     typography={{ splitParagraphs: true, orphans: 2, widows: 2 }}       // engine ≥ 1.8
     creationDate="2026-01-01T00:00:00Z"                                 // byte-reproducible output
+    direction="auto"                                                    // engine ≥ 1.9; 'ltr' | 'rtl' force it
 />
 ```
 
 Header and footer templates resolve `{page}`, `{pages}`, `{date}` and `{title}`
 at render time (`{date}` follows a pinned `creationDate`). `print` adds
 bleed/trim/art/crop boxes, vector printer's marks, colour bars and large-format
-`userUnit`; `metadata.trapped` and the print-dialog viewer preferences
-(`duplex`, `printPageRange`, `numCopies`, `pickTrayByPDFSize` under
+`userUnit`, and declares named inks under `print.spotColours`;
+`metadata.trapped` and the print-dialog viewer preferences (`duplex`,
+`printPageRange`, `numCopies`, `pickTrayByPDFSize` under
 `layout.viewerPreferences`) complete the prepress surface — see
 [samples/layout/print-production.tsx](samples/layout/print-production.tsx).
+`tagged` and `pdfx` combine: `tagged="pdfa2b"` or `"pdfa2u"` beside
+`pdfx="pdfx4"` writes both identifications into one file (PDF/A-1 and PDF/A-3
+stay incompatible with PDF/X-4, and `L_PDFX_TAGGED_CONFLICT` says why).
+`direction` sets the base text direction of every paragraph (`'auto'` detects
+it from the first strong character; `<Paragraph direction>` overrides it per
+block); omitted, the output is byte-identical to 1.3.
 
 ### Typography
 
@@ -165,6 +188,29 @@ soft hyphens (U+00AD) are honoured and `setHyphenationProvider` accepts yours.
 Anything a font cannot deliver is a lint finding (`L_TYPOGRAPHY_INEFFECTIVE`)
 before it is an engine diagnostic. Guide: [docs/TYPOGRAPHY.md](docs/TYPOGRAPHY.md).
 
+### Right-to-left text
+
+```tsx
+const fontEntries = await resolveFonts({
+    ar: () => import('pdfnative/fonts/noto-arabic-data.js'),
+    he: () => import('pdfnative/fonts/noto-hebrew-data.js'),
+});
+
+<Document fontEntries={fontEntries} direction="auto">   // 'auto' | 'ltr' | 'rtl'
+    <Paragraph>{arabicText}</Paragraph>                 // set from the right margin
+    <Paragraph direction="ltr">{englishText}</Paragraph> // per-block override
+</Document>
+```
+
+`direction="auto"` resolves each paragraph's base direction from its first
+strong character (UAX #9 P2–P3); `'rtl'` and `'ltr'` force it. Digits,
+brackets and punctuation pair and mirror under the full bidirectional
+algorithm, and every right-to-left run carries its logical text as an
+`/ActualText` span, so `extractText` and copy-paste return the source string
+(`layout.actualText: false` opts out). Omit `direction` and the document
+renders byte-identically to 1.3. Sample:
+[samples/text/rtl-direction.tsx](samples/text/rtl-direction.tsx).
+
 ### Print colour and PDF/X-4
 
 ```tsx
@@ -183,11 +229,46 @@ before it is an engine diagnostic. Guide: [docs/TYPOGRAPHY.md](docs/TYPOGRAPHY.m
 `pdfx="pdfx4"` writes the PDF/X-4 identification, a `/GTS_PDFX` output intent,
 a TrimBox per page and `/Trapped`. Every constraint the engine enforces — an
 output intent with a printer profile, a known trapping state, embedded fonts,
-no `tagged`, no encryption, a TrimBox *or* an ArtBox — is an `L_PDFX_*` lint
-rule before it is a throw. Check the bytes with the engine's `validatePdfX()`
+no PDF/A-1 or PDF/A-3 claim beside it, no encryption, a TrimBox *or* an
+ArtBox — is an `L_PDFX_*` lint rule before it is a throw. Check the bytes with
+the engine's `validatePdfX()`
 ([recipe](docs/RECIPES.md#validate--and-see--the-output)); a `valid` result
 means the structural prerequisites hold, not that a certified preflight
 passed. Guide: [docs/PRINT.md](docs/PRINT.md).
+
+**Spot colours.** Declare the press inks once under `print.spotColours`, then
+paint with them anywhere a colour goes — headings, paragraphs, links, table
+borders and zebra stripes, chart palettes, watermarks, headers and footers:
+
+```tsx
+<Document
+    pdfx="pdfx4"
+    print={{
+        bleed: 14.17,
+        spotColours: [
+            { name: 'Brand Blue', alternate: [100, 44, 0, 0] },   // CMYK alternate, in percent
+            { name: 'Varnish', alternate: [0, 0, 0, 8] },
+        ],
+    }}
+>
+    <Heading level={1} color={{ spot: 'Brand Blue' }}>One plate of its own</Heading>
+    <Paragraph color={{ spot: 'Brand Blue', tint: 0.5 }}>A 50 % tint — a /Separation space.</Paragraph>
+    <Paragraph color={{ inks: { 'Brand Blue': 1, Varnish: 0.6 } }}>An ink mix — a /DeviceN space.</Paragraph>
+</Document>
+```
+
+An ink that is not declared is `L_SPOT_UNDECLARED`, a mix across alternate
+spaces (CMYK beside RGB) is `L_SPOT_INK_MIX`, a bad declaration is
+`L_PRINT_BOXES` — each before the engine's own throw, which arrives as
+`E_INPUT` when the linter is skipped. Sample:
+[samples/layout/print-spot-colours.tsx](samples/layout/print-spot-colours.tsx).
+
+**PDF/A-2 and PDF/X-4 in one file.** `tagged="pdfa2b"` (or `"pdfa2u"`)
+combines with `pdfx="pdfx4"`: the file carries both XMP identifications and
+passes veraPDF and `validatePdfX` alike. PDF/A-1 (PDF 1.4) and PDF/A-3
+(embedded files) remain incompatible with PDF/X-4, which is what
+`L_PDFX_TAGGED_CONFLICT` now fires on. Sample:
+[samples/layout/print-dual-pdfa2b-pdfx4.tsx](samples/layout/print-dual-pdfa2b-pdfx4.tsx).
 
 ### Reproducible output
 
@@ -339,17 +420,21 @@ prop names. Same bytes out, far fewer tokens in.
   `list`. (`docSpecSchema()` is retained and returns `schema('doc-spec')`.)
 
 Block tuples: `['h1'|'h2'|'h3', text, opts?]` (`keepWithNext`),
-`['p', text, opts?]` (`align` incl. `'justify'`, `keepWithNext`, `splittable`),
-`['ul'|'ol', items, opts?]` (items may be `{ text, items }` for nesting),
-`['table', { h?, r, cellBorders?, cellVAlign?, … }]`, `['img', { data }]`,
-`['link', text, { url }]`, `['sp', height?]`, `['br']`, `['page', blocks]`,
-`['toc', opts?]`, `['qr'|'code128'|'ean13'|'pdf417'|'datamatrix', data, opts?]`,
-`['svg', data, opts?]`, `['chart', { chartType, series, … }]`,
-`['field', { fieldType, name, … }]`. A spec also accepts the 18 top-level
+`['p', text, opts?]` (`align` incl. `'justify'`, `keepWithNext`, `splittable`,
+`direction`), `['ul'|'ol', items, opts?]` (items may be `{ text, items }` for
+nesting), `['table', { h?, r, cellBorders?, cellVAlign?, … }]`,
+`['img', { data }]` (JPEG, PNG or JPEG 2000), `['link', text, { url }]`,
+`['sp', height?]`, `['br']`, `['page', blocks]`, `['toc', opts?]`,
+`['qr'|'code128'|'ean13'|'pdf417'|'datamatrix', data, opts?]`,
+`['svg', data, opts?]`, `['chart', { chartType, series, … }]` (a series'
+`label` is optional and `colors` gives one colour per bar),
+`['field', { fieldType, name, … }]`. A spec also accepts the 19 top-level
 fields of `<Document>`: `title`, `footerText`, `metadata`, `fontEntries`,
 `layout`, `outline`, `pageLabels`, `watermark`, `header`, `footer`,
 `attachments`, `tagged`, `print`, `pdfx`, `outputIntent`, `typography`,
-`creationDate` and `blocks`.
+`creationDate`, `direction` and `blocks`. Colour values take the same forms as
+in JSX, spot inks included (`{ spot, tint? }`, `{ inks }`), declared under
+`print.spotColours`.
 
 ### Running autonomously
 
@@ -393,9 +478,13 @@ const bytes = renderToBytes(doc, { fontEntries });
 The async entry points accept the loader map directly as `options.fonts`.
 `validateFontData(data)` runs an opt-in, read-only structural check on a custom
 font module (`{ valid, errors, warnings }`) before you embed it. The engine
-bundles 27 Unicode scripts as font modules — 1.8.0 added Lao, Tai Tham, New Tai
-Lue, Tai Le and Cham, and Hausa, Yoruba, Igbo and Swahili on the Latin module —
-see [samples/fonts/scripts-27.tsx](samples/fonts/scripts-27.tsx).
+bundles 32 Unicode scripts as font modules — 1.9.0 added Gujarati (`gu`),
+Gurmukhi (`pa`), Kannada (`kn`), Malayalam (`ml`) and Odia (`or`) on the Indic
+shaping engine, after 1.8.0's Lao, Tai Tham, New Tai Lue, Tai Le and Cham —
+see [samples/fonts/scripts-32.tsx](samples/fonts/scripts-32.tsx). Since
+engine 1.9.0 every embedded font is a lean subset (a page of Noto Sans Kannada
+weighs tens of KB, not hundreds) whose `/BaseFont` carries the standard
+six-letter subset tag (`ABCDEF+NotoSans-Regular`).
 
 ### Font weight — check before shipping to a browser
 
@@ -425,7 +514,9 @@ Server-side rendering is unaffected — nothing is bundled there.
 ### Image helpers
 
 `fromBase64(base64)` and `fromUrl(url)` produce the `Uint8Array` that `<Image>`
-expects, from a base64/data-URI payload or a fetched URL respectively.
+expects, from a base64/data-URI payload or a fetched URL respectively — a JPEG,
+a PNG or a JPEG 2000 file (`.jp2`, or a raw `.j2k` codestream; see
+[samples/media/image-jpx.tsx](samples/media/image-jpx.tsx)).
 
 ## Beyond authoring: post-processing
 
@@ -435,17 +526,64 @@ digital signatures, annotations, PDF/X or PDF/UA validation, or in-app font
 compilation — use the [`pdfnative`](https://www.npmjs.com/package/pdfnative)
 engine directly on the bytes this library produces.
 
-[docs/RECIPES.md](docs/RECIPES.md) shows each of those, with working code.
+[docs/RECIPES.md](docs/RECIPES.md) shows each of those, with working code —
+including the engine 1.9.0 calls this wrapper deliberately does not re-export:
+a `{ type: 'link' }` markup annotation, an `extractText` round trip that
+bounds stream work with `onStreamError` (`PdfStreamLimitError`,
+`PDF_STREAM_LIMIT`), and `composeLtvData` for long-term-validation signatures.
+
+## Upgrading to 1.4
+
+Everything in 1.4.0 is additive. One install-time floor moved:
+
+```bash
+npm install pdfnative-react@^1.4.0 pdfnative@^1.9.0 react@^19
+```
+
+- **`pdfnative` ≥ 1.9** is now required. `layout.direction`, spot colours,
+  JPEG 2000 pass-through, the PDF/A-2 + PDF/X-4 dual claim and the five new
+  Indic font modules do not exist before 1.9.0, so an older engine would throw
+  mid-render or silently ignore the option. `doctor()` probes
+  `resolveBidiLevels` first and tells a 1.8.x engine apart from a missing one
+  (`1.8.x — this release needs >= 1.9.0`).
+- Rendering behaviour inherited from the engine, with no code change here:
+  every font-embedding document changes bytes — lean, compact font subsets
+  (a page of Noto Sans Kannada weighs tens of KB, not hundreds), one text
+  object per line, `/ActualText` spans on untagged right-to-left and
+  reordered Indic and South-East Asian runs, the full UAX #9 bidirectional
+  algorithm, deeper table rows for deep descenders, a paginated table of
+  contents, and a PDF/X refusal that names the level. Documents on base-14
+  fonts alone are byte-identical.
+- **Font names carry a subset tag.** `/BaseFont` reads
+  `ABCDEF+NotoSans-Regular` (bare under PDF/A-1); strip `^[A-Z]{6}\+` when
+  matching font names in post-processing.
+- **New diagnostics.** `TEXT_GLYPH_NOT_COVERED` reports a character no
+  registered font covers — it used to render as a box or `?` silently; it is a
+  warning on `layout.onDiagnostic` and a throw under `layout.strict`.
+  `PDFA1_JPX_IMAGE`, `PDFA_JPX_IMAGE` and `PDFA_GLYPH_WITHOUT_UNICODE` join
+  the channel (13 codes).
+
+No API was removed or narrowed — the api-surface, JSON Schema and manifest
+superset tests run against the frozen 1.2.0 *and* 1.3.0 captures, the frozen
+1.3.0 samples compile against the 1.4.0 source, and the whole 1.3.0 test
+suite is replayed against it (`npm run compat:previous`) on every push. New:
+the `direction` document prop and paragraph prop (and DocSpec field and opt),
+`print.spotColours` with the `{ spot, tint? }` and `{ inks }` colour forms on
+every painted colour position, `tagged="pdfa2b" | "pdfa2u"` beside `pdfx="pdfx4"`,
+JPEG 2000 in `<Image>` and `watermark.image`, chart series with an optional
+`label` and per-value `colors`, four lint rules (41 total), and the
+`TextDirection`, `PdfSpotColor`, `PdfInkMix` and `SpotColourDef` types.
 
 ## Upgrading to 1.3
 
 Everything in 1.3.0 is additive. One install-time floor moved:
 
 ```bash
+# verify-docs:allow engine-version-token
 npm install pdfnative-react@^1.3.0 pdfnative@^1.8.0 react@^19
 ```
 
-- **`pdfnative` ≥ 1.8** is now required. `layout.typography`, `layout.pdfx`,
+- **`pdfnative` ≥ 1.8** became required. `layout.typography`, `layout.pdfx`,
   CMYK colour operands, colour bars and `setDeflateRawImpl` do not exist before
   1.8.0, so an older engine would throw mid-render or silently write RGB.
   `doctor()` tells a 1.7.x engine apart from a missing one and says exactly
@@ -538,22 +676,34 @@ was additive — `<Section>`, nested lists, `outline`/`pageLabels` on
 ## Examples
 
 Runnable, type-checked examples live in [samples/](samples/README.md): typography,
-tables, images, links, barcodes, SVG, form fields, multi-page structure, custom
-fonts and 27 scripts, print production, CMYK and PDF/X-4, reproducible output,
-layout/PDF-A, the client hooks/components, and the compact agent spec. Every
-sample is rendered into a byte baseline that CI holds on three operating
-systems.
+right-to-left text, tables, images (JPEG 2000 included), links, barcodes, SVG,
+form fields, multi-page structure, custom fonts and 32 scripts, print
+production, CMYK, spot colours and PDF/X-4, the PDF/A-2 + PDF/X-4 dual claim,
+reproducible output, layout/PDF-A, the client hooks/components, and the compact
+agent spec. Every sample is rendered into a byte baseline that CI holds on
+three operating systems.
 
 ## Engineering
 
 One quality gate (`npm run gate`) is the definition of green: type-check of
-the sources, tests, samples, scripts and the frozen 1.2.0 samples; lint;
-build; the built artefacts probed, bundled for a browser and packed through
-publint and `@arethetypeswrong/cli`; 38 samples rendered and held to a byte
-baseline; coverage; verified documentation; a PDF/A and PDF/X conformance
-corpus validated in-process and by veraPDF. CI runs it on Linux (Node 22 and
-24), Windows and macOS; releases go through npm Trusted Publishing with a
-build-provenance attestation and a CycloneDX SBOM. Details in
+the sources, tests, samples, scripts and the frozen 1.2.0 and 1.3.0 samples;
+lint; build; the built artefacts probed, bundled for a browser and packed
+through publint and `@arethetypeswrong/cli`; 42 samples rendered and held to
+a byte baseline; coverage; verified documentation; a PDF/A and PDF/X
+conformance corpus validated in-process and by veraPDF. Zero breaking change
+is proven, not promised: the api-surface, schema and manifest supersets are
+checked against the frozen 1.2.0 and 1.3.0 captures, and the 1.3.0 test suite
+is replayed against the current sources (`npm run compat:previous`).
+fast-check property tests cover the untrusted-input surface. CI runs it on
+Linux (Node 22 and 24), Windows and macOS, with a Node 26 advisory job; seven
+required checks on three operating systems gate a merge (`ci (22)`,
+`ci (24)`, `os (windows-latest)`, `os (macos-latest)`, `compat-previous`,
+`workflow lint`, `sample-regression`), the workflows themselves are linted
+(zizmor and actionlint, SHA-256-verified), CodeQL scans the actions and the
+TypeScript, and Dependabot updates wait out a cooldown. Releases go through a
+guard → build → publish → attest pipeline with blocked egress and the npm
+client pinned by SHA-512, producing SBOMs and a build-provenance attestation
+(SLSA Build L2) through npm Trusted Publishing. Details in
 [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## The pdfnative ecosystem
@@ -564,6 +714,12 @@ build-provenance attestation and a CycloneDX SBOM. Details in
 | **`pdfnative-react`** | Declarative React/JSX components with live preview (this package). |
 | [`pdfnative-cli`](https://www.npmjs.com/package/pdfnative-cli) | Render, sign, inspect, and verify PDFs from the shell. |
 | [`pdfnative-mcp`](https://www.npmjs.com/package/pdfnative-mcp) | Generate PDFs from Claude Desktop, Cursor, Continue, Zed. |
+| [`zipnative`](https://zipnative.dev) | The sibling zero-dependency ZIP engine of the native family. |
+| [`pkinative`](https://pkinative.dev) | The sibling zero-dependency PKI engine of the native family. |
+
+The four engines share one design: no runtime dependency, one process, bytes
+in and bytes out — see the
+[native family guide](https://pdfnative.dev/guides/native-family.html).
 
 ## Documentation
 
@@ -571,15 +727,15 @@ build-provenance attestation and a CycloneDX SBOM. Details in
 
 - [Typography](docs/TYPOGRAPHY.md) — the twelve keys, block-level controls,
   presets, limits.
-- [Print](docs/PRINT.md) — CMYK, colour bars, output intents, PDF/X-4 and how
-  to check it.
+- [Print](docs/PRINT.md) — CMYK, spot colours, colour bars, output intents,
+  PDF/X-4 (alone or beside PDF/A-2) and how to check it.
 - [Reproducible output](docs/REPRODUCIBLE.md) — pinning the creation date, what
   is covered, how the repository proves it.
 - [Charts](docs/CHARTS.md) — the nine chart types, dual axes, log/time scales,
   accessibility, PDF/A.
 - [Server rendering](docs/SERVER.md) — `renderToResponse` on Next.js, Remix,
   Hono, Deno, Bun, Workers and Express.
-- [Linting](docs/LINTING.md) — the 37 lint rules, the diagnostics channel, and
+- [Linting](docs/LINTING.md) — the 41 lint rules, the diagnostics channel, and
   how to gate on them.
 - [Recipes](docs/RECIPES.md) — merging, form filling, text extraction,
   decryption, PDF/X validation: calling the engine on the bytes this library produces.

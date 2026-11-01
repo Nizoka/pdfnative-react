@@ -1,5 +1,10 @@
 version: 2
 
+# Every ecosystem waits seven days before it proposes a new version: a
+# freshly published release is the window in which a compromised maintainer
+# account or a hijacked package is still undetected (zizmor
+# dependabot-cooldown; Dependabot's own default is three days). The cooldown
+# applies to version updates only — security updates are never delayed.
 updates:
   - package-ecosystem: npm
     directory: /
@@ -7,14 +12,28 @@ updates:
       interval: weekly
       day: monday
     open-pull-requests-limit: 10
+    cooldown:
+      default-days: 7
     labels:
       - dependencies
     commit-message:
       prefix: "chore(deps):"
+    # A requirement that already admits the new version is left alone and
+    # only the lockfile moves. `react` and `react-dom` sit in both
+    # devDependencies and peerDependencies: under the default strategy a
+    # bot bump rewrote the peer range (`^19.0.0` → `^19.3.0`), which narrows
+    # the contract every consumer installs against — a breaking change
+    # (tests/version.test.ts). With increase-if-necessary the peer range can
+    # never move by itself.
+    versioning-strategy: increase-if-necessary
     ignore:
       - dependency-name: "typescript"
         update-types: ["version-update:semver-major"]
       - dependency-name: "eslint"
+        update-types: ["version-update:semver-major"]
+      # @eslint/js moves with eslint: a major of one without the other is a
+      # mismatch (eslint 10 is tracked in ROADMAP.md).
+      - dependency-name: "@eslint/js"
         update-types: ["version-update:semver-major"]
       - dependency-name: "vitest"
         update-types: ["version-update:semver-major"]
@@ -27,8 +46,19 @@ updates:
       - dependency-name: "tsx"
         update-types: ["version-update:semver-major"]
       # The reconciler is pinned to the React 19 contract (KNOWLEDGE_BASE §4):
-      # a major of react-reconciler is a reviewed change, never a bot PR.
+      # on a 0.x line the MINOR is the React binding (0.31 ↔ React 19.0,
+      # 0.34 needs React 19.3), so a minor of react-reconciler or of its
+      # types is a reviewed change, never a bot PR.
       - dependency-name: "react-reconciler"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "@types/react-reconciler"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      # React 20 is a reviewed peer change.
+      - dependency-name: "react"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "react-dom"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@types/react"
         update-types: ["version-update:semver-major"]
       # engines.node is >= 22 and .nvmrc pins 22: the type definitions follow
       # the Node line, not the newest major (rule node-pin-parity).
@@ -42,13 +72,25 @@ updates:
           - patch
 
   - package-ecosystem: github-actions
-    directory: /
+    directories:
+      - /
+      - /.github/actions/*
     schedule:
       interval: weekly
       day: monday
     open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
     labels:
       - dependencies
       - ci
     commit-message:
       prefix: "chore(ci):"
+    # One pull request for every action bump of a week. The workflows test
+    # requires each action at ONE SHA across the whole tree, so a bump that
+    # lands in some files and not others is refused anyway; grouped, the
+    # files move together.
+    groups:
+      actions:
+        patterns:
+          - "*"

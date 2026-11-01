@@ -34,8 +34,8 @@ sensitive part of the codebase.
     every existing document (`tests/layout-sugar.test.tsx` pins it).
     `creationDate` accepts a `Date` or an ISO string (`toCreationDate()`); an
     unparseable string is an `E_INPUT` `PdfReactError`, never a silent
-    fallback to the clock. `keepWithNext` / `splittable` reach a block only
-    when set.
+    fallback to the clock. `keepWithNext` / `splittable` / `direction` reach a
+    block only when set; `direction` on `<Document>` folds whole like the others.
 - `nodes.ts` defines the in-memory host tree (`ElementNode`/`TextNode`).
 
 When changing any of these, run `npm test` — the compile/render tests assert the

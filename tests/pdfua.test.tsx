@@ -77,9 +77,12 @@ describe('the PDF/UA round-trip', () => {
         const text = new TextDecoder('latin1').decode(bytes);
         expect(text.startsWith('%PDF-')).toBe(true);
         expect(text.trimEnd().endsWith('%%EOF')).toBe(true);
-        // The font really is embedded, not silently dropped — an unembedded
-        // fallback would leave the file two orders of magnitude smaller.
-        expect(bytes.byteLength).toBeGreaterThan(50_000);
+        // The font really is embedded, not silently dropped: a `/FontFile2`
+        // stream, lean and compact since engine 1.9.0 (tens of KB, not the
+        // hundreds a whole-program subset took), under a six-letter subset tag.
+        expect(text).toContain('/FontFile2');
+        expect(text).toMatch(/\/BaseFont\s*\/[A-Z]{6}\+/);
+        expect(bytes.byteLength).toBeGreaterThan(10_000);
     });
 
     it("passes the engine's own structural PDF/UA validation", () => {

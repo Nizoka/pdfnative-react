@@ -464,7 +464,7 @@ export function capabilityManifest(): CapabilityManifest {
             authoringOnly: true,
             layoutModel: 'block-flow',
             react: '^19.0.0',
-            engine: '^1.8.0',
+            engine: '^1.9.0',
             node: '>=22',
             sideEffects: 'none',
             network: 'none',

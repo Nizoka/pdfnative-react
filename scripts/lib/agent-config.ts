@@ -350,10 +350,10 @@ export function checkPrTemplateParity(template: string | null, contributing: str
 // ── eol-lf ───────────────────────────────────────────────────────────
 
 /**
- * `'fail'` since the 1.7.0 renormalisation commit (the maintainer's
+ * `'fail'` since the 1.3.0 renormalisation commit (the maintainer's
  * `git add --renormalize .` after `.gitattributes` gained `eol=lf`): a CRLF
  * or mixed blob in the index is an error, never a warning to grow used to.
- * `'warn'` was the mode while the tree still carried the pre-1.7.0 blobs.
+ * `'warn'` was the mode while the tree still carried the pre-1.3.0 blobs.
  */
 export const EOL_LF_MODE: 'warn' | 'fail' = 'fail';
 

@@ -26,7 +26,7 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 import { REPO_ROOT, parseOutputMode } from './helpers/io.js';
-import { CORPUS, OUT_DIR, claimOf, type BuiltPackage, type CorpusContext, type DocSpec } from './lib/pdfa-corpus.js';
+import { CORPUS, OUT_DIR, claimOf, claimsPdfA, claimsPdfX, type BuiltPackage, type CorpusContext, type DocSpec } from './lib/pdfa-corpus.js';
 import type { CorpusFile, CorpusManifest } from './lib/verapdf.js';
 import type { PdfDiagnostic } from '../src/index.js';
 
@@ -112,13 +112,13 @@ async function main(): Promise<number> {
             entry: entry.entry,
             bytes: bytes.byteLength,
             sha256: createHash('sha256').update(bytes).digest('hex'),
-            expectPdfAClaim: claims === 'pdfa',
+            expectPdfAClaim: claimsPdfA(entry),
             // A file that makes no claim is never validated, so it has no compliance expectation.
-            expectCompliant: claims === 'pdfa' && compliant,
-            expectPdfXClaim: claims === 'pdfx',
-            expectPdfXCompliant: claims === 'pdfx' && compliant,
+            expectCompliant: claimsPdfA(entry) && compliant,
+            expectPdfXClaim: claimsPdfX(entry),
+            expectPdfXCompliant: claimsPdfX(entry) && compliant,
         });
-        const tag = claims === 'none' ? 'no claim' : `${claims === 'pdfa' ? 'PDF/A' : 'PDF/X'}${compliant ? '' : ', NEGATIVE canary'}`;
+        const tag = claims === 'none' ? 'no claim' : `${claims === 'pdfa' ? 'PDF/A' : claims === 'pdfx' ? 'PDF/X' : 'PDF/A + PDF/X'}${compliant ? '' : ', NEGATIVE canary'}`;
         say(`  wrote  ${entry.file.padEnd(34)} ${String(bytes.byteLength).padStart(8)} B  (${entry.door}, ${tag})`);
     }
 

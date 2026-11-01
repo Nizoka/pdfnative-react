@@ -2,9 +2,9 @@ name: Dependency Review
 
 # Blocks a pull request that introduces a dependency with a known high or
 # critical vulnerability, or one under a licence outside the allow-list.
-# pdfnative-mcp has exactly three runtime dependencies (pdfnative, the MCP SDK,
-# zod), so this covers the dev toolchain and any attempt to add a fourth
-# runtime one — the project's first hard rule.
+# pdfnative-react has exactly one runtime dependency (react-reconciler;
+# pdfnative and react are peers), so this covers the dev toolchain and any
+# attempt to add a second runtime one — the project's first hard rule.
 #
 # Needs the repository's Dependency graph enabled (Settings → Code security).
 
@@ -28,10 +28,10 @@ jobs:
       - name: Harden the runner
         uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
-          egress-policy: audit
+          egress-policy: audit # 2026-10-31: the dependency-review action reaches api.github.com only; block once a run has baselined it
 
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 

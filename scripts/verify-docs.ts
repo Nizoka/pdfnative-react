@@ -54,6 +54,7 @@ import {
 } from './lib/agent-config.js';
 import { diffClaudeRules, readRuleFiles } from './build-claude-rules.js';
 import {
+    STAMPED_FILES,
     blockKinds,
     checkChangelogLadder,
     clientComponentNames,
@@ -128,8 +129,8 @@ interface Manifest {
 export const MANIFEST_REL = 'docs/assets/ecosystem.json';
 export const SELF_PACKAGE = 'pdfnative-react';
 
-/** Files whose `Verified on YYYY-MM-DD` stamp must equal the manifest's `verifiedOn`. */
-export const STAMPED_FILES: readonly string[] = ['llms.txt', 'docs/KNOWLEDGE_BASE.md', 'docs/AGENT_CONTRACT.md'];
+/** Files whose `Verified on YYYY-MM-DD` stamp must equal the manifest's `verifiedOn` (shared with release-prepare). */
+export { STAMPED_FILES } from './lib/react-surface.js';
 
 /** Every public component must be named, in backticks or as a tag, in each of these. */
 export const COMPONENT_DOCS: readonly string[] = ['README.md', 'llms.txt'];
@@ -891,6 +892,11 @@ export async function verifyDocs(root: string, options: VerifyOptions = {}): Pro
                 const withFile = [...text.matchAll(/node-version-file:\s*\.nvmrc\b/g)].length;
                 if (withFile >= uses.length) continue;
                 const matrix = /node-version:\s*\$\{\{\s*matrix\.node-version\s*\}\}/.test(text) && /node-version:\s*\[([^\]]*)\]/.exec(text);
+                // node-current.yml runs the Current line on purpose (advisory, never a
+                // required check): exempt while the line it names is NEWER than the pin —
+                // the day it is not, it has entered LTS and belongs in the ci.yml matrix.
+                const current = name === 'node-current.yml' && /node-version:\s*(\d+)\s*$/m.exec(text);
+                if (current && pinnedMajor !== null && Number(current[1]) > pinnedMajor) continue;
                 if (name === 'ci.yml' && matrix) {
                     const majors = matrix[1].split(',').map((s) => Number(s.trim().replace(/['"]/g, '')));
                     if (pinnedMajor !== null && !majors.includes(pinnedMajor)) {

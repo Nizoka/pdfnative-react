@@ -1,6 +1,6 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`API surface — 1.2.0 → current is additive > snapshots the current surface so additions are reviewed 1`] = `
+exports[`the captures themselves > snapshots the current surface so additions are reviewed 1`] = `
 {
   "client": [
     "BlobProvider",
@@ -10,7 +10,6 @@ exports[`API surface — 1.2.0 → current is additive > snapshots the current s
     "usePdfStream",
   ],
   "types": [
-    "// Engine ≥ 1.8.0: typography",
     "AiGovernancePolicy",
     "Align",
     "BarcodeFormat",
@@ -21,7 +20,6 @@ exports[`API surface — 1.2.0 → current is additive > snapshots the current s
     "BlobProviderProps",
     "BlockSpec",
     "BlockSpecKind",
-    "CMYK",
     "CapabilityManifest",
     "CellBorders",
     "CellProps",
@@ -88,8 +86,6 @@ exports[`API surface — 1.2.0 → current is additive > snapshots the current s
     "ManifestEntrypoint",
     "ManifestLintRule",
     "OutlineItem",
-    "PDF/X-4
-    TypographyOptions",
     "PDFDownloadLinkProps",
     "PDFViewerProps",
     "PageBox",
@@ -112,10 +108,12 @@ exports[`API surface — 1.2.0 → current is additive > snapshots the current s
     "PdfDiagnostic",
     "PdfDiagnosticCode",
     "PdfDiagnosticHandler",
+    "PdfInkMix",
     "PdfLayoutOptions",
     "PdfRenderState",
     "PdfResponseOptions",
     "PdfRow",
+    "PdfSpotColor",
     "PdfXConformanceTarget",
     "PrintOptions",
     "PrinterMarksOptions",
@@ -132,6 +130,7 @@ exports[`API surface — 1.2.0 → current is additive > snapshots the current s
     "SpecFinding",
     "SpecFindingSeverity",
     "SpecValidation",
+    "SpotColourDef",
     "StreamToFileResult",
     "SvgProps",
     "SvgRenderOptions",
@@ -142,8 +141,10 @@ exports[`API surface — 1.2.0 → current is additive > snapshots the current s
     "TableRowSpec",
     "TableSpec",
     "TableSpecBody",
+    "TextDirection",
     "TocSpec",
     "TocSpecOpts",
+    "TypographyOptions",
     "TypographyPropsCoverTypographyOptions",
     "UnitBindingOptions",
     "UsePdfResult",
@@ -152,7 +153,6 @@ exports[`API surface — 1.2.0 → current is additive > snapshots the current s
     "WatermarkImage",
     "WatermarkOptions",
     "WatermarkText",
-    "colour bars",
   ],
   "values": [
     "Barcode",

@@ -14,8 +14,14 @@ import {
     renderToResponse,
 } from '../src/index.js';
 
+// Pinned: two renders of the same fixture must produce the same bytes — the
+// ETag and the streamed-vs-buffered tests compare them. Without a pin, two
+// renders launched together can straddle a second boundary on a slow runner
+// (macOS CI, 2026-11-01) and differ in /CreationDate and the trailer /ID.
+const PINNED = new Date('2026-01-01T00:00:00Z');
+
 const DOC = (
-    <Document title="Invoice">
+    <Document title="Invoice" creationDate={PINNED}>
         <Heading level={1}>Invoice #1024</Heading>
         <Paragraph>Thank you for your business.</Paragraph>
     </Document>
@@ -115,7 +121,7 @@ describe('renderToResponse', () => {
 
 describe('cache validators — cacheControl and etag', () => {
     const OTHER_DOC = (
-        <Document title="Receipt">
+        <Document title="Receipt" creationDate={PINNED}>
             <Heading level={1}>Receipt #7</Heading>
             <Paragraph>Different bytes on purpose.</Paragraph>
         </Document>

@@ -15,7 +15,7 @@
  */
 
 import React from 'react';
-import { Document, Heading, Paragraph, renderToFile, resolveFonts } from '../../src/index.js';
+import { Document, Heading, Paragraph, renderToFile, resolveFonts } from '../../../../../../src/index.js';
 
 const fontEntries = await resolveFonts({
     latin: () => import('pdfnative/fonts/noto-sans-data.js'),

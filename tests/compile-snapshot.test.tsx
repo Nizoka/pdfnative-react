@@ -272,6 +272,78 @@ describe('compileDocument — golden model, 1.3.0 surface', () => {
     });
 });
 
+/**
+ * The 1.4.0 surface — engine 1.9.0: the `direction` sugar and paragraph
+ * override, spot inks declared in `print` and painted through the two colour
+ * object forms, per-value chart colours and an unlabelled series — in a
+ * third fixture, so the 1.2.0 and 1.3.0 snapshots above stay byte-identical.
+ */
+const sinceOneNine = (
+    <Document
+        title="Since 1.9.0"
+        direction="auto"
+        print={{ spotColours: [{ name: 'PANTONE 300 C', alternate: [100, 44, 0, 0] }, { name: 'Varnish', alternate: [0, 0, 0, 10] }] }}
+        creationDate={new Date('2026-01-01T00:00:00Z')}
+    >
+        <Heading level={1} color={{ spot: 'PANTONE 300 C' }}>
+            Brand blue
+        </Heading>
+        <Paragraph direction="ltr" color={{ spot: 'PANTONE 300 C', tint: 0.5 }}>
+            Forced left to right, in a tint.
+        </Paragraph>
+        <Paragraph color={{ inks: { 'PANTONE 300 C': 1, Varnish: 0.3 } }}>Blue under varnish.</Paragraph>
+        <Chart
+            chartType="bar"
+            categories={['Blue', 'Varnish']}
+            series={[
+                { label: 'Coverage', values: [100, 30], colors: [{ spot: 'PANTONE 300 C' }, { spot: 'Varnish' }] },
+                { values: [50, 50] },
+            ]}
+            altText="Ink coverage per plate"
+        />
+    </Document>
+);
+
+describe('compileDocument — golden model, 1.4.0 surface', () => {
+    it('produces a stable DocumentParams for the engine-1.9.0 props', () => {
+        expect(compileDocument(sinceOneNine)).toMatchSnapshot();
+    });
+
+    it('emits no undefined values anywhere in the model', () => {
+        const json = JSON.stringify(compileDocument(sinceOneNine), (_k, v: unknown) =>
+            v === undefined ? '__UNDEFINED__' : v,
+        );
+        expect(json).not.toContain('__UNDEFINED__');
+    });
+
+    it('compiles to the same shape from the DocSpec twin', () => {
+        const spec: DocSpec = {
+            title: 'Since 1.9.0',
+            direction: 'auto',
+            print: { spotColours: [{ name: 'PANTONE 300 C', alternate: [100, 44, 0, 0] }, { name: 'Varnish', alternate: [0, 0, 0, 10] }] },
+            creationDate: '2026-01-01T00:00:00Z',
+            blocks: [
+                ['h1', 'Brand blue', { color: { spot: 'PANTONE 300 C' } }],
+                ['p', 'Forced left to right, in a tint.', { direction: 'ltr', color: { spot: 'PANTONE 300 C', tint: 0.5 } }],
+                ['p', 'Blue under varnish.', { color: { inks: { 'PANTONE 300 C': 1, Varnish: 0.3 } } }],
+                [
+                    'chart',
+                    {
+                        chartType: 'bar',
+                        categories: ['Blue', 'Varnish'],
+                        series: [
+                            { label: 'Coverage', values: [100, 30], colors: [{ spot: 'PANTONE 300 C' }, { spot: 'Varnish' }] },
+                            { values: [50, 50] },
+                        ],
+                        altText: 'Ink coverage per plate',
+                    },
+                ],
+            ],
+        };
+        expect(compileSpec(spec)).toEqual(compileDocument(sinceOneNine));
+    });
+});
+
 describe('DocSpec parity — golden model', () => {
     it('a spec using every top-level field compiles to the same shape as JSX', () => {
         const spec: DocSpec = {

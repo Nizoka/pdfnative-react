@@ -100,9 +100,15 @@ export class PdfStructureError extends PdfReactError {
  *
  * {@link toErrorEnvelope} classifies a plain `Error` starting with one of them
  * as `E_INPUT` rather than `E_RUNTIME`, so an agent that only reads the
- * envelope can tell "fix the document" from "something broke". Every one of
- * these throws is also pre-empted by a `lintDocument` rule, which is the
- * better place to catch it.
+ * envelope can tell "fix the document" from "something broke". Most of these
+ * throws are also pre-empted by a `lintDocument` rule, which is the better
+ * place to catch them; the image parsers, the outline colour and the
+ * watermark transparency are classified here only (a schema bound or the
+ * engine's message is the guard — there is no lint tier to invent for them).
+ *
+ * A `layout.strict` escalation of a diagnostic (`pdfnative: …`) is NOT an
+ * input error by this table: it stays `E_RUNTIME`, as `docs/AGENT_CONTRACT.md`
+ * §6 states — the message names the diagnostic code and the remedy.
  */
 export const ENGINE_INPUT_ERROR_PREFIXES: readonly string[] = [
     'layout.pdfx',
@@ -113,6 +119,24 @@ export const ENGINE_INPUT_ERROR_PREFIXES: readonly string[] = [
     'outputIntent.',
     'layout.outputIntent',
     'chart:',
+    // Engine ≥ 1.9.0: an undeclared spot ink, an ink mix across alternate spaces
+    // or without inks, a tint outside 0–1, an empty ink name (`parseColor`),
+    // and a spot or ink-mix value on an outline bookmark (`rgbOperands`).
+    'Spot colour',
+    'Ink mix',
+    'Invalid ink mix',
+    'Invalid tint',
+    'Invalid spot colour',
+    'An outline colour',
+    // Malformed or unsupported image bytes (`parseImage` and its three
+    // decoders): a truncated file, an interlaced or alpha-channel PNG, an
+    // unknown format — the document carries the bytes, so the fix is there.
+    'parseImage:',
+    'parsePNG:',
+    'parseJPEG:',
+    'parseJPX:',
+    // A translucent watermark under PDF/A-1b (no transparency in PDF 1.4).
+    'Watermark transparency',
 ];
 
 /**
@@ -122,13 +146,27 @@ export const ENGINE_INPUT_ERROR_PREFIXES: readonly string[] = [
  * An engine build-time input error (see {@link ENGINE_INPUT_ERROR_PREFIXES})
  * is reported as `E_INPUT`; anything else that is not a {@link PdfReactError}
  * is `E_RUNTIME`.
+ *
+ * Total, like every agent-facing function: a thrown value with no primitive
+ * conversion (`Object.create(null)`, a hostile `{ toString: 1 }`) cannot make
+ * the envelope itself throw — it is described by its object tag instead
+ * (`tests/property-validate.test.ts`).
  */
 export function toErrorEnvelope(err: unknown): ErrorEnvelope {
     if (err instanceof PdfReactError) return err.toJSON();
-    const message = err instanceof Error ? err.message : String(err);
+    const message = err instanceof Error ? err.message : describe(err);
     const code =
         err instanceof Error && ENGINE_INPUT_ERROR_PREFIXES.some((p) => message.startsWith(p))
             ? ErrorCode.INPUT
             : ErrorCode.RUNTIME;
     return { ok: false, error: { code, message } };
+}
+
+/** `String(value)`, or the object tag when the value refuses primitive conversion. */
+function describe(value: unknown): string {
+    try {
+        return String(value);
+    } catch {
+        return Object.prototype.toString.call(value);
+    }
 }

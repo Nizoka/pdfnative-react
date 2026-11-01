@@ -34,9 +34,10 @@ export {
     setDeflateRawImpl,
     wrapZlib,
     /**
-     * Also the **capability probe** for `doctor()`: this function first
+     * Also a **capability probe** for `doctor()`: this function first
      * exists in pdfnative 1.8.0, alongside typography, CMYK and PDF/X-4. Its
-     * presence distinguishes a 1.8.x engine from a 1.7.x one.
+     * presence distinguishes a 1.8.x engine from a 1.7.x one (the 1.9.0
+     * probe is `resolveBidiLevels`).
      */
     setDefaultCreationDate,
     getDefaultCreationDate,
@@ -88,6 +89,27 @@ export {
      * actually accept — no hard-coded copy to drift. Not re-exported.
      */
     PDF_X_CONFORMANCE_TARGETS,
+    /**
+     * Imported solely as the **capability probe** for `doctor()`: this
+     * function first exists in pdfnative 1.9.0, alongside the full UAX #9
+     * bidirectional algorithm and the `direction` option the renderer
+     * surfaces. Its presence distinguishes a 1.9.x engine from a 1.8.x one.
+     *
+     * Deliberately not re-exported from the public barrel: bidi resolution
+     * is an engine internal — authors set `<Document direction>`.
+     */
+    resolveBidiLevels,
+    /**
+     * **Lint delegates** for `L_PDFA_JPX_IMAGE` (engine ≥ 1.9.0):
+     * `detectImageFormat` is the engine's own magic-byte sniff (`'jpx'` for a
+     * JP2 file or a raw codestream) and `parseJPX` its JPEG 2000 header
+     * reader, called in a try/catch so the finding names the channel count or
+     * opacity channel exactly as the engine's `PDFA_JPX_IMAGE` diagnostic
+     * will. Never re-exported — images are authored with `<Image>`, and
+     * detection and parsing are the engine's job.
+     */
+    detectImageFormat,
+    parseJPX,
 } from 'pdfnative';
 
 export type {
@@ -145,4 +167,10 @@ export type {
     PdfCmykTuple,
     PdfCmykString,
     PdfXConformanceTarget,
+    // Bidirectional text, spot colours and JPEG 2000 (engine ≥ 1.9.0)
+    TextDirection,
+    PdfSpotColor,
+    PdfInkMix,
+    SpotColourDef,
+    JpxInfo,
 } from 'pdfnative';

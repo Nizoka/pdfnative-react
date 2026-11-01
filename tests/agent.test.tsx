@@ -100,9 +100,21 @@ describe('error taxonomy', () => {
             'print.marks requires a TrimBox — set print.bleed or print.trimBox',
             'outputIntent.iccProfile is too short to be an ICC profile (128-byte header required)',
             'PDF/A and encryption are mutually exclusive (ISO 19005-1 §6.3.2)',
+            // Engine 1.9.0 colour input (`parseColor`, `rgbOperands`).
+            "Spot colour 'Brand Blue' is not declared — add { name: 'Brand Blue', alternate: [c, m, y, k] } to layout.print.spotColours",
+            'Invalid spot colour: the ink name is empty',
+            'An outline colour (/C) is a process RGB colour — a spot colour has no RGB value here',
+            // Image bytes the document carries (`parseImage` and its decoders).
+            'parsePNG: alpha channel PNGs (color type 6) are not supported — preprocess the image to remove the alpha channel before embedding',
+            'parseJPEG: not a valid JPEG (missing SOI marker)',
+            'parseJPX: truncated codestream',
+            'parseImage: unsupported image format (only JPEG, PNG and JPEG 2000 are supported)',
+            'Watermark transparency is not allowed with PDF/A-1b',
         ]) {
             expect(toErrorEnvelope(new Error(message)).error.code, message).toBe('E_INPUT');
         }
+        // A strict escalation of a diagnostic is not an input error by this table.
+        expect(toErrorEnvelope(new Error('pdfnative: TEXT_GLYPH_NOT_COVERED — no registered font covers U+2192')).error.code).toBe('E_RUNTIME');
         // A plain string carrying the same words is not an Error and stays E_RUNTIME.
         expect(toErrorEnvelope('PDF/X forbids encryption').error.code).toBe('E_RUNTIME');
     });
@@ -128,7 +140,7 @@ describe('capabilityManifest', () => {
         expect(manifest.version).toBe(barrel.version);
         expect(manifest.contract.authoringOnly).toBe(true);
         expect(manifest.contract.layoutModel).toBe('block-flow');
-        expect(manifest.contract.engine).toBe('^1.8.0');
+        expect(manifest.contract.engine).toBe('^1.9.0');
         expect(manifest.contract.network).toBe('none');
     });
 
@@ -209,12 +221,13 @@ describe('capabilityManifest', () => {
         expect(manifest.lintRules.map((r) => r.code)).toEqual([...barrel.LINT_RULE_CODES]);
     });
 
-    it('lists every top-level DocSpec field, the 1.3.0 ones last', () => {
-        expect(manifest.specFields.slice(-4)).toEqual([
+    it('lists every top-level DocSpec field, the 1.3.0 ones then the 1.4.0 one last', () => {
+        expect(manifest.specFields.slice(-5)).toEqual([
             'pdfx',
             'outputIntent',
             'typography',
             'creationDate',
+            'direction',
         ]);
         expect(manifest.specFields).toContain('blocks');
     });
@@ -251,10 +264,10 @@ describe('doctor', () => {
         expect(report.ok).toBe(true);
     });
 
-    it('detects the 1.8.0 engine through a capability probe', () => {
+    it('detects the 1.9.0 engine through a capability probe', () => {
         const engine = report.checks.find((c) => c.name === 'pdfnative');
         expect(engine?.status).toBe('ok');
-        expect(engine?.value).toBe('>= 1.8.0');
+        expect(engine?.value).toBe('>= 1.9.0');
     });
 
     it('reports the installed package version', () => {
@@ -337,6 +350,7 @@ describe('validateSpec', () => {
             footer: { right: 'y' },
             attachments: [],
             tagged: 'pdfa2b',
+            direction: 'auto',
             blocks: [],
         });
         expect(result.warnings).toEqual([]);

@@ -414,3 +414,96 @@ exports[`compileDocument — golden model, 1.3.0 surface > produces a stable Doc
   "title": "Since 1.8.0",
 }
 `;
+
+exports[`compileDocument — golden model, 1.4.0 surface > produces a stable DocumentParams for the engine-1.9.0 props 1`] = `
+{
+  "blocks": [
+    {
+      "color": {
+        "spot": "PANTONE 300 C",
+      },
+      "level": 1,
+      "text": "Brand blue",
+      "type": "heading",
+    },
+    {
+      "color": {
+        "spot": "PANTONE 300 C",
+        "tint": 0.5,
+      },
+      "direction": "ltr",
+      "text": "Forced left to right, in a tint.",
+      "type": "paragraph",
+    },
+    {
+      "color": {
+        "inks": {
+          "PANTONE 300 C": 1,
+          "Varnish": 0.3,
+        },
+      },
+      "text": "Blue under varnish.",
+      "type": "paragraph",
+    },
+    {
+      "altText": "Ink coverage per plate",
+      "categories": [
+        "Blue",
+        "Varnish",
+      ],
+      "chartType": "bar",
+      "series": [
+        {
+          "colors": [
+            {
+              "spot": "PANTONE 300 C",
+            },
+            {
+              "spot": "Varnish",
+            },
+          ],
+          "label": "Coverage",
+          "values": [
+            100,
+            30,
+          ],
+        },
+        {
+          "values": [
+            50,
+            50,
+          ],
+        },
+      ],
+      "type": "chart",
+    },
+  ],
+  "layout": {
+    "creationDate": 2026-01-01T00:00:00.000Z,
+    "direction": "auto",
+    "print": {
+      "spotColours": [
+        {
+          "alternate": [
+            100,
+            44,
+            0,
+            0,
+          ],
+          "name": "PANTONE 300 C",
+        },
+        {
+          "alternate": [
+            0,
+            0,
+            0,
+            10,
+          ],
+          "name": "Varnish",
+        },
+      ],
+    },
+  },
+  "title": "Since 1.9.0",
+}
+`;

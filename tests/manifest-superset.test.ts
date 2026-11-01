@@ -1,9 +1,9 @@
 /**
- * The capability manifest and the lint contract are supersets of their 1.2.0
- * selves.
+ * The capability manifest and the lint contract are supersets of every shipped
+ * minor's.
  *
- * `tests/regression/baselines/manifest.v1.2.0.json` is `capabilityManifest()`
- * as v1.2.0 emitted it. Every component, alias, client component, error class,
+ * `tests/regression/baselines/manifest.v<N>.json` is `capabilityManifest()` as
+ * v<N> emitted it. Every component, alias, client component, error class,
  * DocSpec block, entry point, error code, lint rule (same severity) and schema
  * subject it listed must still be there; the contract keys are unchanged
  * except for the accepted deltas. And the 1.2.0 fixture documents must lint
@@ -17,20 +17,32 @@ import { capabilityManifest, lintSpec } from '../src/index.js';
 import type { CapabilityManifest, DocSpec } from '../src/index.js';
 
 const ROOT = process.cwd();
-const was = JSON.parse(
-    readFileSync(join(ROOT, 'tests', 'regression', 'baselines', 'manifest.v1.2.0.json'), 'utf8'),
-) as CapabilityManifest;
+
+/** Every shipped minor whose manifest is frozen under `tests/regression/baselines/`. */
+const CAPTURES = ['1.2.0', '1.3.0'] as const;
+
+function loadFrozen(captured: string): CapabilityManifest {
+    return JSON.parse(
+        readFileSync(join(ROOT, 'tests', 'regression', 'baselines', `manifest.v${captured}.json`), 'utf8'),
+    ) as CapabilityManifest;
+}
 const now = capabilityManifest();
 
-/** Contract fields allowed to change between 1.2.0 and now, with their new value. */
+/**
+ * Contract fields allowed to differ from every capture, with their current
+ * value. The engine peer moves one minor at a time (1.2.0 said `^1.7.0`,
+ * 1.3.0 said `^1.8.0`); every move is declared in the release note.
+ */
 const ACCEPTED_CONTRACT_DELTAS: Readonly<Record<string, unknown>> = {
-    engine: '^1.8.0',
+    engine: '^1.9.0',
 };
 
-describe('capabilityManifest — 1.2.0 ⊆ current', () => {
-    it('is the 1.2.0 capture', () => {
-        expect(was.version).toBe('1.2.0');
-        expect(now.version).not.toBe('1.2.0');
+describe.each(CAPTURES)('capabilityManifest — %s ⊆ current', (captured) => {
+    const was = loadFrozen(captured);
+
+    it(`is the ${captured} capture`, () => {
+        expect(was.version).toBe(captured);
+        expect(now.version).not.toBe(captured);
     });
 
     it('keeps the identity fields', () => {
@@ -92,17 +104,32 @@ describe('capabilityManifest — 1.2.0 ⊆ current', () => {
     });
 });
 
-describe('lint — no new rule fires on a 1.2.0 document', () => {
-    const codes12 = new Set(was.lintRules.map((r) => r.code));
+describe('the captures themselves form a chain', () => {
+    it('each later capture keeps the earlier one’s error codes and lint rules as a prefix', () => {
+        for (let i = 1; i < CAPTURES.length; i += 1) {
+            const earlier = loadFrozen(CAPTURES[i - 1]);
+            const later = loadFrozen(CAPTURES[i]);
+            expect(later.errorCodes.slice(0, earlier.errorCodes.length)).toEqual(earlier.errorCodes);
+            expect(later.lintRules.slice(0, earlier.lintRules.length).map((r) => r.code)).toEqual(
+                earlier.lintRules.map((r) => r.code),
+            );
+            for (const c of earlier.components) expect(later.components.map((x) => x.name)).toContain(c.name);
+            for (const e of earlier.entrypoints) expect(later.entrypoints.map((x) => x.name)).toContain(e.name);
+        }
+    });
+});
+
+describe.each(CAPTURES)('lint — no rule newer than %s fires on a 1.2.0 document', (captured) => {
+    const known = new Set(loadFrozen(captured).lintRules.map((r) => r.code));
     const FIXTURES = join(ROOT, 'tests', 'regression', 'fixtures', 'specs');
     const fixtures = readdirSync(FIXTURES)
         .filter((f) => f.endsWith('.json'))
         .sort()
         .map((f) => [f, JSON.parse(readFileSync(join(FIXTURES, f), 'utf8')) as DocSpec] as const);
 
-    it.each(fixtures)('%s lints to 1.2.0 rule codes only', (_name, spec) => {
+    it.each(fixtures)(`%s lints to ${captured} rule codes only`, (_name, spec) => {
         const report = lintSpec(spec);
-        const fresh = report.findings.map((f) => f.code).filter((c) => !codes12.has(c));
+        const fresh = report.findings.map((f) => f.code).filter((c) => !known.has(c));
         expect(fresh, `new rules firing on a legacy document: ${fresh.join(', ')}`).toEqual([]);
     });
 });

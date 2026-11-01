@@ -12,14 +12,18 @@
  * thrown error under `strict: true` (before any bytes are produced). The
  * pre-render tier of the same check is `lintDocument` rule `L_TAGGED_NO_FONTS`.
  *
- * Nine codes reach the channel as of engine 1.8.0 (`PdfDiagnosticCode`, an
- * additions-only union): PDFA_NO_FONT_ENTRIES, PDFA_DEVICE_CMYK_IMAGE,
+ * Thirteen codes reach the channel as of engine 1.9.0 (`PdfDiagnosticCode`,
+ * an additions-only union): PDFA_NO_FONT_ENTRIES, PDFA_DEVICE_CMYK_IMAGE,
  * PDFA_UNEMBEDDED_FORM_FONT, PDFA_DEVICE_CMYK_CONTENT, PDFA_ICC_PROFILE_VERSION,
- * PDFX_NO_FONT_ENTRIES, PDFX_DEVICE_CMYK, PDFX_ANNOTATIONS and
- * TYPOGRAPHY_FEATURE_INEFFECTIVE. Each has a lint rule ahead of it
- * (L_TAGGED_NO_FONTS, L_CMYK_INTENT_MISMATCH, L_TAGGED_FORM_FONTS,
- * L_OUTPUT_INTENT_PROFILE, L_PDFX_NO_FONTS, L_PDFX_ANNOTATIONS,
- * L_TYPOGRAPHY_INEFFECTIVE); the last block shows the typography one.
+ * PDFX_NO_FONT_ENTRIES, PDFX_DEVICE_CMYK, PDFX_ANNOTATIONS,
+ * TYPOGRAPHY_FEATURE_INEFFECTIVE, and since 1.9.0 PDFA1_JPX_IMAGE,
+ * PDFA_JPX_IMAGE, PDFA_GLYPH_WITHOUT_UNICODE and TEXT_GLYPH_NOT_COVERED.
+ * Most have a lint rule ahead of them (L_TAGGED_NO_FONTS,
+ * L_CMYK_INTENT_MISMATCH, L_TAGGED_FORM_FONTS, L_OUTPUT_INTENT_PROFILE,
+ * L_PDFX_NO_FONTS, L_PDFX_ANNOTATIONS, L_TYPOGRAPHY_INEFFECTIVE,
+ * L_PDFA_JPX_IMAGE); the last two blocks show the typography one and the
+ * uncovered-glyph one, which has no lint tier by design: deciding which font
+ * covers a character is the engine's routing, not something to re-implement.
  */
 
 import React from 'react';
@@ -105,5 +109,22 @@ renderToBytes(
     </Document>,
 );
 console.log(`\ntypography.fontFeatures ['tnum'] on Noto Sans: ${typographyDiagnostics.map((d) => d.code).join(', ') || 'no diagnostic'}`);
+
+// 5. Engine 1.9.0: a character no registered font covers. Noto Sans has no
+//    U+2192 (→), which used to render as a box or a `?` in silence; it now
+//    reaches the channel as TEXT_GLYPH_NOT_COVERED (a warning — the bytes do
+//    not change) and throws under strict. Register a font that covers the
+//    character (Noto Sans Math here), or replace it.
+const coverageDiagnostics: PdfDiagnostic[] = [];
+renderToBytes(
+    <Document
+        title="Diagnostics (coverage)"
+        fontEntries={fontEntries}
+        layout={{ onDiagnostic: (d) => coverageDiagnostics.push(d) }}
+    >
+        <Paragraph>Input → output</Paragraph>
+    </Document>,
+);
+console.log(`\nU+2192 on Noto Sans alone: ${coverageDiagnostics.map((d) => d.code).join(', ') || 'no diagnostic'}`);
 
 console.log('\nWrote diagnostics.pdf');

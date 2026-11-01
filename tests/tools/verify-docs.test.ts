@@ -113,7 +113,16 @@ describe('verify-docs — a corrupted sandbox', () => {
             .replace(/^\| `E_POLICY` \|.*\n/m, '')
             .replace(/^(\| `E_INPUT` \|.*\n)/m, '$1| `E_INVENTED` | never |\n'));
         // A lint rule moved to the wrong section, and one row removed.
-        edit('docs/LINTING.md', (text) => text.replace(/^\| `L_IMAGE_ALT` \|.*\n/m, '').replace(/^\| `L_CHART_ALT` \|/m, '| `L_CHART_ALT` |'));
+        edit('docs/LINTING.md', (text) => {
+            // `L_CHART_ALT` is an info rule: lift its row out of the "### Info"
+            // table and file it under "### Warnings", so the severity mismatch
+            // branch of lint-rule-parity is exercised.
+            const chartRow = /^\| `L_CHART_ALT` \|.*\r?\n/m.exec(text)?.[0] ?? '';
+            return text
+                .replace(/^\| `L_IMAGE_ALT` \|.*\n/m, '')
+                .replace(chartRow, '')
+                .replace(/^(### Warnings\r?\n\r?\n\| Code \| Rule \|\r?\n\|---\|---\|\r?\n)/m, `$1${chartRow}`);
+        });
         // A rung of the compare-link ladder goes missing.
         edit('CHANGELOG.md', (text) => text.replace(/^\[1\.2\.0\]:.*\r?\n/m, ''));
         // A second runtime dependency, and a dev pin that drifts from the peer.
@@ -126,6 +135,9 @@ describe('verify-docs — a corrupted sandbox', () => {
         edit('.claude/settings.json', (text) => text.replace('"matcher": "PowerShell"', '"matcher": "Pwsh"'));
         // A rule edited by hand.
         edit('.claude/rules/testing.md', (text) => `${text}\n- Edited by hand.\n`);
+        // The advisory Current-line workflow names a line that is NOT newer than
+        // the pin: the exemption of node-pin-parity must not cover it.
+        edit('.github/workflows/node-current.yml', (text) => text.replace(/node-version: 26\s*$/m, 'node-version: 20'));
         problems = (await verifyDocs(sandbox)).problems;
     }, 120_000);
 
@@ -164,6 +176,7 @@ describe('verify-docs — a corrupted sandbox', () => {
     it('fails lint-rule-parity on a missing row, a wrong section and an invented code', () => {
         expect(messages('lint-rule-parity')).toEqual(expect.arrayContaining([
             expect.stringContaining('has no row for `L_IMAGE_ALT`'),
+            expect.stringMatching(/LINTING\.md:\d+ lists `L_CHART_ALT` under warnings but the registry says info/),
             expect.stringMatching(/README\.md:\d+ `L_NOPE` is not a rule of LINT_RULES/),
         ]));
     });
@@ -182,6 +195,14 @@ describe('verify-docs — a corrupted sandbox', () => {
             expect.stringContaining('does not list samples/text/orphan.tsx'),
         ]));
         expect(messages('peer-pin-parity')).toEqual(expect.arrayContaining([expect.stringContaining('devDependencies.pdfnative is "^1.7.0"')]));
+    });
+
+    it('fails node-pin-parity on a node-current.yml that no longer names a line newer than the pin', () => {
+        // The real tree passes: node-current.yml sets `node-version: 26` directly
+        // (no .nvmrc) and is exempt only while 26 > the pinned major.
+        expect(messages('node-pin-parity')).toEqual(expect.arrayContaining([
+            expect.stringMatching(/\.github\/workflows\/node-current\.yml:\d+ actions\/setup-node must read `node-version-file: \.nvmrc`/),
+        ]));
     });
 
     it('fails changelog-ladder on the missing rung', () => {

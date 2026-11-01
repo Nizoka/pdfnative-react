@@ -58,6 +58,8 @@ import { dirname, join, relative, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
+import { STAMPED_FILES } from './lib/react-surface.js';
+
 // ── Types ───────────────────────────────────────────────────────────
 
 /** Result of one targeted edit. `text` equals the input when nothing changed. */
@@ -358,7 +360,7 @@ export function main(argv: readonly string[], root = resolve(import.meta.dirname
 
     console.log('\n3. Ecosystem manifest and the Verified-on stamps it governs');
     edit('docs/assets/ecosystem.json', `packages.pdfnative-react.version + verifiedOn ${date}`, (t) => bumpManifest(t, version, date));
-    for (const stamped of ['llms.txt', 'docs/KNOWLEDGE_BASE.md', 'docs/AGENT_CONTRACT.md']) {
+    for (const stamped of STAMPED_FILES) {
         edit(stamped, `Verified on ${date}`, (t) => restampVerifiedOn(t, date));
     }
 

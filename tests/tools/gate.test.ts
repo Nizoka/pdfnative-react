@@ -39,17 +39,28 @@ describe('gate: step table', () => {
         expect(fast).toEqual(['typecheck:all', 'lint', 'test', 'verify:docs']);
     });
 
-    it('the ci profile runs everything except validate:pdfa; publish runs everything', () => {
+    it('the ci profile runs everything except validate:pdfa and compat:previous; publish runs everything', () => {
         const ci = STEPS.filter((s) => s.profiles.includes('ci')).map((s) => s.id);
         const publish = STEPS.filter((s) => s.profiles.includes('publish')).map((s) => s.id);
         expect(ci).not.toContain('validate:pdfa');
+        expect(ci).not.toContain('compat:previous'); // needs the previous tag, which only the publish and compat-previous jobs fetch
         expect(ci).not.toContain('test'); // coverage variant instead
         expect(publish).toEqual(STEPS.filter((s) => s.id !== 'test').map((s) => s.id));
     });
 
-    it('the only skippable step is validate:pdfa (veraPDF is external); validate:pdfx never skips', () => {
+    it('the only skippable step is validate:pdfa (veraPDF is external); validate:pdfx and compat:previous never skip', () => {
         const skippable = STEPS.filter((s) => s.skipWhen !== undefined).map((s) => s.id);
         expect(skippable).toEqual(['validate:pdfa']);
+    });
+
+    it("replays the previous release's suite in the publish profile only, after the coverage run", () => {
+        const step = STEPS.find((s) => s.id === 'compat:previous');
+        expect(step?.profiles).toEqual(['publish']);
+        expect(step?.npmScript).toBe('compat:previous');
+        expect(step?.skipWhen, 'an absent tag is exit 2 with the fetch command, never a skip').toBeUndefined();
+        expect(pkg.scripts['compat:previous']).toBe('npx tsx scripts/run-compat.ts');
+        const order = STEPS.map((s) => s.id);
+        expect(order.indexOf('compat:previous')).toBeGreaterThan(order.indexOf('test:coverage'));
     });
 
     it('builds before every step that drives dist/ — the coverage run included', () => {

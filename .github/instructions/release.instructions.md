@@ -17,6 +17,7 @@ applyTo: "release-notes/**,CHANGELOG.md,ROADMAP.md,.github/drafts/**,docs/assets
 - Include a compatibility statement, and an **Upgrade** section that declares every output change and every rebaselined sample BEFORE publication.
 - Every figure quoted (tests, coverage, components, rules, samples, corpus verdicts) comes from a command run on the release branch — never typed from memory. `docs/assets/ecosystem.json` is the single source of counts; `npm run verify:docs` holds the documents to it.
 - A new prop, DocSpec field, lint rule or error code is a change to the agent contract (`docs/AGENT_CONTRACT.md`, the JSON Schema, `capabilityManifest()`): call it out in the note.
+- Every exclusion added to `tests/regression/compat/allow-v<previous>.json` for a behaviour change names the release-note ledger entry (C<n>) that justifies it; the maintainer re-imports `.github/rulesets/main.json` whenever a required check is added.
 
 ## Publication flow
 1. `npx tsx scripts/release-prepare.ts --version X.Y.Z` — mechanical bump (package.json + lock, `src/version.ts`, `CITATION.cff`, `SECURITY.md`, manifest stamps) and scaffolds. It never moves the `pdfnative` peer pin, `REQUIRED_ENGINE` or `contract.engine`: decide those together, and extend `tests/regression/engine-surface.json` in the same change.

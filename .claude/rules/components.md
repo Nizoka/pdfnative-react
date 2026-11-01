@@ -26,10 +26,10 @@ side-effect-free factory that emits a lowercase **host tag** via the typed
   options need a registered font, which are no-ops on the bundled fonts, what
   `pdfx` refuses) — each is a lint rule before it is an engine throw.
 - Document-level sugar (`watermark`, `header`, `footer`, `attachments`,
-  `tagged`, `print`, `pdfx`, `outputIntent`, `typography`, `creationDate`) is a
+  `tagged`, `print`, `pdfx`, `outputIntent`, `typography`, `creationDate`, `direction`) is a
   `<Document>` prop folded by `resolveLayout()` — never a component. A new
   engine layout option follows the same pattern and gets a `DocSpec` twin.
-- Colour props are typed `Color` (hex, RGB tuple, CMYK tuple, operand string);
+- Colour props are typed `Color` (hex, RGB tuple, CMYK tuple, operand string, and since engine 1.9.0 the `{ spot, tint? }` and `{ inks }` object forms over inks declared in `print.spotColours`);
   `ParagraphAlign` (`Align | 'justify'`) is for paragraphs only — `Align` is
   shared by images, barcodes, SVG and charts and must stay three-valued.
 - Compile-time locks (`ChartPropsCoversChartBlock`,

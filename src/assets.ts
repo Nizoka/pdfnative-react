@@ -7,7 +7,7 @@
  */
 
 /**
- * Fetch a resource and return its bytes — e.g. a JPEG/PNG for `<Image data>`.
+ * Fetch a resource and return its bytes — e.g. a JPEG, PNG (no alpha channel) or JPEG 2000 file for `<Image data>`.
  * Works in Node (≥20) and the browser via the global `fetch`.
  *
  * @param url - The resource URL.
@@ -26,7 +26,7 @@ export async function fromUrl(url: string, init?: RequestInit): Promise<Uint8Arr
 
 /**
  * Decode a base64 string (optionally a full `data:` URI) into bytes — e.g. an
- * inline PNG for `<Image data>`. Works in Node and the browser.
+ * inline PNG without an alpha channel (or JPEG, or JPEG 2000) for `<Image data>`. Works in Node and the browser.
  *
  * @param base64 - Base64 payload, with or without a `data:*;base64,` prefix.
  */

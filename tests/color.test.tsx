@@ -33,6 +33,8 @@ describe('$defs.color', () => {
         ['RGB operands', '0.145 0.388 0.922'],
         ['CMYK tuple (percent)', [100, 60, 0, 10]],
         ['CMYK operands', '1 0.6 0 0.1'],
+        ['a spot colour (engine >= 1.9.0)', { spot: 'PANTONE 300 C', tint: 0.5 }],
+        ['an ink mix (engine >= 1.9.0)', { inks: { 'PANTONE 300 C': 1, Varnish: 0.3 } }],
     ])('accepts %s', (_label, value) => {
         expect(validate(value as Json, colorDef, schema)).toEqual([]);
     });
@@ -42,6 +44,8 @@ describe('$defs.color', () => {
         ['a five-element array', [1, 2, 3, 4, 5]],
         ['a number', 0xff0000],
         ['an object', { r: 1 }],
+        ['a spot colour with a tint above 1', { spot: 'Varnish', tint: 2 }],
+        ['an ink mix with a non-numeric tint', { inks: { Varnish: 'full' } }],
     ])('rejects %s', (_label, value) => {
         expect(validate(value as Json, colorDef, schema).length).toBeGreaterThan(0);
     });
@@ -81,9 +85,16 @@ describe('validateSpec and the compiled model', () => {
         expect(model.blocks[3]).toMatchObject({ colors: ['0 0.5 0 0', [0, 0, 50, 0]] });
     });
 
-    it('the Color type admits a four-element tuple beside the 1.2.0 forms', () => {
-        const colours: Color[] = ['#000', [0, 0, 0], '0 0 0', [0, 0, 0, 100]];
-        expect(colours).toHaveLength(4);
+    it('the Color type admits a four-element tuple and the two spot forms beside the 1.2.0 forms', () => {
+        const colours: Color[] = [
+            '#000',
+            [0, 0, 0],
+            '0 0 0',
+            [0, 0, 0, 100],
+            { spot: 'PANTONE 300 C' },
+            { inks: { 'PANTONE 300 C': 1, Varnish: 0.3 } },
+        ];
+        expect(colours).toHaveLength(6);
     });
 });
 
